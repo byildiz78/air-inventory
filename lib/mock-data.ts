@@ -48,7 +48,8 @@ export interface MockMaterial {
   consumptionUnitId: string;
   supplierId?: string;
   defaultTaxId?: string;
-  currentStock: number;
+  defaultWarehouseId?: string;
+  currentStock: number; // Bu alan artık depo toplamından hesaplanacak
   minStockLevel: number;
   maxStockLevel?: number;
   lastPurchasePrice?: number;
@@ -86,14 +87,15 @@ export interface MockRecipeIngredient {
 export interface MockInvoice {
   id: string;
   invoiceNumber: string;
-  type: 'PURCHASE' | 'SALE';
+  type: 'PURCHASE' | 'SALE' | 'RETURN';
   supplierId?: string;
   userId: string;
   date: Date;
   dueDate?: Date;
+  subtotalAmount: number;
+  totalDiscountAmount: number;
+  totalTaxAmount: number;
   totalAmount: number;
-  taxAmount: number;
-  discountAmount: number;
   status: 'PENDING' | 'APPROVED' | 'PAID' | 'CANCELLED';
   paymentDate?: Date;
   notes?: string;
@@ -105,11 +107,18 @@ export interface MockInvoiceItem {
   invoiceId: string;
   materialId: string;
   unitId: string;
+  warehouseId: string;
+  taxId: string;
   quantity: number;
   unitPrice: number;
-  totalPrice: number;
-  taxRate: number;
-  discountRate: number;
+  discount1Rate: number;
+  discount2Rate: number;
+  discount1Amount: number;
+  discount2Amount: number;
+  totalDiscountAmount: number;
+  subtotalAmount: number;
+  taxAmount: number;
+  totalAmount: number;
   createdAt: Date;
 }
 
@@ -217,6 +226,42 @@ export interface MockWarehouseTransfer {
   createdAt: Date;
 }
 
+export interface MockStockCount {
+  id: string;
+  countNumber: string;       // "SAY-2024-001"
+  warehouseId: string;
+  status: 'PLANNING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  countDate: Date;
+  countedBy: string;         // User ID
+  approvedBy?: string;       // User ID
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MockStockCountItem {
+  id: string;
+  stockCountId: string;
+  materialId: string;
+  systemStock: number;       // Sistemdeki stok (gram)
+  countedStock: number;      // Sayılan stok (gram)
+  difference: number;        // Fark (+ fazla, - eksik)
+  reason?: string;           // Fark sebebi
+  countedAt?: Date;
+  isCompleted: boolean;
+}
+
+export interface MockStockAdjustment {
+  id: string;
+  stockCountId: string;
+  materialId: string;
+  warehouseId: string;
+  adjustmentType: 'INCREASE' | 'DECREASE';
+  quantity: number;          // gram cinsinden
+  reason: string;
+  adjustedBy: string;
+  createdAt: Date;
+}
 // Mock Data Sets
 export const mockUsers: MockUser[] = [
   {
@@ -468,7 +513,8 @@ export const mockMaterials: MockMaterial[] = [
     consumptionUnitId: '2', // gr
     supplierId: '1',
     defaultTaxId: '2', // KDV %20
-    totalStock: 25500, // 25.5 kg in grams (sum of all warehouses)
+    defaultWarehouseId: '2', // Soğuk Hava Deposu
+    currentStock: 25500, // 25.5 kg in grams (will be calculated from warehouses)
     minStockLevel: 10000, // 10 kg in grams
     maxStockLevel: 50000, // 50 kg in grams
     lastPurchasePrice: 180,
@@ -485,7 +531,8 @@ export const mockMaterials: MockMaterial[] = [
     consumptionUnitId: '2', // gr
     supplierId: '1',
     defaultTaxId: '1', // KDV %1
-    totalStock: 15200, // 15.2 kg in grams
+    defaultWarehouseId: '2', // Soğuk Hava Deposu
+    currentStock: 15200, // 15.2 kg in grams
     minStockLevel: 8000, // 8 kg in grams
     maxStockLevel: 30000, // 30 kg in grams
     lastPurchasePrice: 45,
@@ -502,7 +549,8 @@ export const mockMaterials: MockMaterial[] = [
     consumptionUnitId: '2', // gr
     supplierId: '2',
     defaultTaxId: '1', // KDV %1
-    totalStock: 12800, // 12.8 kg in grams
+    defaultWarehouseId: '1', // Ana Depo
+    currentStock: 12800, // 12.8 kg in grams
     minStockLevel: 5000, // 5 kg in grams
     maxStockLevel: 25000, // 25 kg in grams
     lastPurchasePrice: 8,
@@ -519,7 +567,8 @@ export const mockMaterials: MockMaterial[] = [
     consumptionUnitId: '2', // gr
     supplierId: '2',
     defaultTaxId: '1', // KDV %1
-    totalStock: 8500, // 8.5 kg in grams
+    defaultWarehouseId: '1', // Ana Depo
+    currentStock: 8500, // 8.5 kg in grams
     minStockLevel: 3000, // 3 kg in grams
     maxStockLevel: 20000, // 20 kg in grams
     lastPurchasePrice: 4,
@@ -536,7 +585,8 @@ export const mockMaterials: MockMaterial[] = [
     consumptionUnitId: '4', // ml
     supplierId: '3',
     defaultTaxId: '1', // KDV %1
-    totalStock: 20000, // 20 lt in ml
+    defaultWarehouseId: '2', // Soğuk Hava Deposu
+    currentStock: 20000, // 20 lt in ml
     minStockLevel: 10000, // 10 lt in ml
     maxStockLevel: 40000, // 40 lt in ml
     lastPurchasePrice: 12,
@@ -865,6 +915,117 @@ export const mockWarehouseTransfers: MockWarehouseTransfer[] = [
   },
 ];
 
+// Mock stock movements data
+export const mockStockMovements: MockStockMovement[] = [];
+
+// Mock stock count data
+export const mockStockCounts: MockStockCount[] = [
+  {
+    id: '1',
+    countNumber: 'SAY-2024-001',
+    warehouseId: '2', // Soğuk Hava Deposu
+    status: 'COMPLETED',
+    countDate: new Date('2024-01-10'),
+    countedBy: '2',
+    approvedBy: '1',
+    notes: 'Aylık rutin sayım',
+    createdAt: new Date('2024-01-10T08:00:00'),
+    updatedAt: new Date('2024-01-10T16:30:00'),
+  },
+  {
+    id: '2',
+    countNumber: 'SAY-2024-002',
+    warehouseId: '1', // Ana Depo
+    status: 'IN_PROGRESS',
+    countDate: new Date('2024-01-18'),
+    countedBy: '3',
+    notes: 'Sebze meyve sayımı',
+    createdAt: new Date('2024-01-18T09:00:00'),
+    updatedAt: new Date('2024-01-18T09:00:00'),
+  },
+];
+
+export const mockStockCountItems: MockStockCountItem[] = [
+  // SAY-2024-001 items (Completed)
+  {
+    id: '1',
+    stockCountId: '1',
+    materialId: '1', // Dana Kuşbaşı
+    systemStock: 20000, // 20 kg
+    countedStock: 19800, // 19.8 kg
+    difference: -200, // 200g eksik
+    reason: 'Küçük fire',
+    countedAt: new Date('2024-01-10T14:30:00'),
+    isCompleted: true,
+  },
+  {
+    id: '2',
+    stockCountId: '1',
+    materialId: '2', // Tavuk Göğsü
+    systemStock: 12000, // 12 kg
+    countedStock: 12150, // 12.15 kg
+    difference: 150, // 150g fazla
+    reason: 'Sistem hatası düzeltildi',
+    countedAt: new Date('2024-01-10T15:00:00'),
+    isCompleted: true,
+  },
+  {
+    id: '3',
+    stockCountId: '1',
+    materialId: '5', // Süt
+    systemStock: 15000, // 15 lt
+    countedStock: 15000, // 15 lt
+    difference: 0, // Fark yok
+    countedAt: new Date('2024-01-10T15:30:00'),
+    isCompleted: true,
+  },
+  // SAY-2024-002 items (In Progress)
+  {
+    id: '4',
+    stockCountId: '2',
+    materialId: '3', // Domates
+    systemStock: 8000, // 8 kg
+    countedStock: 0, // Henüz sayılmadı
+    difference: 0,
+    isCompleted: false,
+  },
+  {
+    id: '5',
+    stockCountId: '2',
+    materialId: '4', // Soğan
+    systemStock: 6000, // 6 kg
+    countedStock: 5850, // 5.85 kg
+    difference: -150, // 150g eksik
+    reason: 'Çürük kısım atıldı',
+    countedAt: new Date('2024-01-18T11:30:00'),
+    isCompleted: true,
+  },
+];
+
+export const mockStockAdjustments: MockStockAdjustment[] = [
+  {
+    id: '1',
+    stockCountId: '1',
+    materialId: '1', // Dana Kuşbaşı
+    warehouseId: '2',
+    adjustmentType: 'DECREASE',
+    quantity: 200, // 200g azaltıldı
+    reason: 'Sayım farkı düzeltmesi - Küçük fire',
+    adjustedBy: '1',
+    createdAt: new Date('2024-01-10T16:30:00'),
+  },
+  {
+    id: '2',
+    stockCountId: '1',
+    materialId: '2', // Tavuk Göğsü
+    warehouseId: '2',
+    adjustmentType: 'INCREASE',
+    quantity: 150, // 150g artırıldı
+    reason: 'Sayım farkı düzeltmesi - Sistem hatası düzeltildi',
+    adjustedBy: '1',
+    createdAt: new Date('2024-01-10T16:30:00'),
+  },
+];
 // Helper functions for mock data operations
 export const getMockDataById = <T extends { id: string }>(data: T[], id: string): T | undefined => {
   return data.find(item => item.id === id);

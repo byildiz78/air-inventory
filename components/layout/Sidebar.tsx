@@ -47,6 +47,8 @@ const navigation = [
       { name: 'Tedarikçiler', href: '/inventory/suppliers' },
       { name: 'Depolar', href: '/inventory/warehouses' },
       { name: 'Stok Hareketleri', href: '/inventory/movements' },
+      { name: 'Stok Tutarlılığı', href: '/inventory/consistency' },
+      { name: 'Stok Sayımı', href: '/inventory/stock-count' },
     ],
   },
   {

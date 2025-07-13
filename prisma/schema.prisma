@@ -24,9 +24,13 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  invoices      Invoice[]
-  stockMovements StockMovement[]
-  sales         Sale[]
+  invoices           Invoice[]
+  stockMovements     StockMovement[]
+  sales              Sale[]
+  stockCountsCounted StockCount[] @relation("CountedBy")
+  stockCountsApproved StockCount[] @relation("ApprovedBy")
+  stockAdjustments   StockAdjustment[]
+  warehouseTransfers WarehouseTransfer[]
 
   @@map("users")
 }
@@ -108,6 +112,39 @@ model Supplier {
   @@map("suppliers")
 }
 
+model Warehouse {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  location    String?
+  type        WarehouseType @default(GENERAL)
+  capacity    Float?      // kg cinsinden
+  minTemperature Float?   // °C
+  maxTemperature Float?   // °C
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  materials     Material[]
+  materialStocks MaterialStock[]
+  transfersFrom WarehouseTransfer[] @relation("FromWarehouse")
+  transfersTo   WarehouseTransfer[] @relation("ToWarehouse")
+  invoiceItems  InvoiceItem[]
+  stockCounts   StockCount[]
+  stockAdjustments StockAdjustment[]
+
+  @@map("warehouses")
+}
+
+enum WarehouseType {
+  GENERAL  // Genel depo
+  COLD     // Soğuk hava deposu
+  FREEZER  // Dondurucu
+  DRY      // Kuru gıda deposu
+  KITCHEN  // Mutfak deposu
+}
+
 model Material {
   id            String  @id @default(cuid())
   name          String
@@ -117,6 +154,7 @@ model Material {
   consumptionUnitId String  // Unit for consumption/recipes
   supplierId    String?
   defaultTaxId  String? // Varsayılan KDV oranı
+  defaultWarehouseId String? // Varsayılan depo
   
   // Stock Information
   currentStock    Float   @default(0)
@@ -138,11 +176,152 @@ model Material {
   consumptionUnit   Unit               @relation("ConsumptionUnit", fields: [consumptionUnitId], references: [id])
   supplier          Supplier?          @relation(fields: [supplierId], references: [id])
   defaultTax        Tax?               @relation(fields: [defaultTaxId], references: [id])
+  defaultWarehouse  Warehouse?         @relation(fields: [defaultWarehouseId], references: [id])
   recipeIngredients RecipeIngredient[]
   invoiceItems      InvoiceItem[]
   stockMovements    StockMovement[]
+  materialStocks    MaterialStock[]
+  stockCountItems   StockCountItem[]
+  stockAdjustments  StockAdjustment[]
 
   @@map("materials")
+}
+
+model MaterialStock {
+  id            String    @id @default(cuid())
+  materialId    String
+  warehouseId   String
+  currentStock  Float     @default(0) // gram cinsinden
+  availableStock Float    @default(0) // rezerve edilmemiş stok
+  reservedStock Float     @default(0) // rezerve edilmiş stok
+  location      String?   // Raf/konum bilgisi
+  averageCost   Float     @default(0)
+  lastUpdated   DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  material    Material  @relation(fields: [materialId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([materialId, warehouseId])
+  @@map("material_stocks")
+}
+
+model WarehouseTransfer {
+  id              String                @id @default(cuid())
+  fromWarehouseId String
+  toWarehouseId   String
+  materialId      String
+  quantity        Float                 // gram cinsinden
+  reason          String
+  status          WarehouseTransferStatus @default(PENDING)
+  requestDate     DateTime              @default(now())
+  approvedDate    DateTime?
+  completedDate   DateTime?
+  userId          String
+  approvedBy      String?
+  totalCost       Float?
+  notes           String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  // Relations
+  fromWarehouse Warehouse @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouse   Warehouse @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  material      Material  @relation(fields: [materialId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@map("warehouse_transfers")
+}
+
+enum WarehouseTransferStatus {
+  PENDING     // Beklemede
+  APPROVED    // Onaylandı
+  IN_TRANSIT  // Transfer halinde
+  COMPLETED   // Tamamlandı
+  CANCELLED   // İptal edildi
+}
+
+// ================================
+// STOCK COUNT MANAGEMENT
+// ================================
+
+model StockCount {
+  id          String           @id @default(cuid())
+  countNumber String           @unique
+  warehouseId String
+  status      StockCountStatus @default(PLANNING)
+  countDate   DateTime
+  countTime   String?          // "14:30" formatında
+  countedBy   String
+  approvedBy  String?
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  warehouse    Warehouse         @relation(fields: [warehouseId], references: [id])
+  countedUser  User              @relation("CountedBy", fields: [countedBy], references: [id])
+  approvedUser User?             @relation("ApprovedBy", fields: [approvedBy], references: [id])
+  items        StockCountItem[]
+  adjustments  StockAdjustment[]
+
+  @@map("stock_counts")
+}
+
+enum StockCountStatus {
+  PLANNING         // Planlama aşaması
+  IN_PROGRESS      // Sayım devam ediyor
+  PENDING_APPROVAL // Onay bekliyor
+  COMPLETED        // Tamamlandı ve onaylandı
+  CANCELLED        // İptal edildi
+}
+
+model StockCountItem {
+  id           String    @id @default(cuid())
+  stockCountId String
+  materialId   String
+  systemStock  Float     @default(0) // Sistemdeki stok (gram)
+  countedStock Float     @default(0) // Sayılan stok (gram)
+  difference   Float     @default(0) // Fark (+ fazla, - eksik)
+  reason       String?   // Fark sebebi
+  countedAt    DateTime? // Sayım tarihi
+  isCompleted  Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  stockCount StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  material   Material   @relation(fields: [materialId], references: [id])
+
+  @@unique([stockCountId, materialId])
+  @@map("stock_count_items")
+}
+
+model StockAdjustment {
+  id             String         @id @default(cuid())
+  stockCountId   String
+  materialId     String
+  warehouseId    String
+  adjustmentType AdjustmentType
+  quantity       Float          // gram cinsinden
+  reason         String
+  adjustedBy     String
+  createdAt      DateTime       @default(now())
+
+  // Relations
+  stockCount StockCount @relation(fields: [stockCountId], references: [id])
+  material   Material   @relation(fields: [materialId], references: [id])
+  warehouse  Warehouse  @relation(fields: [warehouseId], references: [id])
+  user       User       @relation(fields: [adjustedBy], references: [id])
+
+  @@map("stock_adjustments")
+}
+
+enum AdjustmentType {
+  INCREASE // Artış
+  DECREASE // Azalış
 }
 
 // ================================
@@ -216,9 +395,10 @@ model Invoice {
   // Invoice Details
   date          DateTime
   dueDate       DateTime?
-  totalAmount   Float       @default(0)
-  taxAmount     Float       @default(0)
-  discountAmount Float      @default(0)
+  subtotalAmount Float      @default(0) // KDV hariç toplam
+  totalDiscountAmount Float @default(0) // Toplam indirim
+  totalTaxAmount Float      @default(0) // Toplam KDV
+  totalAmount   Float       @default(0) // Genel toplam
   
   // Status
   status        InvoiceStatus @default(PENDING)
@@ -240,6 +420,7 @@ model Invoice {
 enum InvoiceType {
   PURCHASE // Alış faturası
   SALE     // Satış faturası
+  RETURN   // İade faturası
 }
 
 enum InvoiceStatus {
@@ -254,24 +435,34 @@ model InvoiceItem {
   invoiceId String
   materialId String
   unitId    String
+  warehouseId String
   taxId     String
   
   // Item Details
   quantity    Float
-  unitPrice   Float
-  totalPrice  Float
-  taxAmount   Float @default(0)
-  discountRate Float @default(0)
-  discountAmount Float @default(0)
+  unitPrice   Float   // KDV hariç birim fiyat
+  
+  // Discount Information
+  discount1Rate Float @default(0) // İndirim 1 %
+  discount2Rate Float @default(0) // İndirim 2 %
+  discount1Amount Float @default(0) // İndirim 1 tutarı
+  discount2Amount Float @default(0) // İndirim 2 tutarı
+  totalDiscountAmount Float @default(0) // Toplam indirim
+  
+  // Calculated Amounts
+  subtotalAmount Float @default(0) // İndirim sonrası KDV hariç tutar
+  taxAmount     Float @default(0) // KDV tutarı
+  totalAmount   Float @default(0) // Satır toplamı (KDV dahil)
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
-  invoice  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  material Material @relation(fields: [materialId], references: [id])
-  unit     Unit     @relation(fields: [unitId], references: [id])
-  tax      Tax      @relation(fields: [taxId], references: [id])
+  invoice   Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  material  Material  @relation(fields: [materialId], references: [id])
+  unit      Unit      @relation(fields: [unitId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  tax       Tax       @relation(fields: [taxId], references: [id])
 
   @@map("invoice_items")
 }
