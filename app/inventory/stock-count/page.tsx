@@ -24,7 +24,11 @@ import {
   Eye,
   Play,
   Pause,
-  Save
+  Save,
+  Calendar,
+  User,
+  FileCheck,
+  XCircle
 } from 'lucide-react';
 import { 
   stockCountService,
@@ -52,10 +56,13 @@ export default function StockCountPage() {
   const [selectedCount, setSelectedCount] = useState<MockStockCount | null>(null);
   const [countItems, setCountItems] = useState<MockStockCountItem[]>([]);
   const [isCountDetailOpen, setIsCountDetailOpen] = useState(false);
+  const [isApprovalOpen, setIsApprovalOpen] = useState(false);
   
   // Form state
   const [newCountForm, setNewCountForm] = useState({
     warehouseId: '',
+    countDate: new Date().toISOString().split('T')[0],
+    countTime: new Date().toTimeString().slice(0, 5),
     notes: ''
   });
 
@@ -86,21 +93,38 @@ export default function StockCountPage() {
   const handleStartNewCount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const countDateTime = new Date(`${newCountForm.countDate}T${newCountForm.countTime}`);
+      
       const newCount = await stockCountService.startCount(
         newCountForm.warehouseId,
         '1', // Current user ID
         newCountForm.notes
       );
       
+      // Update count with date and time
+      await stockCountService.update(newCount.id, {
+        countDate: countDateTime,
+        countTime: newCountForm.countTime,
+        status: 'IN_PROGRESS'
+      });
+      
       await loadData();
       setIsNewCountOpen(false);
-      setNewCountForm({ warehouseId: '', notes: '' });
+      setNewCountForm({ 
+        warehouseId: '', 
+        countDate: new Date().toISOString().split('T')[0],
+        countTime: new Date().toTimeString().slice(0, 5),
+        notes: '' 
+      });
       
       // Open the new count for editing
-      setSelectedCount(newCount);
-      const items = await stockCountService.getItems(newCount.id);
-      setCountItems(items);
-      setIsCountDetailOpen(true);
+      const updatedCount = await stockCountService.getById(newCount.id);
+      if (updatedCount) {
+        setSelectedCount(updatedCount);
+        const items = await stockCountService.getItems(newCount.id);
+        setCountItems(items);
+        setIsCountDetailOpen(true);
+      }
     } catch (error) {
       console.error('Error starting new count:', error);
     }
@@ -132,30 +156,160 @@ export default function StockCountPage() {
     }
   };
 
-  const handleCompleteCount = async () => {
+  const handleSubmitForApproval = async () => {
     if (!selectedCount) return;
     
-    if (confirm('Sayımı tamamlamak istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
+    const completedItems = countItems.filter(item => item.isCompleted);
+    if (completedItems.length !== countItems.length) {
+      alert('Tüm kalemlerin sayımı tamamlanmalıdır.');
+      return;
+    }
+    
+    try {
+      await stockCountService.update(selectedCount.id, {
+        status: 'PENDING_APPROVAL'
+      });
+      
+      await loadData();
+      setIsCountDetailOpen(false);
+      alert('Sayım onaya gönderildi.');
+    } catch (error) {
+      console.error('Error submitting for approval:', error);
+    }
+  };
+
+  const handleApproveCount = async () => {
+    if (!selectedCount) return;
+    
+    if (confirm('Sayımı onaylamak istediğinizden emin misiniz? Bu işlem geri alınamaz ve stok düzeltmeleri yapılacaktır.')) {
       try {
         const success = await stockCountService.completeCount(selectedCount.id, '1');
         if (success) {
           await loadData();
+          setIsApprovalOpen(false);
           setIsCountDetailOpen(false);
-          alert('Sayım başarıyla tamamlandı ve stok düzeltmeleri yapıldı.');
+          alert('Sayım başarıyla onaylandı ve stok düzeltmeleri yapıldı.');
         }
       } catch (error) {
-        console.error('Error completing count:', error);
+        console.error('Error approving count:', error);
       }
+    }
+  };
+
+  const handleRejectCount = async () => {
+    if (!selectedCount) return;
+    
+    const reason = prompt('Ret sebebini belirtin:');
+    if (!reason) return;
+    
+    try {
+      await stockCountService.update(selectedCount.id, {
+        status: 'CANCELLED',
+        notes: `${selectedCount.notes || ''}\n\nRet Sebebi: ${reason}`
+      });
+      
+      await loadData();
+      setIsApprovalOpen(false);
+      setIsCountDetailOpen(false);
+      alert('Sayım reddedildi.');
+    } catch (error) {
+      console.error('Error rejecting count:', error);
+    }
+  };
+
+  const handleStatusChange = async (countId: string, newStatus: MockStockCount['status']) => {
+    try {
+      let confirmMessage = '';
+      
+      switch (newStatus) {
+        case 'IN_PROGRESS':
+          confirmMessage = 'Sayımı başlatmak istediğinizden emin misiniz?';
+          break;
+        case 'CANCELLED':
+          confirmMessage = 'Sayımı iptal etmek istediğinizden emin misiniz?';
+          break;
+        case 'PLANNING':
+          confirmMessage = 'Sayımı duraklatmak istediğinizden emin misiniz?';
+          break;
+        default:
+          confirmMessage = 'Durumu değiştirmek istediğinizden emin misiniz?';
+      }
+      
+      if (confirm(confirmMessage)) {
+        if (newStatus === 'CANCELLED') {
+          const reason = prompt('İptal sebebini belirtin:');
+          if (!reason) return;
+          
+          const count = stockCounts.find(c => c.id === countId);
+          await stockCountService.update(countId, {
+            status: 'CANCELLED',
+            notes: `${count?.notes || ''}\n\nİptal Sebebi: ${reason}`
+          });
+        } else {
+          await stockCountService.update(countId, { status: newStatus });
+        }
+        
+        await loadData();
+        
+        const statusText = {
+          'IN_PROGRESS': 'başlatıldı',
+          'CANCELLED': 'iptal edildi',
+          'PLANNING': 'duraklatıldı',
+          'PENDING_APPROVAL': 'onaya gönderildi',
+          'COMPLETED': 'tamamlandı'
+        }[newStatus] || 'güncellendi';
+        
+        alert(`Sayım ${statusText}.`);
+      }
+    } catch (error) {
+      console.error('Error changing status:', error);
     }
   };
 
   const getStatusBadge = (status: MockStockCount['status']) => {
     switch (status) {
-      case 'PLANNING': return { variant: 'secondary' as const, text: 'Planlama', icon: Clock };
-      case 'IN_PROGRESS': return { variant: 'default' as const, text: 'Devam Ediyor', icon: Play };
-      case 'COMPLETED': return { variant: 'default' as const, text: 'Tamamlandı', icon: CheckCircle };
-      case 'CANCELLED': return { variant: 'destructive' as const, text: 'İptal', icon: AlertTriangle };
-      default: return { variant: 'outline' as const, text: status, icon: Clock };
+      case 'PLANNING': 
+        return { 
+          variant: 'secondary' as const, 
+          text: 'Planlama', 
+          icon: Clock,
+          color: 'text-gray-600'
+        };
+      case 'IN_PROGRESS': 
+        return { 
+          variant: 'default' as const, 
+          text: 'Devam Ediyor', 
+          icon: Play,
+          color: 'text-blue-600'
+        };
+      case 'PENDING_APPROVAL': 
+        return { 
+          variant: 'secondary' as const, 
+          text: 'Onay Bekliyor', 
+          icon: Clock,
+          color: 'text-orange-600'
+        };
+      case 'COMPLETED': 
+        return { 
+          variant: 'default' as const, 
+          text: 'Tamamlandı', 
+          icon: CheckCircle,
+          color: 'text-green-600'
+        };
+      case 'CANCELLED': 
+        return { 
+          variant: 'destructive' as const, 
+          text: 'İptal/Ret', 
+          icon: XCircle,
+          color: 'text-red-600'
+        };
+      default: 
+        return { 
+          variant: 'outline' as const, 
+          text: status, 
+          icon: Clock,
+          color: 'text-gray-600'
+        };
     }
   };
 
@@ -167,6 +321,14 @@ export default function StockCountPage() {
   const totalItems = countItems.length;
   const completionPercentage = totalItems > 0 ? (completedItems.length / totalItems) * 100 : 0;
   const totalDifferences = countItems.reduce((sum, item) => sum + Math.abs(item.difference), 0);
+
+  const formatDateTime = (date: Date, time?: string) => {
+    const dateStr = date.toLocaleDateString('tr-TR');
+    if (time) {
+      return `${dateStr} ${time}`;
+    }
+    return `${dateStr} ${date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
+  };
 
   if (loading) {
     return (
@@ -201,7 +363,7 @@ export default function StockCountPage() {
               <DialogHeader>
                 <DialogTitle>Yeni Stok Sayımı</DialogTitle>
                 <DialogDescription>
-                  Hangi depoda sayım yapmak istiyorsunuz?
+                  Sayım detaylarını belirleyin
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleStartNewCount} className="space-y-4">
@@ -225,6 +387,31 @@ export default function StockCountPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="countDate">Sayım Tarihi *</Label>
+                    <Input
+                      id="countDate"
+                      type="date"
+                      value={newCountForm.countDate}
+                      onChange={(e) => setNewCountForm(prev => ({ ...prev, countDate: e.target.value }))}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="countTime">Sayım Saati *</Label>
+                    <Input
+                      id="countTime"
+                      type="time"
+                      value={newCountForm.countTime}
+                      onChange={(e) => setNewCountForm(prev => ({ ...prev, countTime: e.target.value }))}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
                 </div>
                 
                 <div>
@@ -253,7 +440,7 @@ export default function StockCountPage() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Toplam Sayım</CardTitle>
@@ -268,13 +455,26 @@ export default function StockCountPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Devam Eden</CardTitle>
-              <Play className="h-4 w-4 text-orange-600" />
+              <Play className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                {stockCounts.filter(c => c.status === 'IN_PROGRESS').length}
+              </div>
+              <p className="text-xs text-muted-foreground">Aktif sayım</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Onay Bekleyen</CardTitle>
+              <Clock className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-600">
-                {stockCounts.filter(c => c.status === 'IN_PROGRESS' || c.status === 'PLANNING').length}
+                {stockCounts.filter(c => c.status === 'PENDING_APPROVAL').length}
               </div>
-              <p className="text-xs text-muted-foreground">Aktif sayım</p>
+              <p className="text-xs text-muted-foreground">Onay gerekli</p>
             </CardContent>
           </Card>
 
@@ -293,12 +493,14 @@ export default function StockCountPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Depolar</CardTitle>
-              <Warehouse className="h-4 w-4 text-purple-600" />
+              <CardTitle className="text-sm font-medium">İptal/Ret</CardTitle>
+              <XCircle className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{warehouses.length}</div>
-              <p className="text-xs text-muted-foreground">Sayım yapılabilir</p>
+              <div className="text-2xl font-bold text-red-600">
+                {stockCounts.filter(c => c.status === 'CANCELLED').length}
+              </div>
+              <p className="text-xs text-muted-foreground">Reddedilen</p>
             </CardContent>
           </Card>
         </div>
@@ -333,6 +535,7 @@ export default function StockCountPage() {
                   const statusBadge = getStatusBadge(count.status);
                   const warehouse = getWarehouseById(count.warehouseId);
                   const countedBy = getUserById(count.countedBy);
+                  const approvedBy = count.approvedBy ? getUserById(count.approvedBy) : null;
                   const StatusIcon = statusBadge.icon;
                   
                   return (
@@ -344,7 +547,7 @@ export default function StockCountPage() {
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-medium">{count.countNumber}</h4>
-                            <Badge variant={statusBadge.variant}>
+                            <Badge variant={statusBadge.variant} className={statusBadge.color}>
                               <StatusIcon className="w-3 h-3 mr-1" />
                               {statusBadge.text}
                             </Badge>
@@ -353,22 +556,36 @@ export default function StockCountPage() {
                             {warehouse?.name} • {countedBy?.name}
                           </p>
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span>{count.countDate.toLocaleDateString('tr-TR')}</span>
-                            {count.notes && <span>{count.notes}</span>}
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {formatDateTime(count.countDate, count.countTime)}
+                            </span>
+                            {approvedBy && (
+                              <span className="flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                Onaylayan: {approvedBy.name}
+                              </span>
+                            )}
                           </div>
+                          {count.notes && (
+                            <p className="text-xs text-muted-foreground mt-1 max-w-md truncate">
+                              {count.notes}
+                            </p>
+                          )}
                         </div>
                       </div>
                       
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <div className="text-sm font-medium">
-                            {count.status === 'COMPLETED' ? 'Tamamlandı' : 'Devam Ediyor'}
+                            {count.status === 'COMPLETED' ? 'Tamamlandı' : 
+                             count.status === 'PENDING_APPROVAL' ? 'Onay Bekliyor' :
+                             count.status === 'IN_PROGRESS' ? 'Devam Ediyor' :
+                             count.status === 'CANCELLED' ? 'İptal/Ret' : 'Planlama'}
                           </div>
-                          {count.approvedBy && (
-                            <div className="text-xs text-muted-foreground">
-                              Onaylayan: {getUserById(count.approvedBy)?.name}
-                            </div>
-                          )}
+                          <div className="text-xs text-muted-foreground">
+                            {count.updatedAt.toLocaleDateString('tr-TR')}
+                          </div>
                         </div>
 
                         <div className="flex gap-2">
@@ -379,13 +596,51 @@ export default function StockCountPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          {count.status !== 'COMPLETED' && (
+                          
+                          {count.status === 'PLANNING' && (
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => handleViewCount(count)}
+                              onClick={() => handleStatusChange(count.id, 'IN_PROGRESS')}
+                              className="text-blue-600 hover:text-blue-700"
                             >
-                              <Edit className="w-4 h-4" />
+                              <Play className="w-4 h-4" />
+                            </Button>
+                          )}
+                          
+                          {count.status === 'IN_PROGRESS' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleStatusChange(count.id, 'PLANNING')}
+                              className="text-orange-600 hover:text-orange-700"
+                            >
+                              <Pause className="w-4 h-4" />
+                            </Button>
+                          )}
+                          
+                          {count.status === 'PENDING_APPROVAL' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setSelectedCount(count);
+                                setIsApprovalOpen(true);
+                              }}
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <FileCheck className="w-4 h-4" />
+                            </Button>
+                          )}
+                          
+                          {(count.status === 'IN_PROGRESS' || count.status === 'PLANNING') && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleStatusChange(count.id, 'CANCELLED')}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <XCircle className="w-4 h-4" />
                             </Button>
                           )}
                         </div>
@@ -404,10 +659,17 @@ export default function StockCountPage() {
             {selectedCount && (
               <>
                 <DialogHeader>
-                  <DialogTitle className="text-2xl">{selectedCount.countNumber}</DialogTitle>
-                  <DialogDescription>
-                    {getWarehouseById(selectedCount.warehouseId)?.name} • {selectedCount.countDate.toLocaleDateString('tr-TR')}
-                  </DialogDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <DialogTitle className="text-2xl">{selectedCount.countNumber}</DialogTitle>
+                      <DialogDescription>
+                        {getWarehouseById(selectedCount.warehouseId)?.name} • {formatDateTime(selectedCount.countDate, selectedCount.countTime)}
+                      </DialogDescription>
+                    </div>
+                    <Badge variant={getStatusBadge(selectedCount.status).variant} className="text-sm">
+                      {getStatusBadge(selectedCount.status).text}
+                    </Badge>
+                  </div>
                 </DialogHeader>
                 
                 <div className="space-y-6">
@@ -452,15 +714,54 @@ export default function StockCountPage() {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle>Sayım Kalemleri</CardTitle>
-                        {selectedCount.status !== 'COMPLETED' && completionPercentage === 100 && (
-                          <Button 
-                            className="bg-green-600 hover:bg-green-700"
-                            onClick={handleCompleteCount}
-                          >
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Sayımı Tamamla
-                          </Button>
-                        )}
+                        
+                        {/* Status Change Buttons in Detail Modal */}
+                        <div className="flex gap-2">
+                          {selectedCount.status === 'PLANNING' && (
+                            <Button 
+                              variant="outline"
+                              onClick={() => handleStatusChange(selectedCount.id, 'IN_PROGRESS')}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <Play className="w-4 h-4 mr-2" />
+                              Sayımı Başlat
+                            </Button>
+                          )}
+                          
+                          {selectedCount.status === 'IN_PROGRESS' && (
+                            <>
+                              <Button 
+                                variant="outline"
+                                onClick={() => handleStatusChange(selectedCount.id, 'PLANNING')}
+                                className="text-orange-600 hover:text-orange-700"
+                              >
+                                <Pause className="w-4 h-4 mr-2" />
+                                Duraklat
+                              </Button>
+                              
+                              {completionPercentage === 100 && (
+                                <Button 
+                                  className="bg-orange-600 hover:bg-orange-700"
+                                  onClick={handleSubmitForApproval}
+                                >
+                                  <FileCheck className="w-4 h-4 mr-2" />
+                                  Onaya Gönder
+                                </Button>
+                              )}
+                            </>
+                          )}
+                          
+                          {(selectedCount.status === 'PLANNING' || selectedCount.status === 'IN_PROGRESS') && (
+                            <Button 
+                              variant="outline"
+                              onClick={() => handleStatusChange(selectedCount.id, 'CANCELLED')}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <XCircle className="w-4 h-4 mr-2" />
+                              İptal Et
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -491,7 +792,7 @@ export default function StockCountPage() {
                                         const countedStock = (parseFloat(e.target.value) || 0) * 1000;
                                         handleUpdateCountItem(item.id, countedStock, item.reason);
                                       }}
-                                      disabled={selectedCount.status === 'COMPLETED'}
+                                      disabled={selectedCount.status !== 'IN_PROGRESS'}
                                       className="mt-1"
                                     />
                                   </div>
@@ -515,7 +816,7 @@ export default function StockCountPage() {
                                       onChange={(e) => {
                                         handleUpdateCountItem(item.id, item.countedStock, e.target.value);
                                       }}
-                                      disabled={selectedCount.status === 'COMPLETED'}
+                                      disabled={selectedCount.status !== 'IN_PROGRESS'}
                                       className="mt-1"
                                     />
                                   </div>
@@ -537,6 +838,63 @@ export default function StockCountPage() {
                   </Card>
                 </div>
               </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Approval Modal */}
+        <Dialog open={isApprovalOpen} onOpenChange={setIsApprovalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Sayım Onayı</DialogTitle>
+              <DialogDescription>
+                {selectedCount?.countNumber} sayımını onaylamak istediğinizden emin misiniz?
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedCount && (
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Depo:</span>
+                      <div className="font-medium">{getWarehouseById(selectedCount.warehouseId)?.name}</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Sayım Tarihi:</span>
+                      <div className="font-medium">{formatDateTime(selectedCount.countDate, selectedCount.countTime)}</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Sayımı Yapan:</span>
+                      <div className="font-medium">{getUserById(selectedCount.countedBy)?.name}</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Durum:</span>
+                      <Badge variant={getStatusBadge(selectedCount.status).variant}>
+                        {getStatusBadge(selectedCount.status).text}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    className="bg-green-600 hover:bg-green-700 flex-1"
+                    onClick={handleApproveCount}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Onayla ve Stokları Güncelle
+                  </Button>
+                  <Button 
+                    variant="destructive"
+                    onClick={handleRejectCount}
+                    className="flex-1"
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Reddet
+                  </Button>
+                </div>
+              </div>
             )}
           </DialogContent>
         </Dialog>

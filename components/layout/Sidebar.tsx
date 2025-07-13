@@ -60,6 +60,8 @@ const navigation = [
     children: [
       { name: 'Reçete Listesi', href: '/recipes' },
       { name: 'Yeni Reçete', href: '/recipes/new' },
+      { name: 'Satış Malları', href: '/recipes/sales-items' },
+      { name: 'Reçete Eşleştirmeleri', href: '/recipes/mappings' },
       { name: 'Maliyet Analizi', href: '/recipes/cost-analysis' },
     ],
   },
@@ -95,7 +97,7 @@ const navigation = [
     current: false,
     badge: null,
     children: [
-      { name: 'Satış Kayıtları', href: '/sales' },
+      { name: 'Satış Kayıtları', href: '/sales', current: false },
       { name: 'Günlük Satış', href: '/sales/daily' },
       { name: 'Satış Analizi', href: '/sales/analysis' },
     ],

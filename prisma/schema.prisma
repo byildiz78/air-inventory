@@ -352,6 +352,7 @@ model Recipe {
   // Relations
   ingredients RecipeIngredient[]
   sales       Sale[]
+  mappings    RecipeMapping[]
 
   @@map("recipes")
 }
@@ -381,6 +382,106 @@ model RecipeIngredient {
   @@map("recipe_ingredients")
 }
 
+// ================================
+// SALES ITEMS MANAGEMENT
+// ================================
+
+model SalesItemCategory {
+  id          String @id @default(cuid())
+  name        String @unique // "Ana Yemek", "Çorba", "Salata", "İçecek", "Tatlı"
+  description String?
+  color       String @default("#3B82F6") // Hex color for UI
+  sortOrder   Int    @default(0) // Display order
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  groups     SalesItemGroup[]
+  salesItems SalesItem[]
+
+  @@map("sales_item_categories")
+}
+
+model SalesItemGroup {
+  id          String @id @default(cuid())
+  name        String // "Et Yemekleri", "Sebze Yemekleri", "Soğuk İçecekler"
+  categoryId  String
+  description String?
+  color       String @default("#6B7280") // Hex color for UI
+  sortOrder   Int    @default(0) // Display order within category
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  category   SalesItemCategory @relation(fields: [categoryId], references: [id])
+  salesItems SalesItem[]
+
+  @@unique([categoryId, name])
+  @@map("sales_item_groups")
+}
+
+model SalesItem {
+  id          String @id @default(cuid())
+  name        String // "Kuşbaşılı Pilav", "Mercimek Çorbası"
+  categoryId  String
+  groupId     String?
+  description String?
+  
+  // Pricing Information
+  basePrice   Float?  // Temel satış fiyatı
+  
+  // Menu Information
+  menuCode    String? // Menü kodu (M001, A015 gibi)
+  sortOrder   Int     @default(0) // Menüde görünüm sırası
+  
+  // Status
+  isActive    Boolean @default(true)
+  isAvailable Boolean @default(true) // Günlük müsaitlik
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  category SalesItemCategory @relation(fields: [categoryId], references: [id])
+  group    SalesItemGroup?   @relation(fields: [groupId], references: [id])
+  mappings RecipeMapping[]
+  sales    Sale[]
+
+  @@unique([categoryId, name])
+  @@map("sales_items")
+}
+
+model RecipeMapping {
+  id           String @id @default(cuid())
+  salesItemId  String
+  recipeId     String
+  
+  // Mapping Information
+  portionRatio Float  @default(1.0) // 1 satış malı = kaç porsiyon reçete
+  priority     Int    @default(1)   // Birden fazla reçete varsa öncelik
+  
+  // Cost Override
+  overrideCost Float? // Manuel maliyet geçersiz kılma
+  
+  // Status
+  isActive     Boolean @default(true)
+  
+  // Dates
+  validFrom    DateTime? // Geçerlilik başlangıcı
+  validTo      DateTime? // Geçerlilik bitişi
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  salesItem SalesItem @relation(fields: [salesItemId], references: [id], onDelete: Cascade)
+  recipe    Recipe    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([salesItemId, recipeId])
+  @@map("recipe_mappings")
+}
 // ================================
 // INVOICE MANAGEMENT
 // ================================
@@ -517,7 +618,8 @@ enum StockMovementType {
 
 model Sale {
   id       String @id @default(cuid())
-  recipeId String?
+  salesItemId String? // Satış malı referansı
+  recipeId    String? // Eski reçete referansı (backward compatibility)
   userId   String
   
   // Sale Details
@@ -540,6 +642,7 @@ model Sale {
   updatedAt    DateTime @updatedAt
 
   // Relations
+  salesItem SalesItem? @relation(fields: [salesItemId], references: [id])
   recipe Recipe? @relation(fields: [recipeId], references: [id])
   user   User    @relation(fields: [userId], references: [id])
 
