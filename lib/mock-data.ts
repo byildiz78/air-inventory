@@ -1076,6 +1076,63 @@ export const mockStockAdjustments: MockStockAdjustment[] = [
   },
 ];
 
+// Mock invoices data
+export const mockInvoices: MockInvoice[] = [
+  {
+    id: '1',
+    invoiceNumber: 'ALF-2024-001',
+    type: 'PURCHASE',
+    supplierId: '1',
+    userId: '1',
+    date: new Date('2024-01-15'),
+    dueDate: new Date('2024-02-15'),
+    subtotalAmount: 1500,
+    totalDiscountAmount: 75,
+    totalTaxAmount: 285,
+    totalAmount: 1710,
+    status: 'APPROVED',
+    notes: 'Aylık et tedariki',
+    createdAt: new Date('2024-01-15'),
+    updatedAt: new Date('2024-01-15'),
+    items: []
+  },
+  {
+    id: '2',
+    invoiceNumber: 'ALF-2024-002',
+    type: 'PURCHASE',
+    supplierId: '2',
+    userId: '1',
+    date: new Date('2024-01-16'),
+    dueDate: new Date('2024-02-16'),
+    subtotalAmount: 850,
+    totalDiscountAmount: 42.5,
+    totalTaxAmount: 8.075,
+    totalAmount: 815.575,
+    status: 'PENDING',
+    notes: 'Sebze meyve alımı',
+    createdAt: new Date('2024-01-16'),
+    updatedAt: new Date('2024-01-16'),
+    items: []
+  },
+  {
+    id: '3',
+    invoiceNumber: 'SAT-2024-001',
+    type: 'SALE',
+    supplierId: undefined,
+    userId: '1',
+    date: new Date('2024-01-16'),
+    subtotalAmount: 2400,
+    totalDiscountAmount: 120,
+    totalTaxAmount: 456,
+    totalAmount: 2736,
+    status: 'PAID',
+    notes: 'Perakende satış',
+    createdAt: new Date('2024-01-16'),
+    updatedAt: new Date('2024-01-16'),
+    items: []
+  }
+];
+
 // Satış Malları için mock data
 export const mockSalesItemCategories: MockSalesItemCategory[] = [
   {

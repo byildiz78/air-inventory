@@ -605,6 +605,76 @@ export const stockConsistencyService = {
 };
 
 // ================================
+// INVOICE OPERATIONS
+// ================================
+
+export const invoiceService = {
+  async getAll(): Promise<MockInvoice[]> {
+    if (USE_PRISMA) {
+      // TODO: Replace with Prisma query
+      throw new Error('Prisma not implemented yet');
+    }
+    return mockInvoices || [];
+  },
+
+  async getById(id: string): Promise<MockInvoice | null> {
+    if (USE_PRISMA) {
+      // TODO: Replace with Prisma query
+      throw new Error('Prisma not implemented yet');
+    }
+    return getMockDataById(mockInvoices, id) || null;
+  },
+
+  async create(data: Omit<MockInvoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<MockInvoice> {
+    if (USE_PRISMA) {
+      // TODO: Replace with Prisma query
+      throw new Error('Prisma not implemented yet');
+    }
+    
+    const newInvoice: MockInvoice = {
+      ...data,
+      id: Math.random().toString(36).substr(2, 9),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    mockInvoices.push(newInvoice);
+    return newInvoice;
+  },
+
+  async update(id: string, data: Partial<MockInvoice>): Promise<MockInvoice | null> {
+    if (USE_PRISMA) {
+      // TODO: Replace with Prisma query
+      throw new Error('Prisma not implemented yet');
+    }
+    
+    const invoiceIndex = mockInvoices.findIndex(invoice => invoice.id === id);
+    if (invoiceIndex === -1) return null;
+    
+    mockInvoices[invoiceIndex] = { 
+      ...mockInvoices[invoiceIndex], 
+      ...data,
+      updatedAt: new Date()
+    };
+    return mockInvoices[invoiceIndex];
+  },
+
+  async delete(id: string): Promise<boolean> {
+    if (USE_PRISMA) {
+      // TODO: Replace with Prisma query
+      throw new Error('Prisma not implemented yet');
+    }
+    
+    const initialLength = mockInvoices.length;
+    const index = mockInvoices.findIndex(invoice => invoice.id === id);
+    if (index !== -1) {
+      mockInvoices.splice(index, 1);
+    }
+    return mockInvoices.length < initialLength;
+  }
+};
+
+// ================================
 // SALES ITEMS OPERATIONS
 // ================================
 
