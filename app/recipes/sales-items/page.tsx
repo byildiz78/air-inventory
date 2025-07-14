@@ -24,24 +24,54 @@ import {
   Check,
   X
 } from 'lucide-react';
-import { 
-  salesItemService, 
-  salesItemCategoryService, 
-  salesItemGroupService,
-  recipeMappingService
-} from '@/lib/data-service';
-import { 
-  MockSalesItem, 
-  MockSalesItemCategory, 
-  MockSalesItemGroup,
-  MockRecipeMapping
-} from '@/lib/mock-data';
+type SalesItemType = {
+  id: string;
+  name: string;
+  menuCode?: string;
+  description?: string;
+  basePrice?: number;
+  taxPercent?: number;
+  categoryId: string;
+  groupId?: string;
+  category?: string;
+  isActive: boolean;
+  isAvailable: boolean;
+};
+
+type SalesItemCategoryType = {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  sortOrder: number;
+  isActive: boolean;
+};
+
+type SalesItemGroupType = {
+  id: string;
+  name: string;
+  categoryId: string;
+  description?: string;
+  color: string;
+  sortOrder: number;
+  isActive: boolean;
+};
+
+type RecipeMappingType = {
+  id: string;
+  salesItemId: string;
+  recipeId: string;
+  portionRatio: number;
+  priority: number;
+  overrideCost?: number;
+  isActive: boolean;
+};
 
 export default function SalesItemsPage() {
-  const [salesItems, setSalesItems] = useState<MockSalesItem[]>([]);
-  const [categories, setCategories] = useState<MockSalesItemCategory[]>([]);
-  const [groups, setGroups] = useState<MockSalesItemGroup[]>([]);
-  const [mappings, setMappings] = useState<MockRecipeMapping[]>([]);
+  const [salesItems, setSalesItems] = useState<SalesItemType[]>([]);
+  const [categories, setCategories] = useState<SalesItemCategoryType[]>([]);
+  const [groups, setGroups] = useState<SalesItemGroupType[]>([]);
+  const [mappings, setMappings] = useState<RecipeMappingType[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
@@ -53,17 +83,18 @@ export default function SalesItemsPage() {
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<MockSalesItem | null>(null);
-  const [editingCategory, setEditingCategory] = useState<MockSalesItemCategory | null>(null);
-  const [editingGroup, setEditingGroup] = useState<MockSalesItemGroup | null>(null);
+  const [editingItem, setEditingItem] = useState<SalesItemType | null>(null);
+  const [editingCategory, setEditingCategory] = useState<SalesItemCategoryType | null>(null);
+  const [editingGroup, setEditingGroup] = useState<SalesItemGroupType | null>(null);
   
   // Form states
   const [itemForm, setItemForm] = useState({
     name: '',
     categoryId: '',
-    groupId: '',
+    groupId: 'none',
     description: '',
     basePrice: '',
+    taxPercent: '10',
     menuCode: '',
     isActive: true,
     isAvailable: true
@@ -93,17 +124,24 @@ export default function SalesItemsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [salesItemsData, categoriesData, groupsData, mappingsData] = await Promise.all([
-        salesItemService.getAll(),
-        salesItemCategoryService.getAll(),
-        salesItemGroupService.getAll(),
-        recipeMappingService.getAll()
+      const [salesItemsRes, categoriesRes, groupsRes, mappingsRes] = await Promise.all([
+        fetch('/api/sales-items'),
+        fetch('/api/sales-item-categories'),
+        fetch('/api/sales-item-groups'),
+        fetch('/api/recipe-mappings')
       ]);
 
-      setSalesItems(salesItemsData);
-      setCategories(categoriesData);
-      setGroups(groupsData);
-      setMappings(mappingsData);
+      const [salesItemsData, categoriesData, groupsData, mappingsData] = await Promise.all([
+        salesItemsRes.json(),
+        categoriesRes.json(),
+        groupsRes.json(),
+        mappingsRes.json()
+      ]);
+
+      setSalesItems(salesItemsData.data || []);
+      setCategories(categoriesData.data || []);
+      setGroups(groupsData.data || []);
+      setMappings(mappingsData.data || []);
     } catch (error) {
       console.error('Data loading error:', error);
     } finally {
@@ -116,9 +154,10 @@ export default function SalesItemsPage() {
     setItemForm({
       name: '',
       categoryId: '',
-      groupId: '',
+      groupId: 'none',
       description: '',
       basePrice: '',
+      taxPercent: '10',
       menuCode: '',
       isActive: true,
       isAvailable: true
@@ -150,17 +189,29 @@ export default function SalesItemsPage() {
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const newItem = await salesItemService.create({
-        ...itemForm,
-        basePrice: itemForm.basePrice ? parseFloat(itemForm.basePrice) : undefined,
-        groupId: itemForm.groupId || undefined,
-        sortOrder: 0
+      const response = await fetch('/api/sales-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...itemForm,
+          basePrice: itemForm.basePrice ? parseFloat(itemForm.basePrice) : undefined,
+          taxPercent: itemForm.taxPercent ? parseFloat(itemForm.taxPercent) : 10,
+          groupId: (itemForm.groupId && itemForm.groupId !== 'none') ? itemForm.groupId : undefined,
+        })
       });
-      await loadData();
-      setIsAddItemOpen(false);
-      resetItemForm();
+
+      if (response.ok) {
+        await loadData();
+        setIsAddItemOpen(false);
+        resetItemForm();
+      } else {
+        const errorData = await response.json();
+        console.error('Error adding sales item:', errorData.error);
+        alert('Satış malı eklenirken hata: ' + errorData.error);
+      }
     } catch (error) {
       console.error('Error adding sales item:', error);
+      alert('Satış malı eklenirken hata oluştu');
     }
   };
   
@@ -169,26 +220,49 @@ export default function SalesItemsPage() {
     if (!editingItem) return;
     
     try {
-      await salesItemService.update(editingItem.id, {
-        ...itemForm,
-        basePrice: itemForm.basePrice ? parseFloat(itemForm.basePrice) : undefined,
-        groupId: itemForm.groupId || undefined
+      const response = await fetch(`/api/sales-items/${editingItem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...itemForm,
+          basePrice: itemForm.basePrice ? parseFloat(itemForm.basePrice) : undefined,
+          taxPercent: itemForm.taxPercent ? parseFloat(itemForm.taxPercent) : 10,
+          groupId: (itemForm.groupId && itemForm.groupId !== 'none') ? itemForm.groupId : undefined
+        })
       });
-      await loadData();
-      setEditingItem(null);
-      resetItemForm();
+
+      if (response.ok) {
+        await loadData();
+        setEditingItem(null);
+        resetItemForm();
+      } else {
+        const errorData = await response.json();
+        console.error('Error updating sales item:', errorData.error);
+        alert('Satış malı güncellenirken hata: ' + errorData.error);
+      }
     } catch (error) {
       console.error('Error updating sales item:', error);
+      alert('Satış malı güncellenirken hata oluştu');
     }
   };
   
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await salesItemCategoryService.create(categoryForm);
-      await loadData();
-      setIsAddCategoryOpen(false);
-      resetCategoryForm();
+      const response = await fetch('/api/sales-item-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(categoryForm)
+      });
+
+      if (response.ok) {
+        await loadData();
+        setIsAddCategoryOpen(false);
+        resetCategoryForm();
+      } else {
+        const errorData = await response.json();
+        console.error('Error adding category:', errorData.error);
+      }
     } catch (error) {
       console.error('Error adding category:', error);
     }
@@ -238,10 +312,20 @@ export default function SalesItemsPage() {
   const handleDeleteItem = async (id: string) => {
     if (confirm('Bu satış malını silmek istediğinizden emin misiniz?')) {
       try {
-        await salesItemService.delete(id);
-        await loadData();
+        const response = await fetch(`/api/sales-items/${id}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          await loadData();
+        } else {
+          const errorData = await response.json();
+          console.error('Error deleting sales item:', errorData.error);
+          alert('Satış malı silinirken hata: ' + errorData.error);
+        }
       } catch (error) {
         console.error('Error deleting sales item:', error);
+        alert('Satış malı silinirken hata oluştu');
       }
     }
   };
@@ -284,21 +368,22 @@ export default function SalesItemsPage() {
   };
 
   // Edit handlers
-  const openEditItemDialog = (item: MockSalesItem) => {
+  const openEditItemDialog = (item: SalesItemType) => {
     setEditingItem(item);
     setItemForm({
       name: item.name,
       categoryId: item.categoryId,
-      groupId: item.groupId || '',
+      groupId: item.groupId || 'none',
       description: item.description || '',
       basePrice: item.basePrice?.toString() || '',
+      taxPercent: item.taxPercent?.toString() || '10',
       menuCode: item.menuCode || '',
       isActive: item.isActive,
       isAvailable: item.isAvailable
     });
   };
   
-  const openEditCategoryDialog = (category: MockSalesItemCategory) => {
+  const openEditCategoryDialog = (category: SalesItemCategoryType) => {
     setEditingCategory(category);
     setCategoryForm({
       name: category.name,
@@ -309,7 +394,7 @@ export default function SalesItemsPage() {
     });
   };
   
-  const openEditGroupDialog = (group: MockSalesItemGroup) => {
+  const openEditGroupDialog = (group: SalesItemGroupType) => {
     setEditingGroup(group);
     setGroupForm({
       name: group.name,
@@ -415,7 +500,7 @@ export default function SalesItemsPage() {
                           setItemForm(prev => ({ 
                             ...prev, 
                             categoryId: value,
-                            groupId: '' // Reset group when category changes
+                            groupId: 'none' // Reset group when category changes
                           }));
                         }}
                         required
@@ -450,7 +535,7 @@ export default function SalesItemsPage() {
                           <SelectValue placeholder="Grup seçin (opsiyonel)" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Grup yok</SelectItem>
+                          <SelectItem value="none">Grup yok</SelectItem>
                           {itemForm.categoryId && getGroupsByCategory(itemForm.categoryId).map(group => (
                             <SelectItem key={group.id} value={group.id}>
                               <div className="flex items-center gap-2">
@@ -478,16 +563,36 @@ export default function SalesItemsPage() {
                     />
                   </div>
                   
-                  <div>
-                    <Label htmlFor="basePrice">Satış Fiyatı (₺)</Label>
-                    <Input
-                      id="basePrice"
-                      type="number"
-                      step="0.01"
-                      value={itemForm.basePrice}
-                      onChange={(e) => setItemForm(prev => ({ ...prev, basePrice: e.target.value }))}
-                      placeholder="0.00"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="basePrice">Satış Fiyatı (KDV Dahil) (₺)</Label>
+                      <Input
+                        id="basePrice"
+                        type="number"
+                        step="0.01"
+                        value={itemForm.basePrice}
+                        onChange={(e) => setItemForm(prev => ({ ...prev, basePrice: e.target.value }))}
+                        placeholder="0.00"
+                      />
+                      {itemForm.basePrice && itemForm.taxPercent && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          KDV Hariç: ₺{(parseFloat(itemForm.basePrice) / (1 + parseFloat(itemForm.taxPercent) / 100)).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="taxPercent">KDV Oranı (%)</Label>
+                      <Input
+                        id="taxPercent"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={itemForm.taxPercent}
+                        onChange={(e) => setItemForm(prev => ({ ...prev, taxPercent: e.target.value }))}
+                        placeholder="10"
+                      />
+                    </div>
                   </div>
                   
                   <div className="flex items-center space-x-4">
@@ -901,8 +1006,16 @@ export default function SalesItemsPage() {
                       <div className="flex justify-between items-center">
                         <div>
                           {item.basePrice ? (
-                            <div className="text-lg font-bold text-green-600">
-                              ₺{item.basePrice.toFixed(2)}
+                            <div>
+                              <div className="text-lg font-bold text-green-600">
+                                ₺{item.basePrice.toFixed(2)}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                KDV Dahil (%{item.taxPercent || 10})
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                KDV Hariç: ₺{(item.basePrice / (1 + (item.taxPercent || 10) / 100)).toFixed(2)}
+                              </div>
                             </div>
                           ) : (
                             <div className="text-sm text-muted-foreground">
@@ -1207,7 +1320,7 @@ export default function SalesItemsPage() {
                       setItemForm(prev => ({ 
                         ...prev, 
                         categoryId: value,
-                        groupId: '' // Reset group when category changes
+                        groupId: 'none' // Reset group when category changes
                       }));
                     }}
                     required
@@ -1242,7 +1355,7 @@ export default function SalesItemsPage() {
                       <SelectValue placeholder="Grup seçin (opsiyonel)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Grup yok</SelectItem>
+                      <SelectItem value="none">Grup yok</SelectItem>
                       {itemForm.categoryId && getGroupsByCategory(itemForm.categoryId).map(group => (
                         <SelectItem key={group.id} value={group.id}>
                           <div className="flex items-center gap-2">
@@ -1270,16 +1383,36 @@ export default function SalesItemsPage() {
                 />
               </div>
               
-              <div>
-                <Label htmlFor="edit-basePrice">Satış Fiyatı (₺)</Label>
-                <Input
-                  id="edit-basePrice"
-                  type="number"
-                  step="0.01"
-                  value={itemForm.basePrice}
-                  onChange={(e) => setItemForm(prev => ({ ...prev, basePrice: e.target.value }))}
-                  placeholder="0.00"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-basePrice">Satış Fiyatı (KDV Dahil) (₺)</Label>
+                  <Input
+                    id="edit-basePrice"
+                    type="number"
+                    step="0.01"
+                    value={itemForm.basePrice}
+                    onChange={(e) => setItemForm(prev => ({ ...prev, basePrice: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                  {itemForm.basePrice && itemForm.taxPercent && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      KDV Hariç: ₺{(parseFloat(itemForm.basePrice) / (1 + parseFloat(itemForm.taxPercent) / 100)).toFixed(2)}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="edit-taxPercent">KDV Oranı (%)</Label>
+                  <Input
+                    id="edit-taxPercent"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={itemForm.taxPercent}
+                    onChange={(e) => setItemForm(prev => ({ ...prev, taxPercent: e.target.value }))}
+                    placeholder="10"
+                  />
+                </div>
               </div>
               
               <div className="flex items-center space-x-4">

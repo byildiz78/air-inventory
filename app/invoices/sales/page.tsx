@@ -24,74 +24,81 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-// Mock sales and return invoice data
-const mockSalesInvoices = [
-  {
-    id: '3',
-    invoiceNumber: 'SAT-2024-001',
-    type: 'SALE' as const,
-    supplierName: 'Perakende Satış',
-    date: new Date('2024-01-16'),
-    subtotalAmount: 2400,
-    totalDiscountAmount: 120,
-    totalTaxAmount: 456,
-    totalAmount: 2736,
-    status: 'PAID' as const,
-    itemCount: 8
-  },
-  {
-    id: '4',
-    invoiceNumber: 'SAT-2024-002',
-    type: 'SALE' as const,
-    supplierName: 'Kurumsal Müşteri',
-    date: new Date('2024-01-17'),
-    subtotalAmount: 1800,
-    totalDiscountAmount: 90,
-    totalTaxAmount: 342,
-    totalAmount: 2052,
-    status: 'APPROVED' as const,
-    itemCount: 5
-  }
-];
-
-const mockReturnInvoices = [
-  {
-    id: '5',
-    invoiceNumber: 'IAD-2024-001',
-    type: 'RETURN' as const,
-    supplierName: 'Müşteri İadesi',
-    date: new Date('2024-01-18'),
-    subtotalAmount: -500,
-    totalDiscountAmount: 0,
-    totalTaxAmount: -95,
-    totalAmount: -595,
-    status: 'APPROVED' as const,
-    itemCount: 2
-  }
-];
+// Invoice type definition
+type Invoice = {
+  id: string;
+  invoiceNumber: string;
+  type: 'PURCHASE' | 'SALE' | 'RETURN';
+  supplierName: string;
+  date: Date;
+  dueDate?: Date | null;
+  subtotalAmount: number;
+  totalDiscountAmount: number;
+  totalTaxAmount: number;
+  totalAmount: number;
+  status: 'PENDING' | 'APPROVED' | 'PAID' | 'CANCELLED';
+  itemCount: number;
+  userName?: string;
+};
 
 export default function SalesInvoicesPage() {
-  const [salesInvoices, setSalesInvoices] = useState(mockSalesInvoices);
-  const [returnInvoices, setReturnInvoices] = useState(mockReturnInvoices);
-  const [loading, setLoading] = useState(false);
+  const [salesInvoices, setSalesInvoices] = useState<Invoice[]>([]);
+  const [returnInvoices, setReturnInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  
+  // Fetch invoices from API
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      setLoading(true);
+      try {
+        // SALE tipindeki faturaları çek
+        const salesResponse = await fetch(`/api/invoices?search=${searchTerm}&status=${statusFilter !== 'all' ? statusFilter : ''}&type=SALE`);
+        const salesData = await salesResponse.json();
+        
+        if (salesData.success) {
+          // Convert date strings to Date objects
+          const formattedSalesInvoices = salesData.data.map((invoice: any) => ({
+            ...invoice,
+            date: new Date(invoice.date),
+            dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null
+          }));
+          setSalesInvoices(formattedSalesInvoices);
+          console.log('Satış faturaları yüklendi:', formattedSalesInvoices.length);
+        } else {
+          console.error('Error fetching sales invoices:', salesData.error);
+        }
+        
+        // RETURN tipindeki faturaları çek
+        const returnResponse = await fetch(`/api/invoices?search=${searchTerm}&status=${statusFilter !== 'all' ? statusFilter : ''}&type=RETURN`);
+        const returnData = await returnResponse.json();
+        
+        if (returnData.success) {
+          // Convert date strings to Date objects
+          const formattedReturnInvoices = returnData.data.map((invoice: any) => ({
+            ...invoice,
+            date: new Date(invoice.date),
+            dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null
+          }));
+          setReturnInvoices(formattedReturnInvoices);
+          console.log('İade faturaları yüklendi:', formattedReturnInvoices.length);
+        } else {
+          console.error('Error fetching return invoices:', returnData.error);
+        }
+      } catch (error) {
+        console.error('Error fetching invoices:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Filter functions
-  const filterInvoices = (invoices: any[]) => {
-    return invoices.filter(invoice => {
-      const matchesSearch = 
-        invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.supplierName.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter;
+    fetchInvoices();
+  }, [searchTerm, statusFilter]);
 
-      return matchesSearch && matchesStatus;
-    });
-  };
-
-  const filteredSalesInvoices = filterInvoices(salesInvoices);
-  const filteredReturnInvoices = filterInvoices(returnInvoices);
+  // No need to filter invoices here as we're filtering on the API side
+  const filteredSalesInvoices = salesInvoices;
+  const filteredReturnInvoices = returnInvoices;
 
   const getStatusBadge = (status: string) => {
     switch (status) {

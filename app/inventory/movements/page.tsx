@@ -17,21 +17,33 @@ import {
   Filter,
   Download
 } from 'lucide-react';
-import { 
-  materialService, 
-  unitService 
-} from '@/lib/data-service';
-import { 
-  MockMaterial, 
-  MockUnit,
-  MockStockMovement 
-} from '@/lib/mock-data';
+import { Material, Unit, StockMovement, User, Category, Supplier } from '@prisma/client';
+
+type StockMovementWithRelations = StockMovement & {
+  material?: {
+    id: string;
+    name: string;
+  };
+  unit?: {
+    id: string;
+    name: string;
+    abbreviation: string;
+  };
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  invoice?: {
+    id: string;
+    invoiceNumber: string;
+  };
+};
 
 export default function StockMovementsPage() {
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
-  const [units, setUnits] = useState<MockUnit[]>([]);
-  const [movements, setMovements] = useState<MockStockMovement[]>([]);
-  const [filteredMovements, setFilteredMovements] = useState<MockStockMovement[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [movements, setMovements] = useState<StockMovementWithRelations[]>([]);
+  const [filteredMovements, setFilteredMovements] = useState<StockMovementWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
@@ -51,129 +63,18 @@ export default function StockMovementsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [materialsData, unitsData] = await Promise.all([
-        materialService.getAll(),
-        unitService.getAll(),
+      const [materialsRes, movementsRes] = await Promise.all([
+        fetch('/api/materials'),
+        fetch('/api/stock-movements'),
       ]);
 
-      setMaterials(materialsData);
-      setUnits(unitsData);
+      const [materialsData, movementsData] = await Promise.all([
+        materialsRes.json(),
+        movementsRes.json(),
+      ]);
 
-      // Mock stock movements data
-      const mockMovements: MockStockMovement[] = [
-        {
-          id: '1',
-          materialId: '1',
-          unitId: '1',
-          userId: '1',
-          type: 'IN',
-          quantity: 10,
-          reason: 'Alış Faturası #001',
-          unitCost: 180,
-          totalCost: 1800,
-          stockBefore: 15.5,
-          stockAfter: 25.5,
-          date: new Date('2024-01-15T10:30:00'),
-          createdAt: new Date('2024-01-15T10:30:00'),
-        },
-        {
-          id: '2',
-          materialId: '1',
-          unitId: '1',
-          userId: '2',
-          type: 'OUT',
-          quantity: -2,
-          reason: 'Kuşbaşılı Pilav Üretimi',
-          stockBefore: 25.5,
-          stockAfter: 23.5,
-          date: new Date('2024-01-15T14:15:00'),
-          createdAt: new Date('2024-01-15T14:15:00'),
-        },
-        {
-          id: '3',
-          materialId: '2',
-          unitId: '1',
-          userId: '1',
-          type: 'IN',
-          quantity: 5,
-          reason: 'Alış Faturası #002',
-          unitCost: 45,
-          totalCost: 225,
-          stockBefore: 10.2,
-          stockAfter: 15.2,
-          date: new Date('2024-01-14T16:45:00'),
-          createdAt: new Date('2024-01-14T16:45:00'),
-        },
-        {
-          id: '4',
-          materialId: '3',
-          unitId: '1',
-          userId: '3',
-          type: 'WASTE',
-          quantity: -1.2,
-          reason: 'Bozulma nedeniyle fire',
-          stockBefore: 14,
-          stockAfter: 12.8,
-          date: new Date('2024-01-13T09:20:00'),
-          createdAt: new Date('2024-01-13T09:20:00'),
-        },
-        {
-          id: '5',
-          materialId: '4',
-          unitId: '1',
-          userId: '1',
-          type: 'ADJUSTMENT',
-          quantity: 0.5,
-          reason: 'Sayım düzeltmesi',
-          stockBefore: 8,
-          stockAfter: 8.5,
-          date: new Date('2024-01-12T18:00:00'),
-          createdAt: new Date('2024-01-12T18:00:00'),
-        },
-        {
-          id: '6',
-          materialId: '1',
-          unitId: '1',
-          userId: '2',
-          type: 'OUT',
-          quantity: -1.5,
-          reason: 'Tavuklu Salata Üretimi',
-          stockBefore: 23.5,
-          stockAfter: 22,
-          date: new Date('2024-01-16T11:30:00'),
-          createdAt: new Date('2024-01-16T11:30:00'),
-        },
-        {
-          id: '7',
-          materialId: '5',
-          unitId: '3',
-          userId: '1',
-          type: 'IN',
-          quantity: 10,
-          reason: 'Alış Faturası #003',
-          unitCost: 12,
-          totalCost: 120,
-          stockBefore: 10,
-          stockAfter: 20,
-          date: new Date('2024-01-16T09:15:00'),
-          createdAt: new Date('2024-01-16T09:15:00'),
-        },
-        {
-          id: '8',
-          materialId: '2',
-          unitId: '1',
-          userId: '3',
-          type: 'WASTE',
-          quantity: -0.8,
-          reason: 'Son kullanma tarihi geçti',
-          stockBefore: 15.2,
-          stockAfter: 14.4,
-          date: new Date('2024-01-17T08:00:00'),
-          createdAt: new Date('2024-01-17T08:00:00'),
-        }
-      ];
-
-      setMovements(mockMovements);
+      setMaterials(materialsData.data || []);
+      setMovements(movementsData.data || []);
     } catch (error) {
       console.error('Data loading error:', error);
     } finally {
@@ -193,27 +94,45 @@ export default function StockMovementsPage() {
     }
 
     if (dateFrom) {
-      filtered = filtered.filter(movement => 
-        new Date(movement.date) >= new Date(dateFrom)
-      );
+      filtered = filtered.filter(movement => {
+        try {
+          const movementDate = new Date(movement.date);
+          const fromDate = new Date(dateFrom);
+          return !isNaN(movementDate.getTime()) && !isNaN(fromDate.getTime()) && movementDate >= fromDate;
+        } catch {
+          return false;
+        }
+      });
     }
 
     if (dateTo) {
-      filtered = filtered.filter(movement => 
-        new Date(movement.date) <= new Date(dateTo + 'T23:59:59')
-      );
+      filtered = filtered.filter(movement => {
+        try {
+          const movementDate = new Date(movement.date);
+          const toDate = new Date(dateTo + 'T23:59:59');
+          return !isNaN(movementDate.getTime()) && !isNaN(toDate.getTime()) && movementDate <= toDate;
+        } catch {
+          return false;
+        }
+      });
     }
 
     // Sort by date (newest first)
-    filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    filtered.sort((a, b) => {
+      try {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (isNaN(dateA) || isNaN(dateB)) return 0;
+        return dateB - dateA;
+      } catch {
+        return 0;
+      }
+    });
 
     setFilteredMovements(filtered);
   };
 
-  const getMaterialById = (id: string) => materials.find(m => m.id === id);
-  const getUnitById = (id: string) => units.find(u => u.id === id);
-
-  const getMovementIcon = (type: MockStockMovement['type']) => {
+  const getMovementIcon = (type: StockMovementWithRelations['type']) => {
     switch (type) {
       case 'IN': return <TrendingUp className="w-4 h-4 text-green-600" />;
       case 'OUT': return <TrendingDown className="w-4 h-4 text-red-600" />;
@@ -224,7 +143,7 @@ export default function StockMovementsPage() {
     }
   };
 
-  const getMovementBadgeVariant = (type: MockStockMovement['type']) => {
+  const getMovementBadgeVariant = (type: StockMovementWithRelations['type']) => {
     switch (type) {
       case 'IN': return 'default';
       case 'OUT': return 'destructive';
@@ -235,7 +154,7 @@ export default function StockMovementsPage() {
     }
   };
 
-  const getMovementTypeText = (type: MockStockMovement['type']) => {
+  const getMovementTypeText = (type: StockMovementWithRelations['type']) => {
     switch (type) {
       case 'IN': return 'Giriş';
       case 'OUT': return 'Çıkış';
@@ -246,14 +165,23 @@ export default function StockMovementsPage() {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('tr-TR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
+  const formatDate = (date: Date | string) => {
+    try {
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+      if (isNaN(dateObj.getTime())) {
+        return 'Geçersiz tarih';
+      }
+      return new Intl.DateTimeFormat('tr-TR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(dateObj);
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return 'Geçersiz tarih';
+    }
   };
 
   const getMovementStats = () => {
@@ -421,16 +349,13 @@ export default function StockMovementsPage() {
                 </div>
               ) : (
                 filteredMovements.map((movement) => {
-                  const material = getMaterialById(movement.materialId);
-                  const unit = getUnitById(movement.unitId);
-
                   return (
                     <div key={movement.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="flex items-center gap-4">
                         {getMovementIcon(movement.type)}
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className="font-medium">{material?.name}</h4>
+                            <h4 className="font-medium">{movement.material?.name}</h4>
                             <Badge variant={getMovementBadgeVariant(movement.type) as any}>
                               {getMovementTypeText(movement.type)}
                             </Badge>
@@ -441,15 +366,20 @@ export default function StockMovementsPage() {
                           <p className="text-xs text-muted-foreground">
                             {formatDate(movement.date)}
                           </p>
+                          {movement.user && (
+                            <p className="text-xs text-muted-foreground">
+                              Kullanıcı: {movement.user.name}
+                            </p>
+                          )}
                         </div>
                       </div>
 
                       <div className="text-right">
                         <div className="font-medium">
-                          {movement.quantity > 0 ? '+' : ''}{movement.quantity} {unit?.abbreviation}
+                          {movement.quantity > 0 ? '+' : ''}{movement.quantity} {movement.unit?.abbreviation}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {movement.stockBefore} → {movement.stockAfter} {unit?.abbreviation}
+                          {movement.stockBefore} → {movement.stockAfter} {movement.unit?.abbreviation}
                         </div>
                         {movement.totalCost && (
                           <div className="text-sm font-medium text-green-600">
@@ -458,7 +388,12 @@ export default function StockMovementsPage() {
                         )}
                         {movement.unitCost && (
                           <div className="text-xs text-muted-foreground">
-                            ₺{movement.unitCost}/{unit?.abbreviation}
+                            ₺{movement.unitCost}/{movement.unit?.abbreviation}
+                          </div>
+                        )}
+                        {movement.invoice && (
+                          <div className="text-xs text-muted-foreground">
+                            Fatura: {movement.invoice.invoiceNumber}
                           </div>
                         )}
                       </div>

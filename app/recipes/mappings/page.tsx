@@ -24,26 +24,61 @@ import {
   Calendar,
   Users
 } from 'lucide-react';
-import { 
-  salesItemService, 
-  recipeService, 
-  recipeMappingService
-} from '@/lib/data-service';
-import { 
-  MockSalesItem, 
-  MockRecipe, 
-  MockRecipeMapping
-} from '@/lib/mock-data';
+import { Recipe, RecipeIngredient, SalesItem } from '@prisma/client';
+
+type RecipeWithRelations = Recipe & {
+  ingredients?: (RecipeIngredient & {
+    material?: {
+      id: string;
+      name: string;
+      averageCost?: number;
+    };
+    unit?: {
+      id: string;
+      name: string;
+      abbreviation: string;
+    };
+  })[];
+  _count?: {
+    ingredients: number;
+  };
+};
+
+type SalesItemType = {
+  id: string;
+  name: string;
+  menuCode?: string;
+  description?: string;
+  basePrice?: number;
+  category?: string;
+  isActive: boolean;
+};
+
+type RecipeMappingType = {
+  id: string;
+  salesItemId: string;
+  recipeId: string;
+  portionRatio: number;
+  priority: number;
+  overrideCost?: number;
+  isActive: boolean;
+  validFrom?: Date | string;
+  validTo?: Date | string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  recipe?: RecipeWithRelations;
+  salesItem?: SalesItemType;
+};
 
 export default function RecipeMappingsPage() {
-  const [salesItems, setSalesItems] = useState<MockSalesItem[]>([]);
-  const [recipes, setRecipes] = useState<MockRecipe[]>([]);
-  const [mappings, setMappings] = useState<MockRecipeMapping[]>([]);
+  const [salesItems, setSalesItems] = useState<SalesItemType[]>([]);
+  const [recipes, setRecipes] = useState<RecipeWithRelations[]>([]);
+  const [mappings, setMappings] = useState<RecipeMappingType[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Selected item for mapping
-  const [selectedItem, setSelectedItem] = useState<MockSalesItem | null>(null);
-  const [itemMappings, setItemMappings] = useState<MockRecipeMapping[]>([]);
+  const [selectedItem, setSelectedItem] = useState<SalesItemType | null>(null);
+  const [itemMappings, setItemMappings] = useState<RecipeMappingType[]>([]);
   
   // Search and filter
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,7 +86,7 @@ export default function RecipeMappingsPage() {
   
   // Modal states
   const [isAddMappingOpen, setIsAddMappingOpen] = useState(false);
-  const [editingMapping, setEditingMapping] = useState<MockRecipeMapping | null>(null);
+  const [editingMapping, setEditingMapping] = useState<RecipeMappingType | null>(null);
   
   // Form state
   const [mappingForm, setMappingForm] = useState({
@@ -71,15 +106,21 @@ export default function RecipeMappingsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [salesItemsData, recipesData, mappingsData] = await Promise.all([
-        salesItemService.getAll(),
-        recipeService.getAll(),
-        recipeMappingService.getAll()
+      const [salesItemsRes, recipesRes, mappingsRes] = await Promise.all([
+        fetch('/api/sales-items'),
+        fetch('/api/recipes'),
+        fetch('/api/recipe-mappings')
       ]);
 
-      setSalesItems(salesItemsData);
-      setRecipes(recipesData);
-      setMappings(mappingsData);
+      const [salesItemsData, recipesData, mappingsData] = await Promise.all([
+        salesItemsRes.json(),
+        recipesRes.json(),
+        mappingsRes.json()
+      ]);
+
+      setSalesItems(salesItemsData.data || []);
+      setRecipes(recipesData.data || []);
+      setMappings(mappingsData.data || []);
     } catch (error) {
       console.error('Data loading error:', error);
     } finally {
@@ -113,22 +154,33 @@ export default function RecipeMappingsPage() {
     if (!selectedItem) return;
     
     try {
-      const newMapping = await recipeMappingService.create({
-        salesItemId: selectedItem.id,
-        recipeId: mappingForm.recipeId,
-        portionRatio: parseFloat(mappingForm.portionRatio),
-        priority: parseInt(mappingForm.priority),
-        overrideCost: mappingForm.overrideCost ? parseFloat(mappingForm.overrideCost) : undefined,
-        isActive: mappingForm.isActive,
-        validFrom: mappingForm.validFrom ? new Date(mappingForm.validFrom) : undefined,
-        validTo: mappingForm.validTo ? new Date(mappingForm.validTo) : undefined
+      const response = await fetch('/api/recipe-mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          salesItemId: selectedItem.id,
+          recipeId: mappingForm.recipeId,
+          portionRatio: parseFloat(mappingForm.portionRatio),
+          priority: parseInt(mappingForm.priority),
+          overrideCost: mappingForm.overrideCost ? parseFloat(mappingForm.overrideCost) : undefined,
+          isActive: mappingForm.isActive,
+          validFrom: mappingForm.validFrom || undefined,
+          validTo: mappingForm.validTo || undefined
+        })
       });
-      
-      await loadData();
-      setIsAddMappingOpen(false);
-      resetMappingForm();
+
+      if (response.ok) {
+        await loadData();
+        setIsAddMappingOpen(false);
+        resetMappingForm();
+      } else {
+        const errorData = await response.json();
+        console.error('Error adding mapping:', errorData.error);
+        alert('Eşleştirme eklenirken hata: ' + errorData.error);
+      }
     } catch (error) {
       console.error('Error adding mapping:', error);
+      alert('Eşleştirme eklenirken hata oluştu');
     }
   };
 
@@ -137,35 +189,56 @@ export default function RecipeMappingsPage() {
     if (!editingMapping) return;
     
     try {
-      await recipeMappingService.update(editingMapping.id, {
-        portionRatio: parseFloat(mappingForm.portionRatio),
-        priority: parseInt(mappingForm.priority),
-        overrideCost: mappingForm.overrideCost ? parseFloat(mappingForm.overrideCost) : undefined,
-        isActive: mappingForm.isActive,
-        validFrom: mappingForm.validFrom ? new Date(mappingForm.validFrom) : undefined,
-        validTo: mappingForm.validTo ? new Date(mappingForm.validTo) : undefined
+      const response = await fetch(`/api/recipe-mappings/${editingMapping.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portionRatio: parseFloat(mappingForm.portionRatio),
+          priority: parseInt(mappingForm.priority),
+          overrideCost: mappingForm.overrideCost ? parseFloat(mappingForm.overrideCost) : undefined,
+          isActive: mappingForm.isActive,
+          validFrom: mappingForm.validFrom || undefined,
+          validTo: mappingForm.validTo || undefined
+        })
       });
-      
-      await loadData();
-      setEditingMapping(null);
-      resetMappingForm();
+
+      if (response.ok) {
+        await loadData();
+        setEditingMapping(null);
+        resetMappingForm();
+      } else {
+        const errorData = await response.json();
+        console.error('Error updating mapping:', errorData.error);
+        alert('Eşleştirme güncellenirken hata: ' + errorData.error);
+      }
     } catch (error) {
       console.error('Error updating mapping:', error);
+      alert('Eşleştirme güncellenirken hata oluştu');
     }
   };
 
   const handleDeleteMapping = async (id: string) => {
     if (confirm('Bu eşleştirmeyi silmek istediğinizden emin misiniz?')) {
       try {
-        await recipeMappingService.delete(id);
-        await loadData();
+        const response = await fetch(`/api/recipe-mappings/${id}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          await loadData();
+        } else {
+          const errorData = await response.json();
+          console.error('Error deleting mapping:', errorData.error);
+          alert('Eşleştirme silinirken hata: ' + errorData.error);
+        }
       } catch (error) {
         console.error('Error deleting mapping:', error);
+        alert('Eşleştirme silinirken hata oluştu');
       }
     }
   };
 
-  const openEditMappingDialog = (mapping: MockRecipeMapping) => {
+  const openEditMappingDialog = (mapping: RecipeMappingType) => {
     setEditingMapping(mapping);
     setMappingForm({
       recipeId: mapping.recipeId,
@@ -173,14 +246,14 @@ export default function RecipeMappingsPage() {
       priority: mapping.priority.toString(),
       overrideCost: mapping.overrideCost?.toString() || '',
       isActive: mapping.isActive,
-      validFrom: mapping.validFrom ? mapping.validFrom.toISOString().split('T')[0] : '',
-      validTo: mapping.validTo ? mapping.validTo.toISOString().split('T')[0] : ''
+      validFrom: mapping.validFrom ? (typeof mapping.validFrom === 'string' ? mapping.validFrom.split('T')[0] : mapping.validFrom.toISOString().split('T')[0]) : '',
+      validTo: mapping.validTo ? (typeof mapping.validTo === 'string' ? mapping.validTo.split('T')[0] : mapping.validTo.toISOString().split('T')[0]) : ''
     });
   };
 
   // Helper functions
   const getRecipeById = (id: string) => recipes.find(r => r.id === id);
-  const getSalesItemById = (id: string) => salesItems.find(s => s.id === s);
+  const getSalesItemById = (id: string) => salesItems.find(s => s.id === id);
   const getMappingsBySalesItem = (id: string) => mappings.filter(m => m.salesItemId === id);
   
   // Filter sales items
@@ -197,7 +270,17 @@ export default function RecipeMappingsPage() {
   // Calculate total cost for a sales item
   const calculateTotalCost = async (salesItemId: string) => {
     try {
-      return await recipeMappingService.calculateSalesItemCost(salesItemId);
+      const response = await fetch('/api/recipe-mappings/calculate-cost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ salesItemId })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.data.totalCost;
+      }
+      return 0;
     } catch (error) {
       console.error('Error calculating cost:', error);
       return 0;
@@ -609,12 +692,12 @@ export default function RecipeMappingsPage() {
                                       <Calendar className="w-3 h-3" />
                                       <span>
                                         {mapping.validFrom 
-                                          ? mapping.validFrom.toLocaleDateString('tr-TR') 
+                                          ? new Date(mapping.validFrom).toLocaleDateString('tr-TR') 
                                           : 'Başlangıç'
                                         }
                                         {' - '}
                                         {mapping.validTo 
-                                          ? mapping.validTo.toLocaleDateString('tr-TR') 
+                                          ? new Date(mapping.validTo).toLocaleDateString('tr-TR') 
                                           : 'Süresiz'
                                         }
                                       </span>

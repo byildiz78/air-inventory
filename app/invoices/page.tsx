@@ -23,69 +23,61 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-// Mock invoice data
-const mockInvoices = [
-  {
-    id: '1',
-    invoiceNumber: 'ALF-2024-001',
-    type: 'PURCHASE' as const,
-    supplierName: 'Anadolu Et Pazarı',
-    date: new Date('2024-01-15'),
-    dueDate: new Date('2024-02-15'),
-    subtotalAmount: 1500,
-    totalDiscountAmount: 75,
-    totalTaxAmount: 285,
-    totalAmount: 1710,
-    status: 'APPROVED' as const,
-    itemCount: 3
-  },
-  {
-    id: '2',
-    invoiceNumber: 'ALF-2024-002',
-    type: 'PURCHASE' as const,
-    supplierName: 'Taze Sebze Meyve',
-    date: new Date('2024-01-16'),
-    dueDate: new Date('2024-02-16'),
-    subtotalAmount: 850,
-    totalDiscountAmount: 42.5,
-    totalTaxAmount: 8.075,
-    totalAmount: 815.575,
-    status: 'PENDING' as const,
-    itemCount: 5
-  },
-  {
-    id: '3',
-    invoiceNumber: 'SAT-2024-001',
-    type: 'SALE' as const,
-    supplierName: 'Perakende Satış',
-    date: new Date('2024-01-16'),
-    subtotalAmount: 2400,
-    totalDiscountAmount: 120,
-    totalTaxAmount: 456,
-    totalAmount: 2736,
-    status: 'PAID' as const,
-    itemCount: 8
-  }
-];
+// Invoice type definition
+type Invoice = {
+  id: string;
+  invoiceNumber: string;
+  type: 'PURCHASE' | 'SALE' | 'RETURN';
+  supplierName: string;
+  date: Date;
+  dueDate?: Date | null;
+  subtotalAmount: number;
+  totalDiscountAmount: number;
+  totalTaxAmount: number;
+  totalAmount: number;
+  status: 'PENDING' | 'APPROVED' | 'PAID' | 'CANCELLED';
+  itemCount: number;
+  userName?: string;
+};
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState(mockInvoices);
-  const [loading, setLoading] = useState(false);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
-  // Filter invoices
-  const filteredInvoices = invoices.filter(invoice => {
-    const matchesSearch = 
-      invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.supplierName.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter;
-    const matchesType = typeFilter === 'all' || invoice.type === typeFilter;
+  // Fetch invoices from API
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/invoices?search=${searchTerm}&status=${statusFilter !== 'all' ? statusFilter : ''}&type=${typeFilter !== 'all' ? typeFilter : ''}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          // Convert date strings to Date objects
+          const formattedInvoices = data.data.map((invoice: any) => ({
+            ...invoice,
+            date: new Date(invoice.date),
+            dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null
+          }));
+          setInvoices(formattedInvoices);
+        } else {
+          console.error('Error fetching invoices:', data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching invoices:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    return matchesSearch && matchesStatus && matchesType;
-  });
+    fetchInvoices();
+  }, [searchTerm, statusFilter, typeFilter]);
+
+  // No need to filter invoices here as we're filtering on the API side
+  const filteredInvoices = invoices;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -109,9 +101,9 @@ export default function InvoicesPage() {
   // Calculate stats
   const stats = {
     totalInvoices: filteredInvoices.length,
-    pendingInvoices: filteredInvoices.filter(inv => inv.status === 'PENDING').length,
-    totalAmount: filteredInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0),
-    purchaseAmount: filteredInvoices.filter(inv => inv.type === 'PURCHASE').reduce((sum, inv) => sum + inv.totalAmount, 0),
+    pendingInvoices: filteredInvoices.filter((inv: Invoice) => inv.status === 'PENDING').length,
+    totalAmount: filteredInvoices.reduce((sum: number, inv: Invoice) => sum + inv.totalAmount, 0),
+    purchaseAmount: filteredInvoices.filter((inv: Invoice) => inv.type === 'PURCHASE').reduce((sum: number, inv: Invoice) => sum + inv.totalAmount, 0),
   };
 
   return (
@@ -256,7 +248,12 @@ export default function InvoicesPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {filteredInvoices.length === 0 ? (
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <h3 className="text-lg font-medium mb-2">Faturalar yükleniyor...</h3>
+                </div>
+              ) : filteredInvoices.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                   <h3 className="text-lg font-medium mb-2">Fatura bulunamadı</h3>
@@ -273,7 +270,7 @@ export default function InvoicesPage() {
                   </Link>
                 </div>
               ) : (
-                filteredInvoices.map((invoice) => {
+                filteredInvoices.map((invoice: Invoice) => {
                   const statusBadge = getStatusBadge(invoice.status);
                   const typeBadge = getTypeBadge(invoice.type);
                   

@@ -25,24 +25,31 @@ import {
   Calculator,
   Eye
 } from 'lucide-react';
-import { 
-  recipeService, 
-  materialService, 
-  unitService,
-  costCalculationService 
-} from '@/lib/data-service';
-import { 
-  MockRecipe, 
-  MockRecipeIngredient, 
-  MockMaterial, 
-  MockUnit 
-} from '@/lib/mock-data';
+import { Recipe, Material, Unit, RecipeIngredient } from '@prisma/client';
+
+type RecipeWithRelations = Recipe & {
+  ingredients?: (RecipeIngredient & {
+    material?: {
+      id: string;
+      name: string;
+      averageCost?: number;
+    };
+    unit?: {
+      id: string;
+      name: string;
+      abbreviation: string;
+    };
+  })[];
+  _count?: {
+    ingredients: number;
+  };
+};
 
 export default function RecipesPage() {
-  const [recipes, setRecipes] = useState<MockRecipe[]>([]);
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
-  const [units, setUnits] = useState<MockUnit[]>([]);
-  const [recipeIngredients, setRecipeIngredients] = useState<MockRecipeIngredient[]>([]);
+  const [recipes, setRecipes] = useState<RecipeWithRelations[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [recipeIngredients, setRecipeIngredients] = useState<RecipeIngredient[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
@@ -52,7 +59,8 @@ export default function RecipesPage() {
 
   // Modal states
   const [isAddRecipeOpen, setIsAddRecipeOpen] = useState(false);
-  const [selectedRecipe, setSelectedRecipe] = useState<MockRecipe | null>(null);
+  const [isEditRecipeOpen, setIsEditRecipeOpen] = useState(false);
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeWithRelations | null>(null);
   const [isRecipeDetailOpen, setIsRecipeDetailOpen] = useState(false);
 
   // Recipe form state
@@ -77,22 +85,29 @@ export default function RecipesPage() {
   const loadRecipeData = async () => {
     try {
       setLoading(true);
-      const [recipesData, materialsData, unitsData] = await Promise.all([
-        recipeService.getAll(),
-        materialService.getAll(),
-        unitService.getAll(),
+      const [recipesRes, materialsRes, unitsRes] = await Promise.all([
+        fetch('/api/recipes'),
+        fetch('/api/materials'),
+        fetch('/api/units'),
       ]);
 
-      setRecipes(recipesData);
-      setMaterials(materialsData);
-      setUnits(unitsData);
+      const [recipesData, materialsData, unitsData] = await Promise.all([
+        recipesRes.json(),
+        materialsRes.json(),
+        unitsRes.json(),
+      ]);
 
-      // Load recipe ingredients for all recipes
-      const allIngredients: MockRecipeIngredient[] = [];
-      for (const recipe of recipesData) {
-        const ingredients = await recipeService.getIngredients(recipe.id);
-        allIngredients.push(...ingredients);
-      }
+      setRecipes(recipesData.data || []);
+      setMaterials(materialsData.data || []);
+      setUnits(unitsData.data || []);
+
+      // Recipe ingredients are already included in the recipe data
+      const allIngredients: RecipeIngredient[] = [];
+      recipesData.data?.forEach((recipe: RecipeWithRelations) => {
+        if (recipe.ingredients) {
+          allIngredients.push(...recipe.ingredients);
+        }
+      });
       setRecipeIngredients(allIngredients);
 
     } catch (error) {
@@ -121,8 +136,8 @@ export default function RecipesPage() {
 
   const getMaterialById = (id: string) => materials.find(m => m.id === id);
   const getUnitById = (id: string) => units.find(u => u.id === id);
-  const getRecipeIngredients = (recipeId: string) => 
-    recipeIngredients.filter(ing => ing.recipeId === recipeId);
+  const getRecipeIngredients = (recipe: RecipeWithRelations) => 
+    recipe.ingredients || [];
 
   const getProfitabilityBadge = (profitMargin?: number) => {
     if (!profitMargin) return { variant: 'outline' as const, text: 'Bilinmiyor', color: 'text-gray-500' };
@@ -171,6 +186,92 @@ export default function RecipesPage() {
 
   const categories = [...new Set(recipes.map(r => r.category).filter(Boolean))];
 
+  const openEditModal = (recipe: RecipeWithRelations) => {
+    setSelectedRecipe(recipe);
+    setRecipeForm({
+      name: recipe.name,
+      description: recipe.description || '',
+      category: recipe.category || '',
+      servingSize: recipe.servingSize,
+      preparationTime: recipe.preparationTime,
+      ingredients: recipe.ingredients?.map(ing => ({
+        materialId: ing.materialId,
+        unitId: ing.unitId,
+        quantity: ing.quantity,
+        notes: ing.notes || ''
+      })) || []
+    });
+    setIsEditRecipeOpen(true);
+  };
+
+  const resetForm = () => {
+    setRecipeForm({
+      name: '',
+      description: '',
+      category: '',
+      servingSize: 1,
+      preparationTime: 30,
+      ingredients: []
+    });
+  };
+
+  const handleSaveRecipe = async () => {
+    try {
+      const recipeData = {
+        ...recipeForm,
+        suggestedPrice: (calculateFormCost() / recipeForm.servingSize) * 1.4,
+        profitMargin: 40
+      };
+
+      let response;
+      if (selectedRecipe && isEditRecipeOpen) {
+        // Update existing recipe
+        response = await fetch(`/api/recipes/${selectedRecipe.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(recipeData)
+        });
+      } else {
+        // Create new recipe
+        response = await fetch('/api/recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(recipeData)
+        });
+      }
+
+      if (response.ok) {
+        await loadRecipeData();
+        setIsAddRecipeOpen(false);
+        setIsEditRecipeOpen(false);
+        resetForm();
+        setSelectedRecipe(null);
+      } else {
+        console.error('Failed to save recipe');
+      }
+    } catch (error) {
+      console.error('Error saving recipe:', error);
+    }
+  };
+
+  const handleCopyRecipe = (recipe: RecipeWithRelations) => {
+    setSelectedRecipe(null);
+    setRecipeForm({
+      name: `${recipe.name} - Kopya`,
+      description: recipe.description || '',
+      category: recipe.category || '',
+      servingSize: recipe.servingSize,
+      preparationTime: recipe.preparationTime,
+      ingredients: recipe.ingredients?.map(ing => ({
+        materialId: ing.materialId,
+        unitId: ing.unitId,
+        quantity: ing.quantity,
+        notes: ing.notes || ''
+      })) || []
+    });
+    setIsAddRecipeOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -190,7 +291,13 @@ export default function RecipesPage() {
         <div className="flex gap-2 mb-6">
           <Dialog open={isAddRecipeOpen} onOpenChange={setIsAddRecipeOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-orange-500 hover:bg-orange-600">
+              <Button 
+                className="bg-orange-500 hover:bg-orange-600"
+                onClick={() => {
+                  resetForm();
+                  setSelectedRecipe(null);
+                }}
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Yeni Reçete
               </Button>
@@ -374,10 +481,215 @@ export default function RecipesPage() {
                 </Card>
 
                 <div className="flex gap-2 pt-4">
-                  <Button className="bg-orange-500 hover:bg-orange-600">
+                  <Button 
+                    className="bg-orange-500 hover:bg-orange-600"
+                    onClick={handleSaveRecipe}
+                  >
                     Reçete Kaydet
                   </Button>
-                  <Button variant="outline" onClick={() => setIsAddRecipeOpen(false)}>
+                  <Button variant="outline" onClick={() => {
+                    setIsAddRecipeOpen(false);
+                    resetForm();
+                  }}>
+                    İptal
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Edit Recipe Modal */}
+          <Dialog open={isEditRecipeOpen} onOpenChange={setIsEditRecipeOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Reçete Düzenle</DialogTitle>
+                <DialogDescription>
+                  Reçete bilgilerini ve malzeme listesini güncelleyin
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6">
+                {/* Basic Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-recipe-name">Reçete Adı *</Label>
+                    <Input 
+                      id="edit-recipe-name" 
+                      placeholder="Örn: Kuşbaşılı Pilav"
+                      value={recipeForm.name}
+                      onChange={(e) => setRecipeForm(prev => ({ ...prev, name: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-recipe-category">Kategori</Label>
+                    <Input 
+                      id="edit-recipe-category" 
+                      placeholder="Örn: Ana Yemek"
+                      value={recipeForm.category}
+                      onChange={(e) => setRecipeForm(prev => ({ ...prev, category: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-serving-size">Porsiyon Sayısı</Label>
+                    <Input 
+                      id="edit-serving-size" 
+                      type="number"
+                      min="1"
+                      value={recipeForm.servingSize}
+                      onChange={(e) => setRecipeForm(prev => ({ ...prev, servingSize: parseInt(e.target.value) || 1 }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-prep-time">Hazırlık Süresi (dakika)</Label>
+                    <Input 
+                      id="edit-prep-time" 
+                      type="number"
+                      min="1"
+                      value={recipeForm.preparationTime}
+                      onChange={(e) => setRecipeForm(prev => ({ ...prev, preparationTime: parseInt(e.target.value) || 30 }))}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-recipe-description">Açıklama</Label>
+                  <Textarea 
+                    id="edit-recipe-description" 
+                    placeholder="Reçete açıklaması ve hazırlık notları..."
+                    value={recipeForm.description}
+                    onChange={(e) => setRecipeForm(prev => ({ ...prev, description: e.target.value }))}
+                  />
+                </div>
+
+                {/* Ingredients */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <Label className="text-lg font-semibold">Malzemeler</Label>
+                    <Button type="button" onClick={addIngredientToForm} variant="outline" size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Malzeme Ekle
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {recipeForm.ingredients.map((ingredient, index) => (
+                      <div key={index} className="grid grid-cols-12 gap-2 items-end p-3 border rounded-lg">
+                        <div className="col-span-4">
+                          <Label className="text-xs">Malzeme</Label>
+                          <Select 
+                            value={ingredient.materialId} 
+                            onValueChange={(value) => updateIngredient(index, 'materialId', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Malzeme seçin" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {materials.map(material => (
+                                <SelectItem key={material.id} value={material.id}>
+                                  {material.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="col-span-2">
+                          <Label className="text-xs">Miktar</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={ingredient.quantity}
+                            onChange={(e) => updateIngredient(index, 'quantity', parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                        
+                        <div className="col-span-2">
+                          <Label className="text-xs">Birim</Label>
+                          <Select 
+                            value={ingredient.unitId} 
+                            onValueChange={(value) => updateIngredient(index, 'unitId', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Birim" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {units.map(unit => (
+                                <SelectItem key={unit.id} value={unit.id}>
+                                  {unit.abbreviation}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="col-span-3">
+                          <Label className="text-xs">Not</Label>
+                          <Input 
+                            placeholder="İsteğe bağlı"
+                            value={ingredient.notes}
+                            onChange={(e) => updateIngredient(index, 'notes', e.target.value)}
+                          />
+                        </div>
+                        
+                        <div className="col-span-1">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => removeIngredientFromForm(index)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cost Summary */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calculator className="w-5 h-5" />
+                      Maliyet Özeti
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Toplam Maliyet</p>
+                        <p className="text-lg font-bold">₺{calculateFormCost().toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Porsiyon Başı</p>
+                        <p className="text-lg font-bold">₺{(calculateFormCost() / recipeForm.servingSize).toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Önerilen Fiyat (%40 kâr)</p>
+                        <p className="text-lg font-bold text-green-600">₺{((calculateFormCost() / recipeForm.servingSize) * 1.4).toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Porsiyon Sayısı</p>
+                        <p className="text-lg font-bold">{recipeForm.servingSize}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="flex gap-2 pt-4">
+                  <Button 
+                    className="bg-orange-500 hover:bg-orange-600"
+                    onClick={handleSaveRecipe}
+                  >
+                    Değişiklikleri Kaydet
+                  </Button>
+                  <Button variant="outline" onClick={() => {
+                    setIsEditRecipeOpen(false);
+                    resetForm();
+                    setSelectedRecipe(null);
+                  }}>
                     İptal
                   </Button>
                 </div>
@@ -487,7 +799,7 @@ export default function RecipesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRecipes.map((recipe) => {
             const profitBadge = getProfitabilityBadge(recipe.profitMargin);
-            const ingredients = getRecipeIngredients(recipe.id);
+            const ingredients = getRecipeIngredients(recipe);
             
             return (
               <Card key={recipe.id} className="hover:shadow-lg transition-shadow">
@@ -550,10 +862,18 @@ export default function RecipesPage() {
                       <Eye className="w-4 h-4 mr-2" />
                       Detay
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => openEditModal(recipe)}
+                    >
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleCopyRecipe(recipe)}
+                    >
                       <Copy className="w-4 h-4" />
                     </Button>
                     <Button variant="outline" size="sm">
@@ -619,9 +939,10 @@ export default function RecipesPage() {
                   <div>
                     <h3 className="font-semibold mb-4">Malzemeler</h3>
                     <div className="space-y-2">
-                      {getRecipeIngredients(selectedRecipe.id).map((ingredient) => {
-                        const material = getMaterialById(ingredient.materialId);
-                        const unit = getUnitById(ingredient.unitId);
+                      {getRecipeIngredients(selectedRecipe).map((ingredient) => {
+                        const material = ingredient.material || getMaterialById(ingredient.materialId);
+                        const unit = ingredient.unit || getUnitById(ingredient.unitId);
+                        const ingredientCost = (material?.averageCost || 0) * ingredient.quantity;
                         
                         return (
                           <div key={ingredient.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -633,7 +954,7 @@ export default function RecipesPage() {
                             </div>
                             <div className="text-right">
                               <p className="font-medium">{ingredient.quantity} {unit?.abbreviation}</p>
-                              <p className="text-sm text-muted-foreground">₺{ingredient.cost.toFixed(2)}</p>
+                              <p className="text-sm text-muted-foreground">₺{ingredientCost.toFixed(2)}</p>
                             </div>
                           </div>
                         );

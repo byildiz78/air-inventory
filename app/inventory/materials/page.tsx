@@ -20,29 +20,27 @@ import {
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
-import { 
-  materialService, 
-  categoryService, 
-  supplierService, 
-  unitService,
-  taxService
-} from '@/lib/data-service';
-import { 
-  MockMaterial, 
-  MockCategory, 
-  MockSupplier, 
-  MockUnit,
-  MockTax
-} from '@/lib/mock-data';
+import { Material, Category, Supplier, Unit, Tax, Warehouse } from '@prisma/client';
 import { MaterialForm } from '@/components/inventory/MaterialForm';
 
+type MaterialWithRelations = Material & {
+  category?: Category;
+  purchaseUnit?: Unit;
+  consumptionUnit?: Unit;
+  supplier?: Supplier;
+  defaultTax?: Tax;
+  defaultWarehouse?: Warehouse;
+  materialStocks?: any[];
+  _count?: any;
+};
+
 export default function MaterialsPage() {
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
-  const [categories, setCategories] = useState<MockCategory[]>([]);
-  const [suppliers, setSuppliers] = useState<MockSupplier[]>([]);
-  const [units, setUnits] = useState<MockUnit[]>([]);
-  const [taxes, setTaxes] = useState<MockTax[]>([]);
-  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<MaterialWithRelations[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [taxes, setTaxes] = useState<Tax[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
@@ -53,7 +51,7 @@ export default function MaterialsPage() {
 
   // Modal states
   const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
-  const [editingMaterial, setEditingMaterial] = useState<MockMaterial | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<MaterialWithRelations | null>(null);
 
   useEffect(() => {
     loadData();
@@ -62,22 +60,30 @@ export default function MaterialsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [materialsData, categoriesData, suppliersData, unitsData, taxesData, warehousesData] = await Promise.all([
-        materialService.getAll(),
-        categoryService.getAll(),
-        supplierService.getAll(),
-        unitService.getAll(),
-        taxService.getAll(),
-        // Import warehouse data
-        import('@/lib/mock-data').then(module => module.mockWarehouses)
+      const [materialsRes, categoriesRes, suppliersRes, unitsRes, taxesRes, warehousesRes] = await Promise.all([
+        fetch('/api/materials'),
+        fetch('/api/categories'),
+        fetch('/api/suppliers'),
+        fetch('/api/units'),
+        fetch('/api/taxes?activeOnly=true'),
+        fetch('/api/warehouses'),
       ]);
 
-      setMaterials(materialsData);
-      setCategories(categoriesData);
-      setSuppliers(suppliersData);
-      setUnits(unitsData);
-      setTaxes(taxesData);
-      setWarehouses(warehousesData);
+      const [materialsData, categoriesData, suppliersData, unitsData, taxesData, warehousesData] = await Promise.all([
+        materialsRes.json(),
+        categoriesRes.json(),
+        suppliersRes.json(),
+        unitsRes.json(),
+        taxesRes.json(),
+        warehousesRes.json(),
+      ]);
+
+      setMaterials(materialsData.data || []);
+      setCategories(categoriesData.data || []);
+      setSuppliers(suppliersData.data || []);
+      setUnits(unitsData.data || []);
+      setTaxes(taxesData.data || []);
+      setWarehouses(warehousesData.data || []);
     } catch (error) {
       console.error('Data loading error:', error);
     } finally {
@@ -87,44 +93,67 @@ export default function MaterialsPage() {
 
   // Filter materials
   const filteredMaterials = materials.filter(material => {
+    // Only show active materials unless specifically searching
+    if (!material.isActive && searchTerm === '') return false;
+    
     const matchesSearch = material.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || material.categoryId === selectedCategory;
     const matchesSupplier = selectedSupplier === 'all' || material.supplierId === selectedSupplier;
     
     let matchesStock = true;
     if (stockFilter === 'low') {
-      matchesStock = material.currentStock <= material.minStockLevel;
+      // Calculate total stock from materialStocks
+      const totalStock = material.materialStocks?.reduce((sum, stock) => sum + stock.currentStock, 0) || 0;
+      matchesStock = totalStock <= material.minStockLevel;
     } else if (stockFilter === 'normal') {
-      matchesStock = material.currentStock > material.minStockLevel;
+      const totalStock = material.materialStocks?.reduce((sum, stock) => sum + stock.currentStock, 0) || 0;
+      matchesStock = totalStock > material.minStockLevel;
     }
 
     return matchesSearch && matchesCategory && matchesSupplier && matchesStock;
   });
 
-  const getCategoryById = (id: string) => categories.find(cat => cat.id === id);
-  const getSupplierById = (id: string) => suppliers.find(sup => sup.id === id);
-  const getUnitById = (id: string) => units.find(unit => unit.id === id);
 
-  const getStockStatus = (material: MockMaterial) => {
-    if (material.currentStock <= material.minStockLevel * 0.2) return { status: 'critical', color: 'bg-red-500', badge: 'destructive' };
-    if (material.currentStock <= material.minStockLevel * 0.5) return { status: 'low', color: 'bg-orange-500', badge: 'destructive' };
-    if (material.currentStock <= material.minStockLevel) return { status: 'warning', color: 'bg-yellow-500', badge: 'secondary' };
+  const getTotalStock = (material: MaterialWithRelations) => {
+    return material.materialStocks?.reduce((sum, stock) => sum + stock.currentStock, 0) || 0;
+  };
+
+  const getStockStatus = (material: MaterialWithRelations) => {
+    const totalStock = getTotalStock(material);
+    if (totalStock <= material.minStockLevel * 0.2) return { status: 'critical', color: 'bg-red-500', badge: 'destructive' };
+    if (totalStock <= material.minStockLevel * 0.5) return { status: 'low', color: 'bg-orange-500', badge: 'destructive' };
+    if (totalStock <= material.minStockLevel) return { status: 'warning', color: 'bg-yellow-500', badge: 'secondary' };
     return { status: 'normal', color: 'bg-green-500', badge: 'secondary' };
   };
 
   const handleAddMaterial = async (data: any) => {
     try {
-      // Handle "none" value for supplier
+      // Handle "none" value for supplier and warehouse
       const processedData = {
         ...data,
-        supplierId: data.supplierId === 'none' ? undefined : data.supplierId,
-        defaultWarehouseId: data.defaultWarehouseId === 'none' ? undefined : data.defaultWarehouseId
+        supplierId: data.supplierId === 'none' ? null : data.supplierId,
+        defaultWarehouseId: data.defaultWarehouseId === 'none' ? null : data.defaultWarehouseId,
+        defaultTaxId: data.defaultTaxId === 'none' ? null : data.defaultTaxId,
       };
-      await materialService.create(processedData);
-      await loadData();
-      setIsAddMaterialOpen(false);
+
+      const response = await fetch('/api/materials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(processedData),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setIsAddMaterialOpen(false);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Malzeme eklenirken hata oluştu');
+      }
     } catch (error) {
       console.error('Error adding material:', error);
+      alert('Malzeme eklenirken hata oluştu');
     }
   };
 
@@ -132,28 +161,70 @@ export default function MaterialsPage() {
     if (!editingMaterial) return;
     
     try {
-      // Handle "none" value for supplier
+      // Handle "none" value for supplier and warehouse
       const processedData = {
         ...data,
-        supplierId: data.supplierId === 'none' ? undefined : data.supplierId,
-        defaultWarehouseId: data.defaultWarehouseId === 'none' ? undefined : data.defaultWarehouseId
+        supplierId: data.supplierId === 'none' ? null : data.supplierId,
+        defaultWarehouseId: data.defaultWarehouseId === 'none' ? null : data.defaultWarehouseId,
+        defaultTaxId: data.defaultTaxId === 'none' ? null : data.defaultTaxId,
       };
-      await materialService.update(editingMaterial.id, processedData);
-      await loadData();
-      setEditingMaterial(null);
+
+      const response = await fetch(`/api/materials/${editingMaterial.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(processedData),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setEditingMaterial(null);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Malzeme güncellenirken hata oluştu');
+      }
     } catch (error) {
       console.error('Error updating material:', error);
+      alert('Malzeme güncellenirken hata oluştu');
     }
   };
 
   const handleDeleteMaterial = async (id: string) => {
     if (confirm('Bu malzemeyi silmek istediğinizden emin misiniz?')) {
       try {
-        await materialService.delete(id);
-        await loadData();
+        const response = await fetch(`/api/materials/${id}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          await loadData();
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Malzeme silinirken hata oluştu');
+        }
       } catch (error) {
         console.error('Error deleting material:', error);
+        alert('Malzeme silinirken hata oluştu');
       }
+    }
+  };
+
+  const handleToggleActive = async (id: string) => {
+    try {
+      const response = await fetch(`/api/materials/${id}/toggle-active`, {
+        method: 'PUT',
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Malzeme durumu değiştirilirken hata oluştu');
+      }
+    } catch (error) {
+      console.error('Error toggling material active status:', error);
+      alert('Malzeme durumu değiştirilirken hata oluştu');
     }
   };
 
@@ -214,7 +285,7 @@ export default function MaterialsPage() {
               <Package className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{materials.length}</div>
+              <div className="text-2xl font-bold">{materials.filter(m => m.isActive).length}</div>
               <p className="text-xs text-muted-foreground">Aktif malzeme sayısı</p>
             </CardContent>
           </Card>
@@ -226,7 +297,7 @@ export default function MaterialsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-600">
-                {materials.filter(m => m.currentStock <= m.minStockLevel).length}
+                {materials.filter(m => m.isActive && getTotalStock(m) <= m.minStockLevel).length}
               </div>
               <p className="text-xs text-muted-foreground">Kritik seviyede</p>
             </CardContent>
@@ -239,7 +310,7 @@ export default function MaterialsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ₺{materials.reduce((sum, m) => sum + (m.currentStock * m.averageCost), 0).toLocaleString()}
+                ₺{materials.filter(m => m.isActive).reduce((sum, m) => sum + (getTotalStock(m) * (m.averageCost || 0)), 0).toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">Stok toplam değeri</p>
             </CardContent>
@@ -252,7 +323,7 @@ export default function MaterialsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ₺{materials.length > 0 ? (materials.reduce((sum, m) => sum + m.averageCost, 0) / materials.length).toFixed(2) : '0.00'}
+                ₺{materials.filter(m => m.isActive).length > 0 ? (materials.filter(m => m.isActive).reduce((sum, m) => sum + (m.averageCost || 0), 0) / materials.filter(m => m.isActive).length).toFixed(2) : '0.00'}
               </div>
               <p className="text-xs text-muted-foreground">Malzeme başına</p>
             </CardContent>
@@ -329,17 +400,25 @@ export default function MaterialsPage() {
           <CardContent>
             <div className="space-y-3">
               {filteredMaterials.map((material) => {
-                const category = getCategoryById(material.categoryId);
-                const supplier = getSupplierById(material.supplierId || '');
-                const unit = getUnitById(material.unitId);
+                const category = material.category;
+                const supplier = material.supplier;
+                const purchaseUnit = material.purchaseUnit;
+                const consumptionUnit = material.consumptionUnit;
                 const stockStatus = getStockStatus(material);
 
                 return (
-                  <div key={material.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <div key={material.id} className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors ${!material.isActive ? 'opacity-60 bg-gray-50' : ''}`}>
                     <div className="flex items-center gap-4">
                       <div className={`w-4 h-4 rounded-full ${stockStatus.color}`} />
                       <div>
-                        <h3 className="font-medium">{material.name}</h3>
+                        <h3 className="font-medium">
+                          {material.name}
+                          {!material.isActive && (
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                              Pasif
+                            </Badge>
+                          )}
+                        </h3>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Tag className="w-3 h-3" />
@@ -353,7 +432,7 @@ export default function MaterialsPage() {
                           )}
                           <span className="flex items-center gap-1">
                             <Scale className="w-3 h-3" />
-                            {unit?.abbreviation}
+                            {consumptionUnit?.abbreviation}
                           </span>
                         </div>
                         {material.description && (
@@ -365,15 +444,15 @@ export default function MaterialsPage() {
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <div className="font-medium">
-                          {material.currentStock} {unit?.abbreviation}
+                          {getTotalStock(material)} {consumptionUnit?.abbreviation}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Min: {material.minStockLevel} {unit?.abbreviation}
+                          Min: {material.minStockLevel} {consumptionUnit?.abbreviation}
                         </div>
                       </div>
                       
                       <div className="text-right">
-                        <div className="font-medium">₺{material.averageCost}</div>
+                        <div className="font-medium">₺{material.averageCost || 0}</div>
                         <div className="text-sm text-muted-foreground">Ort. maliyet</div>
                       </div>
 
@@ -385,6 +464,14 @@ export default function MaterialsPage() {
                       </Badge>
 
                       <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleToggleActive(material.id)}
+                          className={material.isActive ? '' : 'opacity-50'}
+                        >
+                          {material.isActive ? 'Aktif' : 'Pasif'}
+                        </Button>
                         <Button 
                           variant="outline" 
                           size="sm"

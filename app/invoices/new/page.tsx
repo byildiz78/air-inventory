@@ -28,20 +28,53 @@ import {
   Percent
 } from 'lucide-react';
 import Link from 'next/link';
-import { 
-  materialService, 
-  supplierService, 
-  unitService,
-  taxService
-} from '@/lib/data-service';
-import { 
-  MockMaterial, 
-  MockSupplier, 
-  MockUnit,
-  MockTax,
-  mockWarehouses,
-  MockWarehouse
-} from '@/lib/mock-data';
+// API çağrıları kullanıldığı için servis importlarına gerek yok
+// Prisma tiplerini doğrudan kullanmak yerine kendi tiplerini tanımlıyoruz
+type Material = {
+  id: string;
+  name: string;
+  purchaseUnitId: string;
+  lastPurchasePrice?: number;
+  defaultTaxId?: string;
+  defaultWarehouseId?: string;
+  currentStock?: number;
+};
+
+type Supplier = {
+  id: string;
+  name: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  taxNumber?: string;
+  address?: string;
+};
+
+type Unit = {
+  id: string;
+  name: string;
+  abbreviation: string;
+};
+
+type Tax = {
+  id: string;
+  name: string;
+  rate: number;
+  isDefault?: boolean;
+  isActive?: boolean;
+};
+
+type Warehouse = {
+  id: string;
+  name: string;
+  code?: string;
+};
+
+type User = {
+  id: string;
+  name: string;
+  email: string;
+};
 
 interface InvoiceItem {
   id: string;
@@ -61,14 +94,28 @@ interface InvoiceItem {
   totalAmount: number;
 }
 
+// Extended types with relations
+type MaterialWithRelations = Material & {
+  purchaseUnit?: Unit;
+  defaultTax?: Tax;
+  defaultWarehouse?: Warehouse;
+};
+
+type TaxWithRate = Tax & {
+  rate: number;
+  isDefault?: boolean;
+  isActive?: boolean;
+};
+
 export default function NewInvoicePage() {
   const searchParams = useSearchParams();
   const invoiceType = searchParams.get('type') || 'purchase';
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
-  const [suppliers, setSuppliers] = useState<MockSupplier[]>([]);
-  const [units, setUnits] = useState<MockUnit[]>([]);
-  const [taxes, setTaxes] = useState<MockTax[]>([]);
-  const [warehouses, setWarehouses] = useState<MockWarehouse[]>([]);
+  const [materials, setMaterials] = useState<MaterialWithRelations[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [taxes, setTaxes] = useState<TaxWithRate[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Form state
@@ -92,20 +139,61 @@ export default function NewInvoicePage() {
 
   const loadData = async () => {
     try {
-      setLoading(true); 
-      const [materialsData, suppliersData, unitsData, taxesData] = await Promise.all([
-        materialService.getAll(),
-        supplierService.getAll(),
-        unitService.getAll(),
-        taxService.getAll(),
+      setLoading(true);
+      
+      // Tüm verileri paralel olarak yükle
+      const [materialsRes, suppliersRes, unitsRes, taxesRes, warehousesRes, currentUserRes] = await Promise.all([
+        fetch('/api/materials').then(res => res.json()),
+        fetch('/api/suppliers').then(res => res.json()),
+        fetch('/api/units').then(res => res.json()),
+        fetch('/api/taxes').then(res => res.json()),
+        fetch('/api/warehouses').then(res => res.json()),
+        fetch('/api/users/current').then(res => res.json())
       ]);
-      setMaterials(materialsData);
-      setSuppliers(suppliersData);
-      setUnits(unitsData);
-      setTaxes(taxesData);
-      setWarehouses(mockWarehouses);
+      
+      console.log('API Responses:', {
+        materials: materialsRes,
+        suppliers: suppliersRes,
+        units: unitsRes,
+        taxes: taxesRes,
+        warehouses: warehousesRes,
+        currentUser: currentUserRes
+      });
+      
+      // Veri kontrolü ve atama
+      if (materialsRes.success && Array.isArray(materialsRes.data)) {
+        setMaterials(materialsRes.data);
+        console.log('Materials set:', materialsRes.data.length, 'items');
+      } else {
+        console.error('Materials data format error:', materialsRes);
+        setMaterials([]);
+      }
+      
+      if (suppliersRes.success && Array.isArray(suppliersRes.data)) {
+        setSuppliers(suppliersRes.data);
+        console.log('Suppliers set:', suppliersRes.data.length, 'items');
+      } else {
+        console.error('Suppliers data format error:', suppliersRes);
+        setSuppliers([]);
+      }
+      
+      setUnits(unitsRes.data || []);
+      setTaxes(taxesRes.data || []);
+      setWarehouses(warehousesRes.data || []);
+      setCurrentUser(currentUserRes.data);
+      
+      // Varsayılan depo seçimi
+      if (warehousesRes.data && warehousesRes.data.length > 0) {
+        // Eğer setSelectedWarehouse fonksiyonu yoksa, doğrudan form state'ini güncelle
+        setInvoiceForm(prev => ({
+          ...prev,
+          warehouseId: warehousesRes.data[0].id
+        }));
+      }
+      
     } catch (error) {
-      console.error('Data loading error:', error);
+      console.error('Veri yükleme hatası:', error);
+      alert('Veriler yüklenirken bir hata oluştu!');
     } finally {
       setLoading(false);
     }
@@ -190,10 +278,89 @@ export default function NewInvoicePage() {
     return { subtotal, totalDiscount, totalTax, total };
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Save invoice logic here
-    alert('Fatura kaydedildi!');
+    
+    if (!invoiceForm.invoiceNumber || !invoiceForm.supplierId || !currentUser) {
+      alert('Lütfen zorunlu alanları doldurun!');
+      console.error('Form validation failed:', { 
+        invoiceNumber: invoiceForm.invoiceNumber, 
+        supplierId: invoiceForm.supplierId, 
+        currentUser 
+      });
+      return;
+    }
+    
+    if (invoiceForm.items.length === 0) {
+      alert('Faturaya en az bir kalem eklemelisiniz!');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      const totals = calculateInvoiceTotals();
+      const invoiceData = {
+        ...invoiceForm,
+        userId: currentUser.id,
+        subtotalAmount: totals.subtotal,
+        totalDiscountAmount: totals.totalDiscount,
+        totalTaxAmount: totals.totalTax,
+        totalAmount: totals.total,
+        status: 'PENDING',
+        createStockMovements: true
+      };
+      
+      console.log('Gönderilecek fatura verisi:', invoiceData);
+      
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(invoiceData),
+      });
+      
+      console.log('API yanıt durumu:', response.status, response.statusText);
+      
+      if (!response.ok) {
+        // JSON formatında hata yanıtı almaya çalış
+        let errorData;
+        try {
+          errorData = await response.json();
+          console.error('API hata yanıtı (JSON):', errorData);
+          
+          // Fatura numarası zaten var hatası kontrolü
+          if (errorData.error && errorData.error.includes('Invoice number already exists')) {
+            alert('Bu fatura numarası zaten kullanılmış! Lütfen başka bir fatura numarası girin.');
+            return;
+          }
+          
+          throw new Error(errorData.error || `API hatası: ${response.status} ${response.statusText}`);
+        } catch (jsonError) {
+          // JSON olarak ayrıştırılamıyorsa, düz metin olarak oku
+          const errorText = await response.text();
+          console.error('API hata yanıtı (text):', errorText);
+          throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+        }
+      }
+      
+      const responseData = await response.json();
+      console.log('API yanıtı:', responseData);
+      
+      if (responseData && responseData.success && responseData.data && responseData.data.id) {
+        alert('Fatura başarıyla kaydedildi!');
+        window.location.href = `/invoices/${responseData.data.id}`;
+      } else {
+        console.error('API başarılı yanıt döndürmedi:', responseData);
+        alert('Fatura kaydedilirken bir hata oluştu!');
+      }
+    } catch (error) {
+      console.error('Fatura kaydetme hatası:', error);
+      alert(`Fatura kaydedilirken bir hata oluştu: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getMaterialById = (id: string) => materials.find(m => m.id === id);
@@ -260,12 +427,26 @@ export default function NewInvoicePage() {
             </div>
             
             <div className="flex gap-2">
-              <Button variant="outline">
+              <Button variant="outline" type="button">
                 Taslak Kaydet
               </Button>
-              <Button className="bg-orange-500 hover:bg-orange-600">
-                <Save className="w-4 h-4 mr-2" />
-                Fatura Kaydet
+              <Button 
+                className="bg-orange-500 hover:bg-orange-600" 
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Kaydediliyor...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Fatura Kaydet
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -710,11 +891,25 @@ export default function NewInvoicePage() {
                         </div>
                         
                         <div className="flex flex-col justify-end space-y-4">
-                          <Button className="bg-orange-500 hover:bg-orange-600 w-full">
-                            <Save className="w-4 h-4 mr-2" />
-                            Fatura Kaydet
+                          <Button 
+                            className="bg-orange-500 hover:bg-orange-600 w-full" 
+                            type="button"
+                            onClick={handleSubmit}
+                            disabled={loading}
+                          >
+                            {loading ? (
+                              <>
+                                <span className="animate-spin mr-2">⏳</span>
+                                Kaydediliyor...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-4 h-4 mr-2" />
+                                Fatura Kaydet
+                              </>
+                            )}
                           </Button>
-                          <Button variant="outline" className="w-full">
+                          <Button variant="outline" className="w-full" type="button">
                             Taslak Olarak Kaydet
                           </Button>
                         </div>

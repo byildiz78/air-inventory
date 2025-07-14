@@ -511,7 +511,8 @@ model SalesItem {
   description String?
   
   // Pricing Information
-  basePrice   Float?  // Temel satış fiyatı
+  basePrice   Float?  // Temel satış fiyatı (KDV Dahil)
+  taxPercent  Float   @default(10.0) // KDV oranı %
   
   // Menu Information
   menuCode    String? // Menü kodu (M001, A015 gibi)

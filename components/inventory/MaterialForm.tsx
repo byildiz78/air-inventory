@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,22 +8,22 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MockCategory, MockSupplier, MockUnit, MockWarehouse, MockTax } from '@/lib/mock-data';
+import { Category, Supplier, Unit, Warehouse, Tax } from '@prisma/client';
 import { 
   Package, 
   Building2, 
   Scale, 
   Receipt, 
   Tag,
-  Warehouse
+  Warehouse as WarehouseIcon
 } from 'lucide-react';
 
 interface MaterialFormProps {
-  categories: MockCategory[];
-  suppliers: MockSupplier[];
-  units: MockUnit[];
-  taxes: MockTax[];
-  warehouses?: MockWarehouse[];
+  categories: Category[];
+  suppliers: Supplier[];
+  units: Unit[];
+  taxes: Tax[];
+  warehouses?: Warehouse[];
   onSubmit: (data: any) => void;
   onCancel: () => void;
   initialData?: any;
@@ -73,7 +73,18 @@ export function MaterialForm({
     return category?.parentId || categoryId;
   };
 
-  const selectedMainCategory = formData.categoryId && formData.categoryId !== 'none' ? getMainCategoryId(formData.categoryId) : '';
+  // State for tracking selected main category
+  const [selectedMainCategoryId, setSelectedMainCategoryId] = useState('');
+  
+  // Update selectedMainCategoryId when initialData changes
+  useEffect(() => {
+    if (initialData?.categoryId) {
+      const mainCatId = getMainCategoryId(initialData.categoryId);
+      setSelectedMainCategoryId(mainCatId);
+    }
+  }, [initialData?.categoryId]);
+  
+  const selectedMainCategory = formData.categoryId && formData.categoryId !== 'none' ? getMainCategoryId(formData.categoryId) : selectedMainCategoryId;
   const subCategories = selectedMainCategory ? getSubCategories(selectedMainCategory) : [];
 
   // Seçilen değerlerin bilgilerini al
@@ -121,7 +132,7 @@ export function MaterialForm({
                     {warehouses.map(warehouse => (
                       <SelectItem key={warehouse.id} value={warehouse.id}>
                         <div className="flex items-center gap-2">
-                          <Warehouse className="w-4 h-4" />
+                          <WarehouseIcon className="w-4 h-4" />
                           {warehouse.name}
                           <Badge variant="outline" className="text-xs">
                             {warehouse.type}
@@ -134,7 +145,7 @@ export function MaterialForm({
                 {selectedWarehouse && (
                   <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
                     <div className="flex items-center gap-2">
-                      <Warehouse className="w-4 h-4 text-blue-600" />
+                      <WarehouseIcon className="w-4 h-4 text-blue-600" />
                       <span className="font-medium">{selectedWarehouse.name}</span>
                       <Badge variant="secondary">{selectedWarehouse.type}</Badge>
                     </div>
@@ -173,19 +184,23 @@ export function MaterialForm({
               <div>
                 <Label htmlFor="mainCategory">Ana Kategori *</Label>
                 <Select 
-                  value={selectedMainCategory} 
+                  value={selectedMainCategory || 'none'} 
                   onValueChange={(value) => {
                     if (value === 'none') {
+                      setSelectedMainCategoryId('');
                       handleChange('categoryId', '');
                       return;
                     }
                     
                     const mainCat = categories.find(cat => cat.id === value);
                     if (mainCat && !mainCat.parentId) {
+                      setSelectedMainCategoryId(value);
                       const hasSubCategories = categories.some(cat => cat.parentId === value);
                       if (!hasSubCategories) {
+                        // Ana kategorinin kendisi seçilir (alt kategorisi yok)
                         handleChange('categoryId', value);
                       } else {
+                        // Alt kategori seçimi için bekle
                         handleChange('categoryId', '');
                       }
                     }

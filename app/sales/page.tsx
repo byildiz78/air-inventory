@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,23 +24,17 @@ import {
   Receipt,
   Package
 } from 'lucide-react';
-import { 
-  salesService, 
-  salesItemService, 
-  recipeMappingService,
-  userService
-} from '@/lib/data-service';
-import { 
-  MockSale, 
-  MockSalesItem, 
-  MockUser 
-} from '@/lib/mock-data';
+import { SalesItem, User, Sale } from '@prisma/client';
+import { toast } from 'react-hot-toast';
 
 export default function SalesPage() {
-  const [sales, setSales] = useState<MockSale[]>([]);
-  const [salesItems, setSalesItems] = useState<MockSalesItem[]>([]);
-  const [users, setUsers] = useState<MockUser[]>([]);
+  // Toaster bileşeni
+  const Toaster = dynamic(() => import('react-hot-toast').then((mod) => mod.Toaster), { ssr: false });
+  const [sales, setSales] = useState<any[]>([]);
+  const [salesItems, setSalesItems] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,7 +44,7 @@ export default function SalesPage() {
   
   // New Sale Modal
   const [isNewSaleOpen, setIsNewSaleOpen] = useState(false);
-  const [selectedSale, setSelectedSale] = useState<MockSale | null>(null);
+  const [selectedSale, setSelectedSale] = useState<any | null>(null);
   const [isViewSaleOpen, setIsViewSaleOpen] = useState(false);
   const [selectedSales, setSelectedSales] = useState<string[]>([]);
   
@@ -71,17 +66,46 @@ export default function SalesPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [salesData, salesItemsData, usersData] = await Promise.all([
-        salesService.getAll(),
-        salesItemService.getAll(),
-        userService.getAll(),
+      setError(null);
+      
+      // API çağrılarını yap
+      const [salesResponse, salesItemsResponse, usersResponse] = await Promise.all([
+        fetch('/api/sales'),
+        fetch('/api/sales-items'),
+        fetch('/api/users')
       ]);
-
-      setSales(salesData);
-      setSalesItems(salesItemsData);
-      setUsers(usersData);
+      
+      // Yanıtları JSON'a dönüştür
+      const [salesData, salesItemsData, usersData] = await Promise.all([
+        salesResponse.json(),
+        salesItemsResponse.json(),
+        usersResponse.json()
+      ]);
+      
+      // Verileri kontrol et ve state'e kaydet
+      if (salesData.success) {
+        setSales(salesData.data);
+      } else {
+        console.error('Sales API error:', salesData.error);
+        setError('Satış verilerini yüklerken bir hata oluştu.');
+      }
+      
+      if (salesItemsData.success) {
+        setSalesItems(salesItemsData.data);
+      } else {
+        console.error('Sales items API error:', salesItemsData.error);
+        setError('Satış ürünlerini yüklerken bir hata oluştu.');
+      }
+      
+      if (usersData.success) {
+        setUsers(usersData.data);
+      } else {
+        console.error('Users API error:', usersData.error);
+        setError('Kullanıcı verilerini yüklerken bir hata oluştu.');
+      }
     } catch (error) {
       console.error('Sales data loading error:', error);
+      setError('Veriler yüklenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.');
     } finally {
       setLoading(false);
     }
@@ -97,72 +121,119 @@ export default function SalesPage() {
     }
   }, [saleForm.salesItemId, salesItems]);
 
-  // Filter sales
-  const filteredSales = sales.filter(sale => {
-    const matchesSearch = 
-      sale.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (sale.customerName && sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesRecipe = recipeFilter === 'all' || 
-      (recipeFilter === 'with-recipe' && sale.recipeId) ||
-      (recipeFilter === 'without-recipe' && !sale.recipeId);
-    
-    const matchesDate = dateFilter === 'all' || (() => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+  // Filtreleme parametrelerini kullanarak API'den veri çekme
+  const applyFilters = async () => {
+    try {
+      setLoading(true);
+      setError(null);
       
-      const saleDate = new Date(sale.date);
-      saleDate.setHours(0, 0, 0, 0);
+      // API parametrelerini oluştur
+      const params = new URLSearchParams();
+      
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+      
+      if (userFilter !== 'all') {
+        params.append('userId', userFilter);
+      }
+      
+      if (recipeFilter !== 'all') {
+        params.append('recipeFilter', recipeFilter);
+      }
+      
+      // Tarih filtresini işle
+      let dateFrom, dateTo;
+      const today = new Date();
       
       if (dateFilter === 'today') {
-        return saleDate.getTime() === today.getTime();
+        dateFrom = today.toISOString().split('T')[0];
+        dateTo = today.toISOString().split('T')[0];
       } else if (dateFilter === 'yesterday') {
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
-        return saleDate.getTime() === yesterday.getTime();
-      } else if (dateFilter === 'thisWeek') {
+        dateFrom = yesterday.toISOString().split('T')[0];
+        dateTo = yesterday.toISOString().split('T')[0];
+      } else if (dateFilter === 'this-week') {
         const startOfWeek = new Date(today);
         startOfWeek.setDate(today.getDate() - today.getDay());
-        return saleDate >= startOfWeek;
-      } else if (dateFilter === 'thisMonth') {
-        return saleDate.getMonth() === today.getMonth() && 
-               saleDate.getFullYear() === today.getFullYear();
+        dateFrom = startOfWeek.toISOString().split('T')[0];
+        dateTo = today.toISOString().split('T')[0];
+      } else if (dateFilter === 'this-month') {
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        dateFrom = startOfMonth.toISOString().split('T')[0];
+        dateTo = today.toISOString().split('T')[0];
       }
-      return true;
-    })();
-    
-    const matchesUser = userFilter === 'all' || sale.userId === userFilter;
-
-    return matchesSearch && matchesDate && matchesUser && matchesRecipe;
-  });
+      
+      if (dateFrom) params.append('dateFrom', dateFrom);
+      if (dateTo) params.append('dateTo', dateTo);
+      
+      // API'den filtrelenmiş verileri çek
+      const response = await fetch(`/api/sales?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setSales(data.data);
+      } else {
+        console.error('Sales API error:', data.error);
+        setError('Filtrelenmiş satış verilerini yüklerken bir hata oluştu.');
+      }
+    } catch (error) {
+      console.error('Filter application error:', error);
+      setError('Filtreler uygulanırken bir hata oluştu.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Filtreleme değişikliklerinde API çağrısı yap
+  useEffect(() => {
+    // Sayfa ilk yüklenirken loadData çağrılıyor, burada tekrar çağırmaya gerek yok
+    if (sales.length > 0) {
+      applyFilters();
+    }
+  }, [searchTerm, dateFilter, userFilter, recipeFilter]);
+  
+  // Filtrelenmiş satışlar doğrudan API'den geliyor
+  const filteredSales = sales;
 
   const handleCreateSale = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     try {
-      setLoading(true);
-      
-      // Calculate total price
-      const totalPrice = saleForm.unitPrice * saleForm.quantity;
-      
-      // Create sale
-      const saleDate = new Date(saleForm.date);
-      const newSale = await salesService.create({
+      const newSale = {
         ...saleForm,
-        totalPrice,
-        date: saleDate,
+        date: new Date().toISOString(),
+        totalAmount: saleForm.quantity * saleForm.unitPrice
+      };
+      
+      // API çağrısı ile satış oluştur
+      const response = await fetch('/api/sales', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newSale),
       });
       
-      // Process stock movements based on recipe mappings
-      await salesService.processStockMovements(newSale.id);
+      const result = await response.json();
       
-      await loadData();
-      setIsNewSaleOpen(false);
-      resetSaleForm();
-      
-      alert('Satış başarıyla kaydedildi!');
+      if (result.success) {
+        setIsNewSaleOpen(false);
+        setSaleForm({
+          salesItemId: '',
+          quantity: 1,
+          unitPrice: 0,
+          customerName: '',
+          notes: '',
+          date: new Date().toISOString(),
+          userId: users[0]?.id || ''
+        });
+        loadData();
+      } else {
+        console.error('Sale creation API error:', result.error);
+      }
     } catch (error) {
-      console.error('Error creating sale:', error);
+      console.error('Sale creation error:', error);
       alert('Satış kaydedilirken bir hata oluştu!');
     } finally {
       setLoading(false);
@@ -170,12 +241,29 @@ export default function SalesPage() {
   };
 
   const handleDeleteSale = async (id: string) => {
-    if (confirm('Bu satışı silmek istediğinizden emin misiniz?')) {
+    if (confirm('Bu satışı silmek istediğinize emin misiniz?')) {
       try {
-        await salesService.delete(id);
-        await loadData();
+        setLoading(true);
+        
+        // API çağrısı ile satış sil
+        const response = await fetch(`/api/sales/${id}`, {
+          method: 'DELETE',
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          toast.success('Satış başarıyla silindi!');
+          loadData();
+        } else {
+          console.error('Sale deletion API error:', result.error);
+          toast.error(`Satış silinirken bir hata oluştu: ${result.error || 'Bilinmeyen hata'}`);
+        }
       } catch (error) {
-        console.error('Error deleting sale:', error);
+        console.error('Sale deletion error:', error);
+        toast.error('Satış silinirken bir hata oluştu!');
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -256,6 +344,7 @@ export default function SalesPage() {
 
   return (
     <div className="p-6">
+      <Toaster position="top-right" />
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Header */}
@@ -611,7 +700,7 @@ export default function SalesPage() {
                       
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <div className="font-bold text-lg">₺{sale.totalPrice.toLocaleString()}</div>
+                          <div className="font-bold text-lg">₺{sale.totalAmount.toLocaleString()}</div>
                           <div className="text-sm text-green-600">
                             Kâr: ₺{sale.grossProfit.toLocaleString()} (%{sale.profitMargin.toFixed(1)})
                           </div>

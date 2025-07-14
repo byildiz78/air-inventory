@@ -22,54 +22,62 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-// Mock purchase invoice data
-const mockPurchaseInvoices = [
-  {
-    id: '1',
-    invoiceNumber: 'ALF-2024-001',
-    type: 'PURCHASE' as const,
-    supplierName: 'Anadolu Et Pazarı',
-    date: new Date('2024-01-15'),
-    dueDate: new Date('2024-02-15'),
-    subtotalAmount: 1500,
-    totalDiscountAmount: 75,
-    totalTaxAmount: 285,
-    totalAmount: 1710,
-    status: 'APPROVED' as const,
-    itemCount: 3
-  },
-  {
-    id: '2',
-    invoiceNumber: 'ALF-2024-002',
-    type: 'PURCHASE' as const,
-    supplierName: 'Taze Sebze Meyve',
-    date: new Date('2024-01-16'),
-    dueDate: new Date('2024-02-16'),
-    subtotalAmount: 850,
-    totalDiscountAmount: 42.5,
-    totalTaxAmount: 8.075,
-    totalAmount: 815.575,
-    status: 'PENDING' as const,
-    itemCount: 5
-  }
-];
+// Invoice type definition
+type Invoice = {
+  id: string;
+  invoiceNumber: string;
+  type: 'PURCHASE' | 'SALE' | 'RETURN';
+  supplierName: string;
+  date: Date;
+  dueDate?: Date | null;
+  subtotalAmount: number;
+  totalDiscountAmount: number;
+  totalTaxAmount: number;
+  totalAmount: number;
+  status: 'PENDING' | 'APPROVED' | 'PAID' | 'CANCELLED';
+  itemCount: number;
+  userName?: string;
+};
 
 export default function PurchaseInvoicesPage() {
-  const [invoices, setInvoices] = useState(mockPurchaseInvoices);
-  const [loading, setLoading] = useState(false);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  // Filter invoices
-  const filteredInvoices = invoices.filter(invoice => {
-    const matchesSearch = 
-      invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.supplierName.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter;
+  // Fetch invoices from API
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      setLoading(true);
+      try {
+        // PURCHASE tipindeki faturaları çek
+        const response = await fetch(`/api/invoices?search=${searchTerm}&status=${statusFilter !== 'all' ? statusFilter : ''}&type=PURCHASE`);
+        const data = await response.json();
+        
+        if (data.success) {
+          // Convert date strings to Date objects
+          const formattedInvoices = data.data.map((invoice: any) => ({
+            ...invoice,
+            date: new Date(invoice.date),
+            dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null
+          }));
+          setInvoices(formattedInvoices);
+          console.log('Alış faturaları yüklendi:', formattedInvoices.length);
+        } else {
+          console.error('Error fetching purchase invoices:', data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching purchase invoices:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    return matchesSearch && matchesStatus;
-  });
+    fetchInvoices();
+  }, [searchTerm, statusFilter]);
+
+  // No need to filter invoices here as we're filtering on the API side
+  const filteredInvoices = invoices;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
