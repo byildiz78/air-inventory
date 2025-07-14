@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -154,13 +155,12 @@ model Unit {
   // Relations
   baseUnit          Unit? @relation("UnitConversion", fields: [baseUnitId], references: [id])
   derivedUnits      Unit[] @relation("UnitConversion")
-  materials         Material[]
   recipeIngredients RecipeIngredient[]
   invoiceItems      InvoiceItem[]
   stockMovements    StockMovement[]
-  transfers         WarehouseTransfer[]
   materialsPurchase Material[] @relation("PurchaseUnit")
   materialsConsumption Material[] @relation("ConsumptionUnit")
+  warehouseTransfers WarehouseTransfer[]
 
   @@map("units")
 }
@@ -261,6 +261,7 @@ model Material {
   materialStocks    MaterialStock[]
   stockCountItems   StockCountItem[]
   stockAdjustments  StockAdjustment[]
+  materialTransfers WarehouseTransfer[] @relation("MaterialTransfers")
 
   @@map("materials")
 }
@@ -291,6 +292,7 @@ model WarehouseTransfer {
   fromWarehouseId String
   toWarehouseId   String
   materialId      String
+  unitId          String
   quantity        Float                 // gram cinsinden
   reason          String
   status          WarehouseTransferStatus @default(PENDING)
@@ -307,7 +309,8 @@ model WarehouseTransfer {
   // Relations
   fromWarehouse Warehouse @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
   toWarehouse   Warehouse @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
-  material      Material  @relation(fields: [materialId], references: [id])
+  material      Material  @relation("MaterialTransfers", fields: [materialId], references: [id])
+  unit          Unit      @relation(fields: [unitId], references: [id])
   user          User      @relation(fields: [userId], references: [id])
 
   @@map("warehouse_transfers")

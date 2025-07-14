@@ -17,9 +17,6 @@ import {
   Calculator
 } from 'lucide-react';
 import { 
-  unitService 
-} from '@/lib/data-service';
-import { 
   MockUnit 
 } from '@/lib/mock-data';
 
@@ -48,8 +45,13 @@ export default function UnitsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const unitsData = await unitService.getAll();
-      setUnits(unitsData);
+      const response = await fetch('/api/units');
+      if (response.ok) {
+        const result = await response.json();
+        setUnits(result.data || []);
+      } else {
+        console.error('Failed to fetch units');
+      }
     } catch (error) {
       console.error('Data loading error:', error);
     } finally {
@@ -76,7 +78,18 @@ export default function UnitsPage() {
         baseUnitId: formData.isBaseUnit ? undefined : formData.baseUnitId,
         conversionFactor: formData.isBaseUnit ? 1 : formData.conversionFactor
       };
-      // await unitService.create(processedData);
+      const response = await fetch('/api/units', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(processedData),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create unit');
+      }
       await loadData();
       setIsAddUnitOpen(false);
       resetForm();
@@ -95,7 +108,18 @@ export default function UnitsPage() {
         baseUnitId: formData.isBaseUnit ? undefined : formData.baseUnitId,
         conversionFactor: formData.isBaseUnit ? 1 : formData.conversionFactor
       };
-      // await unitService.update(editingUnit.id, processedData);
+      const response = await fetch(`/api/units/${editingUnit.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(processedData),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update unit');
+      }
       await loadData();
       setEditingUnit(null);
       resetForm();
@@ -107,7 +131,14 @@ export default function UnitsPage() {
   const handleDeleteUnit = async (id: string) => {
     if (confirm('Bu birimi silmek istediğinizden emin misiniz?')) {
       try {
-        // await unitService.delete(id);
+        const response = await fetch(`/api/units/${id}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to delete unit');
+        }
         await loadData();
       } catch (error) {
         console.error('Error deleting unit:', error);

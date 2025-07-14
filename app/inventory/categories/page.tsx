@@ -17,7 +17,6 @@ import {
   Palette
 } from 'lucide-react';
 import { 
-  categoryService, 
   materialService 
 } from '@/lib/data-service';
 import { 
@@ -48,13 +47,26 @@ export default function CategoriesPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [categoriesData, materialsData] = await Promise.all([
-        categoryService.getAll(),
-        materialService.getAll(),
+      
+      // Use API endpoints instead of direct service calls
+      const [categoriesResponse, materialsResponse] = await Promise.all([
+        fetch('/api/categories'),
+        fetch('/api/materials').catch(() => ({ ok: false })), // Fallback if materials API doesn't exist yet
       ]);
 
-      setCategories(categoriesData);
-      setMaterials(materialsData);
+      if (categoriesResponse.ok) {
+        const categoriesResult = await categoriesResponse.json();
+        setCategories(categoriesResult.data || []);
+      }
+
+      if (materialsResponse.ok) {
+        const materialsResult = await materialsResponse.json();
+        setMaterials(materialsResult.data || []);
+      } else {
+        // Fallback to mock data for materials if API not ready
+        const materialsData = await materialService.getAll();
+        setMaterials(materialsData);
+      }
     } catch (error) {
       console.error('Data loading error:', error);
     } finally {
@@ -73,7 +85,17 @@ export default function CategoriesPage() {
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await categoryService.create(formData);
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create category');
+      }
       await loadData();
       setIsAddCategoryOpen(false);
       resetForm();
@@ -87,7 +109,17 @@ export default function CategoriesPage() {
     if (!editingCategory) return;
     
     try {
-      await categoryService.update(editingCategory.id, formData);
+      const response = await fetch(`/api/categories/${editingCategory.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update category');
+      }
       await loadData();
       setEditingCategory(null);
       resetForm();
@@ -106,7 +138,13 @@ export default function CategoriesPage() {
 
     if (confirm('Bu kategoriyi silmek istediğinizden emin misiniz?')) {
       try {
-        await categoryService.delete(id);
+        const response = await fetch(`/api/categories/${id}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to delete category');
+        }
         await loadData();
       } catch (error) {
         console.error('Error deleting category:', error);

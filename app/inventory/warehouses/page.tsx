@@ -25,9 +25,6 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { 
-  mockWarehouses,
-  mockMaterialStocks,
-  mockWarehouseTransfers,
   mockMaterials,
   mockUnits,
   mockUsers,
@@ -73,10 +70,25 @@ export default function WarehousesPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Simulate API calls
-      setWarehouses(mockWarehouses);
-      setMaterialStocks(mockMaterialStocks);
-      setTransfers(mockWarehouseTransfers);
+      
+      // Fetch warehouses from API
+      const [warehousesResponse, transfersResponse] = await Promise.all([
+        fetch('/api/warehouses'),
+        fetch('/api/warehouses/transfers'),
+      ]);
+      
+      if (warehousesResponse.ok) {
+        const warehousesResult = await warehousesResponse.json();
+        setWarehouses(warehousesResult.data || []);
+      }
+      
+      if (transfersResponse.ok) {
+        const transfersResult = await transfersResponse.json();
+        setTransfers(transfersResult.data || []);
+      }
+      
+      // Material stocks will be included in warehouse data
+      setMaterialStocks([]);
     } catch (error) {
       console.error('Data loading error:', error);
     } finally {
@@ -159,6 +171,158 @@ export default function WarehousesPage() {
   const getWarehouseById = (id: string) => warehouses.find(w => w.id === id);
   const getUserById = (id: string) => mockUsers.find(u => u.id === id);
 
+  const handleAddWarehouse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!warehouseForm.name.trim()) {
+      alert('Depo adı gereklidir');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/warehouses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: warehouseForm.name,
+          description: warehouseForm.description,
+          location: warehouseForm.location,
+          type: warehouseForm.type,
+          capacity: warehouseForm.capacity ? Number(warehouseForm.capacity) : undefined,
+          minTemperature: warehouseForm.minTemperature ? Number(warehouseForm.minTemperature) : undefined,
+          maxTemperature: warehouseForm.maxTemperature ? Number(warehouseForm.maxTemperature) : undefined,
+        }),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setIsAddWarehouseOpen(false);
+        resetWarehouseForm();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Depo eklenirken hata oluştu');
+      }
+    } catch (error) {
+      console.error('Error adding warehouse:', error);
+      alert('Depo eklenirken hata oluştu');
+    }
+  };
+
+  const handleEditWarehouse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingWarehouse || !warehouseForm.name.trim()) {
+      alert('Depo adı gereklidir');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/warehouses/${editingWarehouse.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: warehouseForm.name,
+          description: warehouseForm.description,
+          location: warehouseForm.location,
+          type: warehouseForm.type,
+          capacity: warehouseForm.capacity ? Number(warehouseForm.capacity) : undefined,
+          minTemperature: warehouseForm.minTemperature ? Number(warehouseForm.minTemperature) : undefined,
+          maxTemperature: warehouseForm.maxTemperature ? Number(warehouseForm.maxTemperature) : undefined,
+        }),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setEditingWarehouse(null);
+        resetWarehouseForm();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Depo güncellenirken hata oluştu');
+      }
+    } catch (error) {
+      console.error('Error updating warehouse:', error);
+      alert('Depo güncellenirken hata oluştu');
+    }
+  };
+
+  const handleDeleteWarehouse = async (warehouseId: string) => {
+    if (!confirm('Bu depoyu silmek istediğinizden emin misiniz?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/warehouses/${warehouseId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Depo silinirken hata oluştu');
+      }
+    } catch (error) {
+      console.error('Error deleting warehouse:', error);
+      alert('Depo silinirken hata oluştu');
+    }
+  };
+
+  const startEditWarehouse = (warehouse: MockWarehouse) => {
+    setEditingWarehouse(warehouse);
+    setWarehouseForm({
+      name: warehouse.name,
+      description: warehouse.description || '',
+      location: warehouse.location || '',
+      type: warehouse.type,
+      capacity: warehouse.capacity ? warehouse.capacity.toString() : '',
+      minTemperature: warehouse.minTemperature ? warehouse.minTemperature.toString() : '',
+      maxTemperature: warehouse.maxTemperature ? warehouse.maxTemperature.toString() : '',
+    });
+  };
+
+  const handleTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!transferForm.fromWarehouseId || !transferForm.toWarehouseId || !transferForm.materialId || !transferForm.quantity) {
+      alert('Lütfen tüm gerekli alanları doldurun');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/warehouses/transfers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fromWarehouseId: transferForm.fromWarehouseId,
+          toWarehouseId: transferForm.toWarehouseId,
+          materialId: transferForm.materialId,
+          quantity: Number(transferForm.quantity),
+          unitId: '2', // gram - default unit
+          reason: transferForm.reason,
+          userId: '1', // default user
+        }),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setIsTransferOpen(false);
+        resetTransferForm();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Transfer oluşturulurken hata oluştu');
+      }
+    } catch (error) {
+      console.error('Error creating transfer:', error);
+      alert('Transfer oluşturulurken hata oluştu');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -196,7 +360,7 @@ export default function WarehousesPage() {
                     Malzemeyi bir depodan diğerine transfer edin
                   </DialogDescription>
                 </DialogHeader>
-                <form className="space-y-4">
+                <form className="space-y-4" onSubmit={handleTransfer}>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Kaynak Depo</Label>
@@ -266,10 +430,13 @@ export default function WarehousesPage() {
                   </div>
                   
                   <div className="flex gap-2 pt-4">
-                    <Button className="bg-orange-500 hover:bg-orange-600">
+                    <Button type="submit" className="bg-orange-500 hover:bg-orange-600">
                       Transfer Başlat
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setIsTransferOpen(false)}>
+                    <Button type="button" variant="outline" onClick={() => {
+                      setIsTransferOpen(false);
+                      resetTransferForm();
+                    }}>
                       İptal
                     </Button>
                   </div>
@@ -277,7 +444,13 @@ export default function WarehousesPage() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={isAddWarehouseOpen} onOpenChange={setIsAddWarehouseOpen}>
+            <Dialog open={isAddWarehouseOpen || !!editingWarehouse} onOpenChange={(open) => {
+              if (!open) {
+                setIsAddWarehouseOpen(false);
+                setEditingWarehouse(null);
+                resetWarehouseForm();
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="bg-orange-500 hover:bg-orange-600">
                   <Plus className="w-4 h-4 mr-2" />
@@ -286,12 +459,12 @@ export default function WarehousesPage() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Yeni Depo Ekle</DialogTitle>
+                  <DialogTitle>{editingWarehouse ? 'Depo Düzenle' : 'Yeni Depo Ekle'}</DialogTitle>
                   <DialogDescription>
-                    Yeni depo tanımlayın
+                    {editingWarehouse ? 'Depo bilgilerini güncelleyin' : 'Yeni depo tanımlayın'}
                   </DialogDescription>
                 </DialogHeader>
-                <form className="space-y-4">
+                <form className="space-y-4" onSubmit={editingWarehouse ? handleEditWarehouse : handleAddWarehouse}>
                   <div>
                     <Label>Depo Adı *</Label>
                     <Input
@@ -370,10 +543,14 @@ export default function WarehousesPage() {
                   </div>
                   
                   <div className="flex gap-2 pt-4">
-                    <Button className="bg-orange-500 hover:bg-orange-600">
-                      Depo Ekle
+                    <Button type="submit" className="bg-orange-500 hover:bg-orange-600">
+                      {editingWarehouse ? 'Depo Güncelle' : 'Depo Ekle'}
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setIsAddWarehouseOpen(false)}>
+                    <Button type="button" variant="outline" onClick={() => {
+                      setIsAddWarehouseOpen(false);
+                      setEditingWarehouse(null);
+                      resetWarehouseForm();
+                    }}>
                       İptal
                     </Button>
                   </div>
@@ -460,10 +637,18 @@ export default function WarehousesPage() {
                           <CardTitle className="text-lg">{warehouse.name}</CardTitle>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => startEditWarehouse(warehouse)}
+                          >
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDeleteWarehouse(warehouse.id)}
+                          >
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>

@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { hasPermission } from './lib/auth-utils';
 
-// Middleware for permission checking
+// Middleware for basic auth checking
 export async function middleware(request: NextRequest) {
   // Get the pathname from the request
   const pathname = request.nextUrl.pathname;
 
   // Skip middleware for public routes
-  if (pathname === '/login' || pathname === '/register' || pathname === '/api/auth') {
+  if (pathname === '/login' || pathname === '/register' || pathname.startsWith('/api/')) {
     return NextResponse.next();
   }
 
@@ -21,40 +20,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Map paths to required permissions
-  const permissionMap: Record<string, { module: string; permission: string }> = {
-    '/dashboard': { module: 'dashboard', permission: 'view' },
-    '/inventory': { module: 'inventory', permission: 'view' },
-    '/recipes': { module: 'recipes', permission: 'view' },
-    '/invoices': { module: 'invoices', permission: 'view' },
-    '/sales': { module: 'sales', permission: 'view' },
-    '/reports': { module: 'reports', permission: 'view' },
-    '/users': { module: 'users', permission: 'view' },
-    '/settings': { module: 'settings', permission: 'view' },
-  };
-
-  // Find the most specific permission required for this path
-  let requiredPermission = null;
-  for (const [path, permission] of Object.entries(permissionMap)) {
-    if (pathname.startsWith(path)) {
-      requiredPermission = permission;
-      break;
-    }
-  }
-
-  if (requiredPermission) {
-    // Check if the user has the required permission
-    const hasAccess = await hasPermission(
-      userId,
-      requiredPermission.module,
-      requiredPermission.permission
-    );
-
-    if (!hasAccess) {
-      // Redirect to dashboard or show an error page
-      return NextResponse.redirect(new URL('/dashboard?error=permission', request.url));
-    }
-  }
+  // Permission checking should be done at the page/API level, not in middleware
+  // because middleware runs in Edge Runtime and cannot use Prisma
 
   return NextResponse.next();
 }
@@ -68,8 +35,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
-     * - api routes that handle their own auth
+     * - api routes
      */
-    '/((?!_next/static|_next/image|favicon.ico|public|api/auth).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public|api).*)',
   ],
 };

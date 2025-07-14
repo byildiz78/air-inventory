@@ -21,7 +21,6 @@ import {
   Search
 } from 'lucide-react';
 import { 
-  supplierService, 
   materialService 
 } from '@/lib/data-service';
 import { 
@@ -56,12 +55,16 @@ export default function SuppliersPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [suppliersData, materialsData] = await Promise.all([
-        supplierService.getAll(),
-        materialService.getAll(),
+      const [suppliersResponse, materialsData] = await Promise.all([
+        fetch('/api/suppliers'),
+        materialService.getAll(), // Materials still using mock data
       ]);
 
-      setSuppliers(suppliersData);
+      if (suppliersResponse.ok) {
+        const suppliersResult = await suppliersResponse.json();
+        setSuppliers(suppliersResult.data || []);
+      }
+      
       setMaterials(materialsData);
     } catch (error) {
       console.error('Data loading error:', error);
@@ -84,7 +87,18 @@ export default function SuppliersPage() {
   const handleAddSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await supplierService.create(formData);
+      const response = await fetch('/api/suppliers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create supplier');
+      }
       await loadData();
       setIsAddSupplierOpen(false);
       resetForm();
@@ -98,7 +112,18 @@ export default function SuppliersPage() {
     if (!editingSupplier) return;
     
     try {
-      await supplierService.update(editingSupplier.id, formData);
+      const response = await fetch(`/api/suppliers/${editingSupplier.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update supplier');
+      }
       await loadData();
       setEditingSupplier(null);
       resetForm();
@@ -117,7 +142,14 @@ export default function SuppliersPage() {
 
     if (confirm('Bu tedarikçiyi silmek istediğinizden emin misiniz?')) {
       try {
-        await supplierService.delete(id);
+        const response = await fetch(`/api/suppliers/${id}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to delete supplier');
+        }
         await loadData();
       } catch (error) {
         console.error('Error deleting supplier:', error);

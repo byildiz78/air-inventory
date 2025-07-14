@@ -1,7 +1,6 @@
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
-import { hasPermission } from '@/lib/auth-utils';
 
 interface PermissionGuardProps {
   children: ReactNode;
@@ -28,9 +27,25 @@ export function PermissionGuard({
         // In a real app, you would get the userId from your auth context
         const userId = localStorage.getItem('userId') || '1'; // Default to admin for demo
         
-        // Check if the user has the required permission
-        const access = await hasPermission(userId, moduleCode, permissionCode);
-        setHasAccess(access);
+        // Check permission via API
+        const response = await fetch('/api/auth/permissions/check', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId,
+            moduleCode,
+            permissionCode,
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setHasAccess(result.hasAccess || false);
+        } else {
+          setHasAccess(false);
+        }
       } catch (error) {
         console.error('Error checking permission:', error);
         setHasAccess(false);

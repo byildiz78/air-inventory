@@ -11,6 +11,7 @@ import { salesItemCategoryService, salesItemGroupService, salesItemService, reci
 import { salesService } from './sales-service';
 import { stockCountService } from './stock-count-service';
 import { stockConsistencyService } from './stock-consistency-service';
+import { warehouseService } from './warehouse-service';
 
 export {
   userService,
@@ -27,5 +28,6 @@ export {
   recipeMappingService,
   salesService,
   stockCountService,
-  stockConsistencyService
+  stockConsistencyService,
+  warehouseService
 };
