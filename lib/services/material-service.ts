@@ -9,8 +9,8 @@ import {
 import { prisma } from '../prisma';
 import { Material, Prisma } from '@prisma/client';
 
-// Flag to switch between mock data and Prisma
-const USE_PRISMA = true; // Migrated to Prisma
+// Flag to switch between mock data and API
+const USE_API = false; // Use mock data for now to avoid circular dependency
 
 type MaterialCreateData = Omit<Material, 'id' | 'createdAt' | 'updatedAt'>;
 type MaterialUpdateData = Partial<MaterialCreateData>;
@@ -43,20 +43,172 @@ type MaterialWithRelations = Prisma.MaterialGetPayload<{
 
 export const materialService = {
   async getAll(includeInactive = false) {
+    if (USE_API) {
+      try {
+        const queryParam = includeInactive ? '?includeInactive=true' : '';
+        const response = await fetch(`/api/materials${queryParam}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Malzemeler alınırken bir hata oluştu');
+        }
+        
+        const result = await response.json();
+        return result.data;
+      } catch (error: any) {
+        console.error('Error fetching materials:', error);
+        throw error;
+      }
+    }
+    
+    if (includeInactive) {
+      return mockMaterials;
+    }
+    return mockMaterials.filter(material => material.isActive !== false);
+  },
+
+  async getById(id: string) {
+    if (USE_API) {
+      try {
+        const response = await fetch(`/api/materials/${id}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Malzeme alınırken bir hata oluştu');
+        }
+        
+        const result = await response.json();
+        return result.data;
+      } catch (error: any) {
+        console.error(`Error fetching material with id ${id}:`, error);
+        throw error;
+      }
+    }
+    
+    return getMockDataById(mockMaterials, id) || null;
+  },
+
+  async getByCategory(categoryId: string) {
+    if (USE_API) {
+      try {
+        const response = await fetch(`/api/materials?categoryId=${categoryId}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Kategori malzemeleri alınırken bir hata oluştu');
+        }
+        
+        const result = await response.json();
+        return result.data;
+      } catch (error: any) {
+        console.error(`Error fetching materials by category ${categoryId}:`, error);
+        throw error;
+      }
+    }
+    
+    return mockMaterials.filter(material => material.categoryId === categoryId);
+  },
+
+  async create(data: MaterialCreateData) {
+    if (USE_API) {
+      try {
+        const response = await fetch('/api/materials', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Malzeme oluşturulurken bir hata oluştu');
+        }
+        
+        const result = await response.json();
+        return result.data;
+      } catch (error: any) {
+        console.error('Error creating material:', error);
+        throw error;
+      }
+    }
+    
+    const newMaterial = {
+      ...data,
+      id: Math.random().toString(36).substr(2, 9),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    mockMaterials.push(newMaterial);
+    return newMaterial;
+  },
+
+  async update(id: string, data: MaterialUpdateData) {
+    if (USE_API) {
+      try {
+        const response = await fetch(`/api/materials/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Malzeme güncellenirken bir hata oluştu');
+        }
+        
+        const result = await response.json();
+        return result.data;
+      } catch (error: any) {
+        console.error(`Error updating material ${id}:`, error);
+        throw error;
+      }
+    }
+    
+    const materialIndex = mockMaterials.findIndex(mat => mat.id === id);
+    if (materialIndex === -1) return null;
+    
+    mockMaterials[materialIndex] = { 
+      ...mockMaterials[materialIndex], 
+      ...data,
+      updatedAt: new Date(),
+    };
+    return mockMaterials[materialIndex];
+  },
+
+  async delete(id: string) {
+    if (USE_API) {
+      try {
+        const response = await fetch(`/api/materials/${id}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Malzeme silinirken bir hata oluştu');
+        }
+        
+        return true;
+      } catch (error: any) {
+        console.error(`Error deleting material ${id}:`, error);
+        throw error;
+      }
+    }
+    
+    const initialLength = mockMaterials.length;
+    const index = mockMaterials.findIndex(mat => mat.id === id);
+    if (index !== -1) {
+      mockMaterials.splice(index, 1);
+    }
+    return mockMaterials.length < initialLength;
+  },
+
+  // Rest of the methods will use the old Prisma implementation for now
+  async getByBarcode(barcode: string) {
     if (USE_PRISMA) {
-      const whereClause = includeInactive ? {} : { isActive: true };
-      
-      return await prisma.material.findMany({
-        where: whereClause,
+      return await prisma.material.findFirst({
+        where: { barcode },
         include: {
           category: {
-            select: {
-              id: true,
-              name: true,
-              color: true,
-            },
-          },
-          purchaseUnit: {
             select: {
               id: true,
               name: true,

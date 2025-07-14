@@ -12,7 +12,7 @@ import { prisma } from '../prisma';
 import { Warehouse, WarehouseType, MaterialStock, WarehouseTransfer, WarehouseTransferStatus } from '@prisma/client';
 
 // Flag to switch between mock data and Prisma
-const USE_PRISMA = true; // Migrated to Prisma
+const USE_PRISMA = true; // Use Prisma to avoid circular dependency with API
 
 type WarehouseCreateData = Omit<Warehouse, 'id' | 'createdAt' | 'updatedAt'>;
 type WarehouseUpdateData = Partial<WarehouseCreateData>;

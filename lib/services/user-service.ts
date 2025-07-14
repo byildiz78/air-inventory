@@ -8,15 +8,25 @@ import {
 } from '../mock/index';
 import { prisma } from '../prisma';
 
-// Flag to switch between mock data and Prisma
-const USE_PRISMA = false; // Will be set to true when we migrate
+// Flag to switch between mock data and API
+const USE_API = true; // Use API for all operations
 
 export const userService = {
   async getAll() {
-    if (USE_PRISMA) {
-      // TODO: Replace with Prisma query
-      // return await prisma.user.findMany();
-      throw new Error('Prisma not implemented yet');
+    if (USE_API) {
+      try {
+        const response = await fetch('/api/users');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Kullanıcılar alınırken bir hata oluştu');
+        }
+        
+        const result = await response.json();
+        return result.data;
+      } catch (error: any) {
+        console.error('Error fetching users:', error);
+        throw error;
+      }
     }
     return mockUsers;
   },
