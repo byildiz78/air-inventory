@@ -1,0 +1,43 @@
+// Mock tax data
+export const mockTaxes = [
+  {
+    id: '1',
+    name: 'KDV %1',
+    rate: 1.0,
+    type: 'VAT',
+    description: 'Temel gıda maddeleri için düşük KDV oranı',
+    isActive: true,
+    isDefault: false,
+    createdAt: new Date('2024-01-01'),
+  },
+  {
+    id: '2',
+    name: 'KDV %20',
+    rate: 20.0,
+    type: 'VAT',
+    description: 'Genel KDV oranı',
+    isActive: true,
+    isDefault: true,
+    createdAt: new Date('2024-01-01'),
+  },
+  {
+    id: '3',
+    name: 'KDV %10',
+    rate: 10.0,
+    type: 'VAT',
+    description: 'Orta KDV oranı',
+    isActive: true,
+    isDefault: false,
+    createdAt: new Date('2024-01-01'),
+  },
+  {
+    id: '4',
+    name: 'ÖTV %50',
+    rate: 50.0,
+    type: 'EXCISE',
+    description: 'Özel tüketim vergisi',
+    isActive: true,
+    isDefault: false,
+    createdAt: new Date('2024-01-01'),
+  },
+];

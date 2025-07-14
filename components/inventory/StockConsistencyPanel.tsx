@@ -16,7 +16,7 @@ import {
   Warehouse
 } from 'lucide-react';
 import { stockConsistencyService } from '@/lib/data-service';
-import { StockSummary, StockAlert } from '@/lib/stock-service';
+import { StockSummary, StockAlert } from '@/lib/types/stock';
 
 export function StockConsistencyPanel() {
   const [consistencyData, setConsistencyData] = useState<StockSummary[]>([]);
@@ -32,7 +32,7 @@ export function StockConsistencyPanel() {
     try {
       setLoading(true);
       const [consistency, alerts] = await Promise.all([
-        stockConsistencyService.checkConsistency(),
+        stockConsistencyService.checkAllStockConsistency(),
         stockConsistencyService.getStockAlerts()
       ]);
       setConsistencyData(consistency);
@@ -47,7 +47,7 @@ export function StockConsistencyPanel() {
   const fixAllInconsistencies = async () => {
     try {
       setFixing(true);
-      const result = await stockConsistencyService.fixInconsistencies();
+      const result = await stockConsistencyService.fixAllStockInconsistencies();
       await loadConsistencyData(); // Reload data
       alert(`${result.fixed}/${result.total} tutarsızlık düzeltildi`);
     } catch (error) {
@@ -200,7 +200,7 @@ export function StockConsistencyPanel() {
                     <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => stockConsistencyService.fixInconsistencies(item.materialId)}
+                     onClick={() => stockConsistencyService.fixSingleMaterialInconsistency(item.materialId)}
                     >
                       Düzelt
                     </Button>
