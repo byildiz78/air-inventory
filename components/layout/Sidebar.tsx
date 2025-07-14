@@ -11,16 +11,17 @@ import {
   Package,
   ChefHat,
   FileText,
-  BarChart3,
   Users,
   Settings,
-  Building2,
   TrendingUp,
-  AlertTriangle,
+  BarChart3,
   Menu,
   X,
   LogOut,
-  Bell
+  Bell,
+  Rocket,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,7 +30,7 @@ interface SidebarProps {
 
 const navigation = [
   {
-    name: 'Dashboard',
+    name: 'Ana Sayfa',
     href: '/dashboard',
     icon: LayoutDashboard,
     current: false,
@@ -78,6 +79,18 @@ const navigation = [
     ],
   },
   {
+    name: 'Satışlar',
+    href: '/sales',
+    icon: TrendingUp,
+    current: false,
+    badge: null,
+    children: [
+      { name: 'Satış Kayıtları', href: '/sales', current: false },
+      { name: 'Günlük Satış', href: '/sales/daily' },
+      { name: 'Satış Analizi', href: '/sales/analysis' },
+    ],
+  },
+  {
     name: 'Raporlar',
     href: '/reports',
     icon: BarChart3,
@@ -92,26 +105,10 @@ const navigation = [
       { name: 'Finansal Raporlar', href: '/reports/financial' },
       { name: 'Kârlılık Raporu', href: '/reports/financial/profit' },
     ],
-  },
-  {
-    name: 'Satışlar',
-    href: '/sales',
-    icon: TrendingUp,
-    current: false,
-    badge: null,
-    children: [
-      { name: 'Satış Kayıtları', href: '/sales', current: false },
-      { name: 'Günlük Satış', href: '/sales/daily' },
-      { name: 'Satış Analizi', href: '/sales/analysis' },
-    ],
-  },
-  {
-    name: 'Kullanıcılar',
-    href: '/users',
-    icon: Users,
-    current: false,
-    badge: null,
-  },
+  }
+];
+
+const bottomNavigation = [
   {
     name: 'Ayarlar',
     href: '/settings',
@@ -126,6 +123,13 @@ const navigation = [
       { name: 'Yedekleme', href: '/settings/backup' },
     ],
   },
+  {
+    name: 'Kullanıcılar',
+    href: '/users',
+    icon: Users,
+    current: false,
+    badge: null,
+  }
 ];
 
 export function Sidebar({ className }: SidebarProps) {
@@ -176,46 +180,46 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
+        "fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
         isMobileOpen ? "translate-x-0" : "-translate-x-full",
-        className
+        className,
+        "bg-gradient-to-b from-white to-gray-100 text-gray-800 shadow-xl border-r"
       )}>
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-white" />
+          <div className="flex items-center h-20 px-6 border-b">
+            <div className="flex items-center gap-3 w-full">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center shadow-lg">
+                <Rocket className="w-6 h-6 text-white animate-pulse" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-gray-900">RestaurantOS</h1>
-                <p className="text-xs text-gray-500">Maliyet Yönetimi</p>
+                <h1 className="text-lg font-bold bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text text-transparent">robotPOS Air</h1>
+                <p className="text-xs text-orange-500 font-semibold">Inventory</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" className="lg:hidden">
-              <Bell className="w-4 h-4" />
-            </Button>
           </div>
 
           {/* User Info */}
-          <div className="px-6 py-4 border-b border-gray-100">
+          <div className="px-6 py-4 border-b bg-orange-50">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                <Users className="w-5 h-5 text-orange-600" />
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center shadow-md">
+                <Users className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">Admin User</p>
+                <p className="text-sm font-medium text-gray-800">Admin User</p>
                 <p className="text-xs text-gray-500">Yönetici</p>
+              </div>
+              <div className="ml-auto">
+                <Bell className="w-5 h-5 text-orange-500 hover:text-orange-600 cursor-pointer transition-colors" />
               </div>
             </div>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto bg-white">
             {navigation.map((item) => (
-              <div key={item.name}>
-                <Link
-                  href={item.href}
+              <div key={item.name} className="mb-1">
+                <div
                   onClick={() => {
                     if (item.children) {
                       toggleExpanded(item.href);
@@ -224,41 +228,38 @@ export function Sidebar({ className }: SidebarProps) {
                     }
                   }}
                   className={cn(
-                    "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors",
-                    isActive(item.href)
-                      ? "bg-orange-50 text-orange-700 border border-orange-200"
-                      : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                    "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
+                    isActive(item.href) && !item.children
+                      ? "bg-gradient-to-r from-orange-400 to-orange-500 text-white shadow-md"
+                      : isExpanded(item.href) && item.children
+                      ? "bg-orange-100 text-orange-700"
+                      : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
                   )}
                 >
                   <div className="flex items-center gap-3">
                     <item.icon className={cn(
                       "w-5 h-5 transition-colors",
-                      isActive(item.href) ? "text-orange-600" : "text-gray-400 group-hover:text-gray-600"
+                      isActive(item.href) ? "text-white" : "text-orange-500 group-hover:text-orange-600"
                     )} />
                     <span>{item.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {item.badge && (
-                      <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
+                      <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
                         {item.badge}
                       </Badge>
                     )}
                     {item.children && (
-                      <div className={cn(
-                        "transition-transform",
-                        isExpanded(item.href) ? "rotate-90" : ""
-                      )}>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
+                      isExpanded(item.href) ? 
+                        <ChevronDown className="w-4 h-4 text-orange-500" /> : 
+                        <ChevronRight className="w-4 h-4 text-orange-500" />
                     )}
                   </div>
-                </Link>
+                </div>
 
                 {/* Submenu */}
                 {item.children && isExpanded(item.href) && (
-                  <div className="mt-1 ml-8 space-y-1">
+                  <div className="mt-1 ml-4 pl-4 border-l border-orange-200 space-y-1">
                     {item.children.map((child) => (
                       <Link
                         key={child.name}
@@ -267,8 +268,8 @@ export function Sidebar({ className }: SidebarProps) {
                         className={cn(
                           "block px-3 py-2 text-sm rounded-md transition-colors",
                           pathname === child.href
-                            ? "bg-orange-50 text-orange-700"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                            ? "bg-orange-100 text-orange-600 font-medium"
+                            : "text-gray-600 hover:bg-orange-50 hover:text-orange-600"
                         )}
                       >
                         {child.name}
@@ -279,13 +280,80 @@ export function Sidebar({ className }: SidebarProps) {
               </div>
             ))}
           </nav>
+          
+          {/* Bottom Navigation */}
+          <div className="px-3 py-4 border-t bg-gray-50">
+            <p className="text-xs text-gray-500 uppercase tracking-wider px-3 py-2 mb-1">Sistem</p>
+            {bottomNavigation.map((item) => (
+              <div key={item.name} className="mb-1">
+                <div
+                  onClick={() => {
+                    if (item.children) {
+                      toggleExpanded(item.href);
+                    } else {
+                      setIsMobileOpen(false);
+                    }
+                  }}
+                  className={cn(
+                    "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
+                    isActive(item.href) && !item.children
+                      ? "bg-gradient-to-r from-orange-400 to-orange-500 text-white shadow-md"
+                      : isExpanded(item.href) && item.children
+                      ? "bg-orange-100 text-orange-700"
+                      : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className={cn(
+                      "w-5 h-5 transition-colors",
+                      isActive(item.href) ? "text-white" : "text-orange-500 group-hover:text-orange-600"
+                    )} />
+                    <span>{item.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {item.badge && (
+                      <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
+                        {item.badge}
+                      </Badge>
+                    )}
+                    {item.children && (
+                      isExpanded(item.href) ? 
+                        <ChevronDown className="w-4 h-4 text-orange-500" /> : 
+                        <ChevronRight className="w-4 h-4 text-orange-500" />
+                    )}
+                  </div>
+                </div>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-gray-200">
-            <Button variant="ghost" className="w-full justify-start text-gray-600 hover:text-gray-900">
-              <LogOut className="w-4 h-4 mr-3" />
-              Çıkış Yap
-            </Button>
+                {/* Submenu */}
+                {item.children && isExpanded(item.href) && (
+                  <div className="mt-1 ml-4 pl-4 border-l border-orange-200 space-y-1">
+                    {item.children.map((child) => (
+                      <Link
+                        key={child.name}
+                        href={child.href}
+                        onClick={() => setIsMobileOpen(false)}
+                        className={cn(
+                          "block px-3 py-2 text-sm rounded-md transition-colors",
+                          pathname === child.href
+                            ? "bg-orange-100 text-orange-600 font-medium"
+                            : "text-gray-600 hover:bg-orange-50 hover:text-orange-600"
+                        )}
+                      >
+                        {child.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Logout Button */}
+            <div className="mt-4 px-3">
+              <Button variant="ghost" className="w-full justify-start text-gray-600 hover:text-orange-600 hover:bg-orange-50">
+                <LogOut className="w-4 h-4 mr-3 text-orange-500" />
+                Çıkış Yap
+              </Button>
+            </div>
           </div>
         </div>
       </div>

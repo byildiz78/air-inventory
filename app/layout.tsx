@@ -6,7 +6,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Restoran Yönetim Sistemi',
+  title: 'robotPOS Air-Inventory',
   description: 'Kapsamlı stok, maliyet ve reçete yönetim sistemi',
 };
 
@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="tr">
       <body className={inter.className}>
         <MainLayout>
           {children}
