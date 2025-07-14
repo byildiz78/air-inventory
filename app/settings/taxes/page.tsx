@@ -18,21 +18,21 @@ import {
   Percent,
   Calculator
 } from 'lucide-react';
-import { mockTaxes, MockTax } from '@/lib/mock-data';
+import { Tax, TaxType } from '@prisma/client';
 
 export default function TaxesPage() {
-  const [taxes, setTaxes] = useState<MockTax[]>([]);
+  const [taxes, setTaxes] = useState<Tax[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Modal states
   const [isAddTaxOpen, setIsAddTaxOpen] = useState(false);
-  const [editingTax, setEditingTax] = useState<MockTax | null>(null);
+  const [editingTax, setEditingTax] = useState<Tax | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     rate: 0,
-    type: 'VAT' as MockTax['type'],
+    type: 'VAT' as TaxType,
     description: '',
     isActive: true,
     isDefault: false
@@ -45,8 +45,12 @@ export default function TaxesPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Simulate API call
-      setTaxes(mockTaxes);
+      const response = await fetch('/api/taxes');
+      
+      if (response.ok) {
+        const result = await response.json();
+        setTaxes(result.data || []);
+      }
     } catch (error) {
       console.error('Data loading error:', error);
     } finally {
@@ -67,25 +71,32 @@ export default function TaxesPage() {
 
   const handleAddTax = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.name.trim() || formData.rate < 0) {
+      alert('Lütfen geçerli vergi adı ve oranı girin');
+      return;
+    }
+
     try {
-      const newTax: MockTax = {
-        ...formData,
-        id: Math.random().toString(36).substr(2, 9),
-        createdAt: new Date(),
-      };
-      
-      // If this is set as default, remove default from others
-      if (formData.isDefault && formData.type === 'VAT') {
-        setTaxes(prev => prev.map(tax => 
-          tax.type === 'VAT' ? { ...tax, isDefault: false } : tax
-        ));
+      const response = await fetch('/api/taxes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setIsAddTaxOpen(false);
+        resetForm();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Vergi oranı eklenirken hata oluştu');
       }
-      
-      setTaxes(prev => [...prev, newTax]);
-      setIsAddTaxOpen(false);
-      resetForm();
     } catch (error) {
       console.error('Error adding tax:', error);
+      alert('Vergi oranı eklenirken hata oluştu');
     }
   };
 
@@ -93,21 +104,31 @@ export default function TaxesPage() {
     e.preventDefault();
     if (!editingTax) return;
     
+    if (!formData.name.trim() || formData.rate < 0) {
+      alert('Lütfen geçerli vergi adı ve oranı girin');
+      return;
+    }
+
     try {
-      // If this is set as default, remove default from others
-      if (formData.isDefault && formData.type === 'VAT') {
-        setTaxes(prev => prev.map(tax => 
-          tax.type === 'VAT' && tax.id !== editingTax.id ? { ...tax, isDefault: false } : tax
-        ));
+      const response = await fetch(`/api/taxes/${editingTax.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setEditingTax(null);
+        resetForm();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Vergi oranı güncellenirken hata oluştu');
       }
-      
-      setTaxes(prev => prev.map(tax => 
-        tax.id === editingTax.id ? { ...tax, ...formData } : tax
-      ));
-      setEditingTax(null);
-      resetForm();
     } catch (error) {
       console.error('Error updating tax:', error);
+      alert('Vergi oranı güncellenirken hata oluştu');
     }
   };
 
@@ -120,28 +141,60 @@ export default function TaxesPage() {
 
     if (confirm('Bu vergi oranını silmek istediğinizden emin misiniz?')) {
       try {
-        setTaxes(prev => prev.filter(tax => tax.id !== id));
+        const response = await fetch(`/api/taxes/${id}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          await loadData();
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Vergi oranı silinirken hata oluştu');
+        }
       } catch (error) {
         console.error('Error deleting tax:', error);
+        alert('Vergi oranı silinirken hata oluştu');
       }
     }
   };
 
   const handleSetDefault = async (id: string) => {
-    const tax = taxes.find(t => t.id === id);
-    if (!tax) return;
-
     try {
-      // Remove default from all taxes of the same type
-      setTaxes(prev => prev.map(t => 
-        t.type === tax.type ? { ...t, isDefault: t.id === id } : t
-      ));
+      const response = await fetch(`/api/taxes/${id}/set-default`, {
+        method: 'PUT',
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Varsayılan vergi oranı ayarlanırken hata oluştu');
+      }
     } catch (error) {
       console.error('Error setting default tax:', error);
+      alert('Varsayılan vergi oranı ayarlanırken hata oluştu');
     }
   };
 
-  const openEditDialog = (tax: MockTax) => {
+  const handleToggleActive = async (id: string) => {
+    try {
+      const response = await fetch(`/api/taxes/${id}/toggle-active`, {
+        method: 'PUT',
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Vergi oranı durumu değiştirilirken hata oluştu');
+      }
+    } catch (error) {
+      console.error('Error toggling tax active status:', error);
+      alert('Vergi oranı durumu değiştirilirken hata oluştu');
+    }
+  };
+
+  const openEditDialog = (tax: Tax) => {
     setEditingTax(tax);
     setFormData({
       name: tax.name,
