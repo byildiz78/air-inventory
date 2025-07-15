@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { RecipeCostUpdater } from '@/lib/services/recipe-cost-updater';
 import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get all materials with their stock movements to calculate average costs
+    // Get all materials with their last purchase price
     const materials = await prisma.material.findMany({
-      include: {
-        stockMovements: {
-          where: {
-            type: 'IN', // Only consider incoming stock movements for cost calculation
-            unitCost: { gt: 0 } // Only movements with unit cost data
-          },
-          orderBy: {
-            date: 'desc'
-          }
-        }
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        averageCost: true,
+        lastPurchasePrice: true
       }
     });
 
@@ -23,30 +20,11 @@ export async function POST(request: NextRequest) {
 
     for (const material of materials) {
       const oldCost = material.averageCost || 0;
-      let newCost = 0;
+      // Use last purchase price as the new average cost
+      const newCost = material.lastPurchasePrice || oldCost;
 
-      if (material.stockMovements.length > 0) {
-        // Calculate weighted average cost based on recent stock movements
-        let totalCost = 0;
-        let totalQuantity = 0;
-
-        // Take the most recent 10 incoming movements for average calculation
-        const recentMovements = material.stockMovements.slice(0, 10);
-        
-        for (const movement of recentMovements) {
-          if (movement.unitCost && movement.quantity > 0) {
-            totalCost += movement.unitCost * movement.quantity;
-            totalQuantity += movement.quantity;
-          }
-        }
-
-        if (totalQuantity > 0) {
-          newCost = totalCost / totalQuantity;
-        }
-      }
-
-      // Update the material with the new average cost
-      if (newCost > 0) {
+      // Update the material with the new average cost based on last purchase price
+      if (newCost !== oldCost && newCost > 0) {
         await prisma.material.update({
           where: { id: material.id },
           data: { averageCost: newCost }
@@ -59,8 +37,8 @@ export async function POST(request: NextRequest) {
         materialCode: material.code,
         oldCost: oldCost,
         newCost: newCost,
-        movementCount: material.stockMovements.length,
-        updated: newCost > 0
+        source: 'lastPurchasePrice',
+        updated: newCost !== oldCost && newCost > 0
       });
     }
 
@@ -75,10 +53,31 @@ export async function POST(request: NextRequest) {
       {
         totalMaterials: materials.length,
         updatedMaterials: updatedCount,
-        operation: 'recalculate_average_costs'
+        operation: 'recalculate_costs_from_last_purchase'
       },
       request
     );
+
+    // Update recipe costs for all materials that were updated
+    let totalUpdatedRecipes = 0;
+    let totalUpdatedIngredients = 0;
+    
+    try {
+      const updatedMaterialIds = results
+        .filter(result => result.updated)
+        .map(result => result.materialId);
+      
+      for (const materialId of updatedMaterialIds) {
+        const result = await RecipeCostUpdater.updateRecipeCostsForMaterial(materialId);
+        totalUpdatedRecipes += result.updatedRecipes;
+        totalUpdatedIngredients += result.updatedIngredients;
+      }
+      
+      console.log(`Recipe costs updated after cost recalculation: ${totalUpdatedRecipes} recipes, ${totalUpdatedIngredients} ingredients`);
+    } catch (error) {
+      console.error('Error updating recipe costs after cost recalculation:', error);
+      // Don't fail the cost recalculation if recipe cost update fails
+    }
 
     return NextResponse.json({
       success: true,
@@ -86,17 +85,16 @@ export async function POST(request: NextRequest) {
       summary: {
         totalMaterials: materials.length,
         updatedMaterials: updatedCount,
-        message: `${updatedCount}/${materials.length} malzeme ortalama maliyeti güncellendi`
+        updatedRecipes: totalUpdatedRecipes,
+        updatedIngredients: totalUpdatedIngredients,
+        message: `${updatedCount}/${materials.length} malzeme maliyeti son alım fiyatına güncellendi, ${totalUpdatedRecipes} reçete maliyeti güncellendi`
       }
     });
 
   } catch (error: any) {
-    console.error('Error recalculating average costs:', error);
+    console.error('Error recalculating costs from last purchase prices:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Ortalama maliyetler hesaplanırken bir hata oluştu'
-      },
+      { error: error.message || 'Maliyetler güncellenirken hata oluştu' },
       { status: 500 }
     );
   }

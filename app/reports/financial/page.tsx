@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   BarChart, 
   Bar, 
@@ -32,203 +32,55 @@ import {
   BarChart3,
   Percent,
   FileText,
-  ShoppingCart
+  ShoppingCart,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import Link from 'next/link';
-import { 
-  salesService, 
-  invoiceService 
-} from '@/lib/data-service';
-import { 
-  MockSale, 
-  MockInvoice 
-} from '@/lib/mock-data';
+import { useFinancialReports } from '@/hooks/useFinancialReports';
+import { useState } from 'react';
 
 export default function FinancialReportsPage() {
-  const [sales, setSales] = useState<MockSale[]>([]);
-  const [invoices, setInvoices] = useState<MockInvoice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data,
+    loading,
+    error,
+    filters,
+    updateFilters,
+    refreshData,
+    profitMarginTrendData,
+    filteredData,
+    exportToCSV
+  } = useFinancialReports();
   
-  // Filters
-  const [dateRange, setDateRange] = useState('month');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [exporting, setExporting] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const handleExport = async () => {
     try {
-      setLoading(true);
-      const [salesData, invoicesData] = await Promise.all([
-        salesService.getAll(),
-        [], // Mock invoices data
-      ]);
-
-      setSales(salesData);
-      
-      // Mock invoice data
-      const mockInvoiceData = [
-        {
-          id: '1',
-          invoiceNumber: 'ALF-2024-001',
-          type: 'PURCHASE',
-          date: new Date('2024-01-15'),
-          totalAmount: 1710,
-          status: 'PAID'
-        },
-        {
-          id: '2',
-          invoiceNumber: 'ALF-2024-002',
-          type: 'PURCHASE',
-          date: new Date('2024-01-16'),
-          totalAmount: 815.58,
-          status: 'PAID'
-        },
-        {
-          id: '3',
-          invoiceNumber: 'ALF-2024-003',
-          type: 'PURCHASE',
-          date: new Date('2024-01-20'),
-          totalAmount: 2500,
-          status: 'PAID'
-        },
-        {
-          id: '4',
-          invoiceNumber: 'ALF-2024-004',
-          type: 'PURCHASE',
-          date: new Date('2024-01-25'),
-          totalAmount: 1200,
-          status: 'PAID'
-        },
-        {
-          id: '5',
-          invoiceNumber: 'ALF-2024-005',
-          type: 'PURCHASE',
-          date: new Date('2024-02-01'),
-          totalAmount: 1850,
-          status: 'PAID'
-        },
-        {
-          id: '6',
-          invoiceNumber: 'ALF-2024-006',
-          type: 'PURCHASE',
-          date: new Date('2024-02-05'),
-          totalAmount: 950,
-          status: 'PAID'
-        },
-        {
-          id: '7',
-          invoiceNumber: 'ALF-2024-007',
-          type: 'PURCHASE',
-          date: new Date('2024-02-10'),
-          totalAmount: 1650,
-          status: 'PENDING'
-        }
-      ];
-      
-      setInvoices(mockInvoiceData as any);
+      setExporting(true);
+      await exportToCSV();
     } catch (error) {
-      console.error('Financial data loading error:', error);
+      console.error('Export error:', error);
     } finally {
-      setLoading(false);
+      setExporting(false);
     }
   };
 
-  // Filter data by date range
-  const getFilteredData = () => {
-    let startDateObj: Date;
-    let endDateObj = new Date();
-    
-    if (startDate && endDate) {
-      startDateObj = new Date(startDate);
-      endDateObj = new Date(endDate);
-      endDateObj.setHours(23, 59, 59, 999); // End of day
-    } else {
-      startDateObj = new Date();
-      
-      if (dateRange === 'week') {
-        startDateObj.setDate(startDateObj.getDate() - 7);
-      } else if (dateRange === 'month') {
-        startDateObj.setMonth(startDateObj.getMonth() - 1);
-      } else if (dateRange === 'quarter') {
-        startDateObj.setMonth(startDateObj.getMonth() - 3);
-      } else if (dateRange === 'year') {
-        startDateObj.setFullYear(startDateObj.getFullYear() - 1);
-      }
-    }
-    
-    const filteredSales = sales.filter(sale => 
-      new Date(sale.date) >= startDateObj && new Date(sale.date) <= endDateObj
-    );
-    
-    const filteredInvoices = invoices.filter(invoice => 
-      new Date(invoice.date) >= startDateObj && new Date(invoice.date) <= endDateObj
-    );
-    
-    return { filteredSales, filteredInvoices };
+  const { filteredSales, filteredInvoices } = filteredData;
+
+  // Get live data from hook
+  const metrics = data?.summary || {
+    totalRevenue: 0,
+    totalCost: 0,
+    totalProfit: 0,
+    profitMargin: 0,
+    totalPurchases: 0,
+    totalSales: 0,
+    averageTicket: 0
   };
 
-  const { filteredSales, filteredInvoices } = getFilteredData();
-
-  // Calculate financial metrics
-  const calculateFinancialMetrics = () => {
-    const totalRevenue = filteredSales.reduce((sum, sale) => sum + sale.totalPrice, 0);
-    const totalCost = filteredSales.reduce((sum, sale) => sum + sale.totalCost, 0);
-    const totalProfit = filteredSales.reduce((sum, sale) => sum + sale.grossProfit, 0);
-    const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-    
-    const totalPurchases = filteredInvoices
-      .filter(invoice => invoice.type === 'PURCHASE')
-      .reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-    
-    return {
-      totalRevenue,
-      totalCost,
-      totalProfit,
-      profitMargin,
-      totalPurchases,
-      totalSales: filteredSales.length,
-      averageTicket: filteredSales.length > 0 ? totalRevenue / filteredSales.length : 0
-    };
-  };
-
-  const metrics = calculateFinancialMetrics();
-
-  // Prepare revenue vs cost trend data
-  const prepareRevenueCostTrend = () => {
-    const dataByDate: Record<string, { date: string, revenue: number, cost: number, profit: number }> = {};
-    
-    filteredSales.forEach(sale => {
-      const dateStr = new Date(sale.date).toISOString().split('T')[0];
-      if (!dataByDate[dateStr]) {
-        dataByDate[dateStr] = { date: dateStr, revenue: 0, cost: 0, profit: 0 };
-      }
-      dataByDate[dateStr].revenue += sale.totalPrice;
-      dataByDate[dateStr].cost += sale.totalCost;
-      dataByDate[dateStr].profit += sale.grossProfit;
-    });
-    
-    return Object.values(dataByDate)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .map(item => ({
-        ...item,
-        date: new Date(item.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })
-      }));
-  };
-
-  const revenueCostTrend = prepareRevenueCostTrend();
-
-  // Prepare profit margin trend
-  const prepareProfitMarginTrend = () => {
-    return revenueCostTrend.map(item => ({
-      date: item.date,
-      margin: item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0
-    }));
-  };
-
-  const profitMarginTrend = prepareProfitMarginTrend();
+  const revenueCostTrend = data?.trendData || [];
+  const profitMarginTrend = profitMarginTrendData;
 
   // Chart colors
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
@@ -240,6 +92,19 @@ export default function FinancialReportsPage() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-muted-foreground">Finansal veriler yükleniyor...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Finansal veriler yüklenirken hata oluştu: {error}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -259,14 +124,28 @@ export default function FinancialReportsPage() {
             </Link>
             <div>
               <h1 className="text-3xl font-bold">Finansal Raporlar</h1>
-              <p className="text-muted-foreground">Gelir, gider ve kârlılık analizleri</p>
+              <p className="text-muted-foreground">Gelir, gider ve kârlılık analizleri • Canlı veriler</p>
             </div>
           </div>
           
-          <Button variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Excel'e Aktar
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={refreshData}
+              disabled={loading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {exporting ? 'Aktarılıyor...' : 'CSV\'e Aktar'}
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -279,7 +158,7 @@ export default function FinancialReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Select value={dateRange} onValueChange={setDateRange}>
+              <Select value={filters.dateRange} onValueChange={(value) => updateFilters({ dateRange: value as any })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Tarih Aralığı" />
                 </SelectTrigger>
@@ -294,15 +173,15 @@ export default function FinancialReportsPage() {
               <div className="flex gap-2 md:col-span-2">
                 <Input
                   type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  value={filters.dateFrom}
+                  onChange={(e) => updateFilters({ dateFrom: e.target.value })}
                   className="flex-1"
                   placeholder="Başlangıç"
                 />
                 <Input
                   type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  value={filters.dateTo}
+                  onChange={(e) => updateFilters({ dateTo: e.target.value })}
                   className="flex-1"
                   placeholder="Bitiş"
                 />
@@ -311,9 +190,7 @@ export default function FinancialReportsPage() {
               <Button 
                 variant="outline"
                 onClick={() => {
-                  setStartDate('');
-                  setEndDate('');
-                  setDateRange('month');
+                  updateFilters({ dateFrom: '', dateTo: '', dateRange: 'month' });
                 }}
               >
                 Filtreleri Sıfırla
@@ -327,10 +204,12 @@ export default function FinancialReportsPage() {
           <CardHeader>
             <CardTitle>Finansal Özet</CardTitle>
             <CardDescription>
-              {dateRange === 'week' ? 'Son 7 gün' : 
-               dateRange === 'month' ? 'Son 30 gün' : 
-               dateRange === 'quarter' ? 'Son 3 ay' : 
-               'Son 1 yıl'} için finansal özet
+              {filters.dateFrom && filters.dateTo 
+                ? `${new Date(filters.dateFrom).toLocaleDateString('tr-TR')} - ${new Date(filters.dateTo).toLocaleDateString('tr-TR')}` 
+                : filters.dateRange === 'week' ? 'Son 7 gün' : 
+                  filters.dateRange === 'month' ? 'Son 30 gün' : 
+                  filters.dateRange === 'quarter' ? 'Son 3 ay' : 
+                  'Son 1 yıl'} için finansal özet
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -480,11 +359,7 @@ export default function FinancialReportsPage() {
                         return (
                           <tr key={index} className="border-b hover:bg-gray-50">
                             <td className="p-2">{day.date}</td>
-                            <td className="p-2 text-right">
-                              {filteredSales.filter(sale => 
-                                new Date(sale.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' }) === day.date
-                              ).length}
-                            </td>
+                            <td className="p-2 text-right">{day.salesCount}</td>
                             <td className="p-2 text-right font-medium">₺{day.revenue.toLocaleString()}</td>
                             <td className="p-2 text-right">₺{day.cost.toLocaleString()}</td>
                             <td className="p-2 text-right font-medium text-blue-600">₺{day.profit.toLocaleString()}</td>
@@ -576,61 +451,32 @@ export default function FinancialReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredSales
-                        .reduce((acc, sale) => {
-                          const existingItem = acc.find(item => item.itemName === sale.itemName);
-                          if (existingItem) {
-                            existingItem.quantity += sale.quantity;
-                            existingItem.totalPrice += sale.totalPrice;
-                            existingItem.totalCost += sale.totalCost;
-                            existingItem.grossProfit += sale.grossProfit;
-                          } else {
-                            acc.push({
-                              itemName: sale.itemName,
-                              quantity: sale.quantity,
-                              unitPrice: sale.unitPrice,
-                              totalPrice: sale.totalPrice,
-                              totalCost: sale.totalCost,
-                              grossProfit: sale.grossProfit
-                            });
-                          }
-                          return acc;
-                        }, [] as Array<{
-                          itemName: string;
-                          quantity: number;
-                          unitPrice: number;
-                          totalPrice: number;
-                          totalCost: number;
-                          grossProfit: number;
-                        }>)
-                        .sort((a, b) => (b.grossProfit / b.totalPrice) - (a.grossProfit / a.totalPrice))
-                        .slice(0, 10)
-                        .map((item, index) => {
-                          const profitMargin = (item.grossProfit / item.totalPrice) * 100;
-                          
-                          return (
-                            <tr key={index} className="border-b hover:bg-gray-50">
-                              <td className="p-2">
-                                <div className="font-medium">{item.itemName}</div>
-                              </td>
-                              <td className="p-2 text-right">{item.quantity}</td>
-                              <td className="p-2 text-right">₺{item.unitPrice.toFixed(2)}</td>
-                              <td className="p-2 text-right">₺{item.totalPrice.toLocaleString()}</td>
-                              <td className="p-2 text-right">₺{item.totalCost.toLocaleString()}</td>
-                              <td className="p-2 text-right font-medium text-green-600">₺{item.grossProfit.toLocaleString()}</td>
-                              <td className="p-2 text-right">
-                                <span className={
-                                  profitMargin >= 40 ? 'text-green-600 font-medium' :
-                                  profitMargin >= 20 ? 'text-blue-600 font-medium' :
-                                  profitMargin >= 0 ? 'text-orange-600 font-medium' :
-                                  'text-red-600 font-medium'
-                                }>
-                                  %{profitMargin.toFixed(1)}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                      {(data?.topProfitableItems || []).map((item, index) => {
+                        const profitMargin = item.totalRevenue > 0 ? (item.totalProfit / item.totalRevenue) * 100 : 0;
+                        
+                        return (
+                          <tr key={index} className="border-b hover:bg-gray-50">
+                            <td className="p-2">
+                              <div className="font-medium">{item.itemName}</div>
+                            </td>
+                            <td className="p-2 text-right">{item.quantity}</td>
+                            <td className="p-2 text-right">₺{item.unitPrice.toFixed(2)}</td>
+                            <td className="p-2 text-right">₺{item.totalRevenue.toLocaleString()}</td>
+                            <td className="p-2 text-right">₺{item.totalCost.toLocaleString()}</td>
+                            <td className="p-2 text-right font-medium text-green-600">₺{item.totalProfit.toLocaleString()}</td>
+                            <td className="p-2 text-right">
+                              <span className={
+                                profitMargin >= 40 ? 'text-green-600 font-medium' :
+                                profitMargin >= 20 ? 'text-blue-600 font-medium' :
+                                profitMargin >= 0 ? 'text-orange-600 font-medium' :
+                                'text-red-600 font-medium'
+                              }>
+                                %{profitMargin.toFixed(1)}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -654,10 +500,11 @@ export default function FinancialReportsPage() {
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={[
-                        { name: 'Ocak', purchases: 5025.58, sales: 8500 },
-                        { name: 'Şubat', purchases: 4450, sales: 7800 }
-                      ]}
+                      data={(data?.monthlyBreakdown || []).map(item => ({
+                        name: item.month,
+                        purchases: item.purchases,
+                        sales: item.revenue
+                      }))}
                       margin={{
                         top: 5,
                         right: 30,
@@ -704,33 +551,32 @@ export default function FinancialReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="border-b hover:bg-gray-50">
-                        <td className="p-2 font-medium">Ocak 2024</td>
-                        <td className="p-2 text-right">₺8,500.00</td>
-                        <td className="p-2 text-right">₺5,100.00</td>
-                        <td className="p-2 text-right font-medium text-green-600">₺3,400.00</td>
-                        <td className="p-2 text-right">%40.0</td>
-                        <td className="p-2 text-right">₺5,025.58</td>
-                        <td className="p-2 text-right">95</td>
-                      </tr>
-                      <tr className="border-b hover:bg-gray-50">
-                        <td className="p-2 font-medium">Şubat 2024</td>
-                        <td className="p-2 text-right">₺7,800.00</td>
-                        <td className="p-2 text-right">₺4,680.00</td>
-                        <td className="p-2 text-right font-medium text-green-600">₺3,120.00</td>
-                        <td className="p-2 text-right">%40.0</td>
-                        <td className="p-2 text-right">₺4,450.00</td>
-                        <td className="p-2 text-right">87</td>
-                      </tr>
-                      <tr className="border-b hover:bg-gray-50 bg-gray-50">
-                        <td className="p-2 font-medium">Toplam</td>
-                        <td className="p-2 text-right font-bold">₺16,300.00</td>
-                        <td className="p-2 text-right font-bold">₺9,780.00</td>
-                        <td className="p-2 text-right font-bold text-green-600">₺6,520.00</td>
-                        <td className="p-2 text-right font-bold">%40.0</td>
-                        <td className="p-2 text-right font-bold">₺9,475.58</td>
-                        <td className="p-2 text-right font-bold">182</td>
-                      </tr>
+                      {(data?.monthlyBreakdown || []).map((item, index) => {
+                        const margin = item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0;
+                        
+                        return (
+                          <tr key={index} className="border-b hover:bg-gray-50">
+                            <td className="p-2 font-medium">{item.month}</td>
+                            <td className="p-2 text-right">₺{item.revenue.toLocaleString()}</td>
+                            <td className="p-2 text-right">₺{item.cost.toLocaleString()}</td>
+                            <td className="p-2 text-right font-medium text-green-600">₺{item.profit.toLocaleString()}</td>
+                            <td className="p-2 text-right">%{margin.toFixed(1)}</td>
+                            <td className="p-2 text-right">₺{item.purchases.toLocaleString()}</td>
+                            <td className="p-2 text-right">{item.salesCount}</td>
+                          </tr>
+                        );
+                      })}
+                      {data?.monthlyBreakdown && data.monthlyBreakdown.length > 0 && (
+                        <tr className="border-b hover:bg-gray-50 bg-gray-50">
+                          <td className="p-2 font-medium">Toplam</td>
+                          <td className="p-2 text-right font-bold">₺{data.monthlyBreakdown.reduce((sum, item) => sum + item.revenue, 0).toLocaleString()}</td>
+                          <td className="p-2 text-right font-bold">₺{data.monthlyBreakdown.reduce((sum, item) => sum + item.cost, 0).toLocaleString()}</td>
+                          <td className="p-2 text-right font-bold text-green-600">₺{data.monthlyBreakdown.reduce((sum, item) => sum + item.profit, 0).toLocaleString()}</td>
+                          <td className="p-2 text-right font-bold">%{metrics.profitMargin.toFixed(1)}</td>
+                          <td className="p-2 text-right font-bold">₺{data.monthlyBreakdown.reduce((sum, item) => sum + item.purchases, 0).toLocaleString()}</td>
+                          <td className="p-2 text-right font-bold">{data.monthlyBreakdown.reduce((sum, item) => sum + item.salesCount, 0)}</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

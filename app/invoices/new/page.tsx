@@ -324,25 +324,32 @@ export default function NewInvoicePage() {
       console.log('API yanıt durumu:', response.status, response.statusText);
       
       if (!response.ok) {
-        // JSON formatında hata yanıtı almaya çalış
-        let errorData;
+        // Response body'yi sadece bir kez oku
+        const contentType = response.headers.get('content-type');
+        let errorMessage = `API hatası: ${response.status} ${response.statusText}`;
+        
         try {
-          errorData = await response.json();
-          console.error('API hata yanıtı (JSON):', errorData);
-          
-          // Fatura numarası zaten var hatası kontrolü
-          if (errorData.error && errorData.error.includes('Invoice number already exists')) {
-            alert('Bu fatura numarası zaten kullanılmış! Lütfen başka bir fatura numarası girin.');
-            return;
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            console.error('API hata yanıtı (JSON):', errorData);
+            
+            // Fatura numarası zaten var hatası kontrolü
+            if (errorData.error && errorData.error.includes('Invoice number already exists')) {
+              alert('Bu fatura numarası zaten kullanılmış! Lütfen başka bir fatura numarası girin.');
+              return;
+            }
+            
+            errorMessage = errorData.error || errorMessage;
+          } else {
+            const errorText = await response.text();
+            console.error('API hata yanıtı (text):', errorText);
+            errorMessage = errorText || errorMessage;
           }
-          
-          throw new Error(errorData.error || `API hatası: ${response.status} ${response.statusText}`);
-        } catch (jsonError) {
-          // JSON olarak ayrıştırılamıyorsa, düz metin olarak oku
-          const errorText = await response.text();
-          console.error('API hata yanıtı (text):', errorText);
-          throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+        } catch (parseError) {
+          console.error('Hata yanıtı ayrıştırılamadı:', parseError);
         }
+        
+        throw new Error(errorMessage);
       }
       
       const responseData = await response.json();

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { warehouseService } from '@/lib/services/warehouse-service';
+import { RecipeCostUpdater } from '@/lib/services/recipe-cost-updater';
 
 // Helper function to calculate stock at a specific date and warehouse
 async function calculateStockAtDate(materialId: string, warehouseId: string | undefined, date: Date): Promise<number> {
@@ -25,6 +27,25 @@ async function calculateStockAtDate(materialId: string, warehouseId: string | un
   }
 
   return stock;
+}
+
+// Helper function to calculate total stock from movements across all warehouses
+async function calculateTotalStockFromMovements(materialId: string): Promise<number> {
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  let totalStock = 0;
+  for (const movement of movements) {
+    totalStock += movement.quantity;
+  }
+
+  return totalStock;
 }
 
 // Helper function to recalculate stock levels for all movements after a specific date
@@ -57,6 +78,38 @@ async function recalculateStockAfterDate(materialId: string, warehouseId: string
       }
     });
   }
+}
+
+// Helper function to calculate current stock for a material and warehouse
+async function calculateCurrentStock(materialId: string, warehouseId: string | undefined): Promise<number> {
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId,
+      warehouseId: warehouseId,
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  let stock = 0;
+  for (const movement of movements) {
+    stock += movement.quantity;
+  }
+
+  return stock;
+}
+
+// Helper function to update MaterialStock table
+async function updateMaterialStock(materialId: string, warehouseId: string | undefined, newStock: number, averageCost?: number): Promise<void> {
+  if (!warehouseId) return;
+  
+  await warehouseService.updateMaterialStock(warehouseId, materialId, {
+    currentStock: newStock,
+    availableStock: newStock,
+    averageCost: averageCost,
+    lastUpdated: new Date()
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -281,7 +334,39 @@ export async function POST(request: NextRequest) {
     if (body.items && body.items.length > 0 && body.createStockMovements) {
       for (const item of body.items) {
         await recalculateStockAfterDate(item.materialId, item.warehouseId, new Date(body.date));
+        
+        // Update MaterialStock table
+        const currentStock = await calculateCurrentStock(item.materialId, item.warehouseId);
+        await updateMaterialStock(item.materialId, item.warehouseId, currentStock, item.unitPrice);
+        
+        // Update Material.currentStock and lastPurchasePrice with total across all warehouses
+        const totalStock = await calculateTotalStockFromMovements(item.materialId);
+        await prisma.material.update({
+          where: { id: item.materialId },
+          data: { 
+            currentStock: totalStock,
+            lastPurchasePrice: item.unitPrice // Update last purchase price
+          }
+        });
       }
+    }
+
+    // Update recipe costs for affected materials
+    try {
+      const affectedMaterialIds = invoice.items.map(item => item.materialId);
+      let totalUpdatedRecipes = 0;
+      let totalUpdatedIngredients = 0;
+
+      for (const materialId of affectedMaterialIds) {
+        const result = await RecipeCostUpdater.updateRecipeCostsForMaterial(materialId);
+        totalUpdatedRecipes += result.updatedRecipes;
+        totalUpdatedIngredients += result.updatedIngredients;
+      }
+
+      console.log(`Recipe costs updated: ${totalUpdatedRecipes} recipes, ${totalUpdatedIngredients} ingredients`);
+    } catch (error) {
+      console.error('Error updating recipe costs after invoice:', error);
+      // Don't fail the invoice creation if recipe cost update fails
     }
 
     // Log the activity

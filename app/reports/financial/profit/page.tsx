@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   TrendingUp, 
   Download, 
@@ -17,7 +17,9 @@ import {
   Calendar,
   BarChart3,
   ChefHat,
-  ShoppingCart
+  ShoppingCart,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { 
@@ -35,201 +37,48 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { 
-  salesService, 
-  recipeService 
-} from '@/lib/data-service';
-import { 
-  MockSale, 
-  MockRecipe 
-} from '@/lib/mock-data';
+import { useProfitReports } from '@/hooks/useProfitReports';
+import { useState } from 'react';
 
 export default function ProfitReportPage() {
-  const [sales, setSales] = useState<MockSale[]>([]);
-  const [recipes, setRecipes] = useState<MockRecipe[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data,
+    loading,
+    error,
+    filters,
+    updateFilters,
+    refreshData,
+    filteredSales,
+    exportToCSV
+  } = useProfitReports();
   
-  // Filters
-  const [dateRange, setDateRange] = useState('month');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [exporting, setExporting] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const handleExport = async () => {
     try {
-      setLoading(true);
-      const [salesData, recipesData] = await Promise.all([
-        salesService.getAll(),
-        recipeService.getAll(),
-      ]);
-
-      setSales(salesData);
-      setRecipes(recipesData);
+      setExporting(true);
+      await exportToCSV();
     } catch (error) {
-      console.error('Profit report data loading error:', error);
+      console.error('Export error:', error);
     } finally {
-      setLoading(false);
+      setExporting(false);
     }
   };
 
-  // Filter data by date range
-  const getFilteredSales = () => {
-    let filteredSales = [...sales];
-    
-    let startDateObj: Date;
-    let endDateObj = new Date();
-    
-    if (startDate && endDate) {
-      startDateObj = new Date(startDate);
-      endDateObj = new Date(endDate);
-      endDateObj.setHours(23, 59, 59, 999); // End of day
-    } else {
-      startDateObj = new Date();
-      
-      if (dateRange === 'week') {
-        startDateObj.setDate(startDateObj.getDate() - 7);
-      } else if (dateRange === 'month') {
-        startDateObj.setMonth(startDateObj.getMonth() - 1);
-      } else if (dateRange === 'quarter') {
-        startDateObj.setMonth(startDateObj.getMonth() - 3);
-      } else if (dateRange === 'year') {
-        startDateObj.setFullYear(startDateObj.getFullYear() - 1);
-      }
-    }
-    
-    filteredSales = filteredSales.filter(sale => 
-      new Date(sale.date) >= startDateObj && new Date(sale.date) <= endDateObj
-    );
-    
-    if (categoryFilter !== 'all') {
-      filteredSales = filteredSales.filter(sale => {
-        if (!sale.recipeId) return false;
-        const recipe = recipes.find(r => r.id === sale.recipeId);
-        return recipe?.category === categoryFilter;
-      });
-    }
-    
-    return filteredSales;
+  // Get live data from hook
+  const metrics = data?.summary || {
+    totalRevenue: 0,
+    totalCost: 0,
+    totalProfit: 0,
+    profitMargin: 0,
+    totalSales: 0,
+    averageProfit: 0
   };
 
-  const filteredSales = getFilteredSales();
-
-  // Get unique categories
-  const categories = [...new Set(recipes.map(r => r.category).filter(Boolean))];
-
-  // Calculate profit metrics
-  const calculateProfitMetrics = () => {
-    const totalRevenue = filteredSales.reduce((sum, sale) => sum + sale.totalPrice, 0);
-    const totalCost = filteredSales.reduce((sum, sale) => sum + sale.totalCost, 0);
-    const totalProfit = filteredSales.reduce((sum, sale) => sum + sale.grossProfit, 0);
-    const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-    
-    return {
-      totalRevenue,
-      totalCost,
-      totalProfit,
-      profitMargin,
-      totalSales: filteredSales.length,
-      averageProfit: filteredSales.length > 0 ? totalProfit / filteredSales.length : 0
-    };
-  };
-
-  const metrics = calculateProfitMetrics();
-
-  // Prepare profit trend data
-  const prepareProfitTrend = () => {
-    const dataByDate: Record<string, { date: string, revenue: number, cost: number, profit: number }> = {};
-    
-    filteredSales.forEach(sale => {
-      const dateStr = new Date(sale.date).toISOString().split('T')[0];
-      if (!dataByDate[dateStr]) {
-        dataByDate[dateStr] = { date: dateStr, revenue: 0, cost: 0, profit: 0 };
-      }
-      dataByDate[dateStr].revenue += sale.totalPrice;
-      dataByDate[dateStr].cost += sale.totalCost;
-      dataByDate[dateStr].profit += sale.grossProfit;
-    });
-    
-    return Object.values(dataByDate)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .map(item => ({
-        ...item,
-        date: new Date(item.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })
-      }));
-  };
-
-  const profitTrend = prepareProfitTrend();
-
-  // Prepare profit by category data
-  const prepareProfitByCategory = () => {
-    const profitByCategory: Record<string, { revenue: number, cost: number, profit: number }> = {};
-    
-    filteredSales.forEach(sale => {
-      if (!sale.recipeId) return;
-      
-      const recipe = recipes.find(r => r.id === sale.recipeId);
-      if (!recipe || !recipe.category) return;
-      
-      if (!profitByCategory[recipe.category]) {
-        profitByCategory[recipe.category] = { revenue: 0, cost: 0, profit: 0 };
-      }
-      
-      profitByCategory[recipe.category].revenue += sale.totalPrice;
-      profitByCategory[recipe.category].cost += sale.totalCost;
-      profitByCategory[recipe.category].profit += sale.grossProfit;
-    });
-    
-    return Object.entries(profitByCategory).map(([category, data]) => ({
-      name: category,
-      revenue: data.revenue,
-      cost: data.cost,
-      profit: data.profit,
-      margin: data.revenue > 0 ? (data.profit / data.revenue) * 100 : 0
-    }));
-  };
-
-  const profitByCategory = prepareProfitByCategory();
-
-  // Prepare top profitable items
-  const prepareTopProfitableItems = () => {
-    return filteredSales
-      .reduce((acc, sale) => {
-        const existingItem = acc.find(item => item.itemName === sale.itemName);
-        if (existingItem) {
-          existingItem.quantity += sale.quantity;
-          existingItem.revenue += sale.totalPrice;
-          existingItem.cost += sale.totalCost;
-          existingItem.profit += sale.grossProfit;
-        } else {
-          acc.push({
-            itemName: sale.itemName,
-            quantity: sale.quantity,
-            revenue: sale.totalPrice,
-            cost: sale.totalCost,
-            profit: sale.grossProfit
-          });
-        }
-        return acc;
-      }, [] as Array<{
-        itemName: string;
-        quantity: number;
-        revenue: number;
-        cost: number;
-        profit: number;
-      }>)
-      .sort((a, b) => b.profit - a.profit)
-      .slice(0, 10)
-      .map(item => ({
-        ...item,
-        margin: item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0
-      }));
-  };
-
-  const topProfitableItems = prepareTopProfitableItems();
+  const profitTrend = data?.profitTrendData || [];
+  const profitByCategory = data?.profitByCategoryData || [];
+  const topProfitableItems = data?.topProfitableItems || [];
+  const categories = data?.categories || [];
 
   // Chart colors
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
@@ -241,6 +90,19 @@ export default function ProfitReportPage() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-muted-foreground">Kârlılık verileri yükleniyor...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Kârlılık verileri yüklenirken hata oluştu: {error}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -260,14 +122,28 @@ export default function ProfitReportPage() {
             </Link>
             <div>
               <h1 className="text-3xl font-bold">Kârlılık Raporu</h1>
-              <p className="text-muted-foreground">Detaylı kâr analizi ve kâr marjı raporları</p>
+              <p className="text-muted-foreground">Detaylı kâr analizi ve kâr marjı raporları • Canlı veriler</p>
             </div>
           </div>
           
-          <Button variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Excel'e Aktar
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={refreshData}
+              disabled={loading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {exporting ? 'Aktarılıyor...' : 'CSV\'e Aktar'}
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -280,7 +156,7 @@ export default function ProfitReportPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Select value={dateRange} onValueChange={setDateRange}>
+              <Select value={filters.dateRange} onValueChange={(value) => updateFilters({ dateRange: value as any })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Tarih Aralığı" />
                 </SelectTrigger>
@@ -295,29 +171,29 @@ export default function ProfitReportPage() {
               <div className="flex gap-2 md:col-span-2">
                 <Input
                   type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  value={filters.dateFrom}
+                  onChange={(e) => updateFilters({ dateFrom: e.target.value })}
                   className="flex-1"
                   placeholder="Başlangıç"
                 />
                 <Input
                   type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  value={filters.dateTo}
+                  onChange={(e) => updateFilters({ dateTo: e.target.value })}
                   className="flex-1"
                   placeholder="Bitiş"
                 />
               </div>
 
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <Select value={filters.categoryFilter} onValueChange={(value) => updateFilters({ categoryFilter: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Kategori" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tüm Kategoriler</SelectItem>
-                  {categories.map((category, index) => (
-                    <SelectItem key={index} value={category}>
-                      {category}
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -331,10 +207,12 @@ export default function ProfitReportPage() {
           <CardHeader>
             <CardTitle>Kârlılık Özeti</CardTitle>
             <CardDescription>
-              {dateRange === 'week' ? 'Son 7 gün' : 
-               dateRange === 'month' ? 'Son 30 gün' : 
-               dateRange === 'quarter' ? 'Son 3 ay' : 
-               'Son 1 yıl'} için kârlılık özeti
+              {filters.dateFrom && filters.dateTo 
+                ? `${new Date(filters.dateFrom).toLocaleDateString('tr-TR')} - ${new Date(filters.dateTo).toLocaleDateString('tr-TR')}` 
+                : filters.dateRange === 'week' ? 'Son 7 gün' : 
+                  filters.dateRange === 'month' ? 'Son 30 gün' : 
+                  filters.dateRange === 'quarter' ? 'Son 3 ay' : 
+                  'Son 1 yıl'} için kârlılık özeti
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -436,7 +314,12 @@ export default function ProfitReportPage() {
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={profitByCategory}
+                    data={profitByCategory.map(item => ({
+                      name: item.categoryName,
+                      profit: item.profit,
+                      revenue: item.revenue,
+                      margin: item.margin
+                    }))}
                     margin={{
                       top: 5,
                       right: 30,

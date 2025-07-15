@@ -2,6 +2,45 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
 
+// Helper function to calculate stock from StockMovement table
+async function calculateStockFromMovements(materialId: string, warehouseId?: string): Promise<number> {
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId,
+      warehouseId: warehouseId
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  let stock = 0;
+  for (const movement of movements) {
+    stock += movement.quantity;
+  }
+
+  return stock;
+}
+
+// Helper function to calculate total stock for a material across all warehouses
+async function calculateTotalStockFromMovements(materialId: string): Promise<number> {
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  let totalStock = 0;
+  for (const movement of movements) {
+    totalStock += movement.quantity;
+  }
+
+  return totalStock;
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Get all materials with their stock information
@@ -20,38 +59,55 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Calculate stock consistency for each material
-    const consistencyData = materials.map(material => {
-      // Calculate total stock from all warehouses
-      const totalWarehouseStock = material.materialStocks.reduce(
+    // Calculate stock consistency for each material using StockMovement as base
+    const consistencyData = await Promise.all(materials.map(async (material) => {
+      // Calculate actual stock from StockMovement table (this is the truth)
+      const actualTotalStock = await calculateTotalStockFromMovements(material.id);
+      
+      // Calculate total stock from MaterialStock table (this might be inconsistent)
+      const materialStockTotal = material.materialStocks.reduce(
         (sum, stock) => sum + (stock.currentStock || 0), 
         0
       );
       
-      // Get system stock (assuming it's stored in Material table)
-      const systemStock = material.currentStock || 0;
+      // Calculate warehouse stocks from movements
+      const warehouseStocks = await Promise.all(
+        material.materialStocks.map(async (stock) => {
+          const actualStock = await calculateStockFromMovements(material.id, stock.warehouseId);
+          return {
+            warehouseId: stock.warehouseId,
+            warehouseName: stock.warehouse.name,
+            currentStock: stock.currentStock || 0,
+            actualStock: actualStock,
+            availableStock: stock.availableStock || 0,
+            reservedStock: stock.reservedStock || 0,
+            isConsistent: Math.abs(actualStock - (stock.currentStock || 0)) < 0.01
+          };
+        })
+      );
       
-      // Calculate difference
-      const difference = totalWarehouseStock - systemStock;
-      const isConsistent = Math.abs(difference) < 0.01; // Allow for small rounding differences
+      // Calculate differences
+      const materialStockDifference = actualTotalStock - materialStockTotal;
+      const systemStockDifference = actualTotalStock - (material.currentStock || 0);
+      
+      const isConsistent = Math.abs(materialStockDifference) < 0.01 && 
+                          Math.abs(systemStockDifference) < 0.01;
       
       return {
         materialId: material.id,
         materialName: material.name,
         materialCode: material.code,
-        systemStock: systemStock,
-        totalStock: totalWarehouseStock,
-        difference: difference,
+        systemStock: material.currentStock || 0,
+        materialStockTotal: materialStockTotal,
+        actualStock: actualTotalStock,
+        systemStockDifference: systemStockDifference,
+        materialStockDifference: materialStockDifference,
+        totalStock: actualTotalStock, // Use actual stock as the reference
+        difference: systemStockDifference, // Show system vs actual difference
         isConsistent: isConsistent,
-        warehouseStocks: material.materialStocks.map(stock => ({
-          warehouseId: stock.warehouseId,
-          warehouseName: stock.warehouse.name,
-          currentStock: stock.currentStock || 0,
-          availableStock: stock.availableStock || 0,
-          reservedStock: stock.reservedStock || 0
-        }))
+        warehouseStocks: warehouseStocks
       };
-    });
+    }));
 
     return NextResponse.json({
       success: true,
@@ -76,7 +132,7 @@ export async function POST(request: NextRequest) {
     const { materialId, fixAll } = body;
 
     if (fixAll) {
-      // Fix all inconsistencies
+      // Fix all inconsistencies based on StockMovement table
       const materials = await prisma.material.findMany({
         include: {
           materialStocks: true
@@ -87,20 +143,42 @@ export async function POST(request: NextRequest) {
       const totalCount = materials.length;
 
       for (const material of materials) {
-        const totalWarehouseStock = material.materialStocks.reduce(
-          (sum, stock) => sum + (stock.currentStock || 0), 
-          0
-        );
+        // Calculate actual stock from StockMovement table
+        const actualTotalStock = await calculateTotalStockFromMovements(material.id);
         
+        // Check if system stock needs updating
         const systemStock = material.currentStock || 0;
-        const difference = Math.abs(totalWarehouseStock - systemStock);
+        const systemDifference = Math.abs(actualTotalStock - systemStock);
         
-        if (difference >= 0.01) {
-          // Update system stock to match warehouse total
+        if (systemDifference >= 0.01) {
+          // Update system stock to match actual stock from movements
           await prisma.material.update({
             where: { id: material.id },
-            data: { currentStock: totalWarehouseStock }
+            data: { currentStock: actualTotalStock }
           });
+        }
+        
+        // Update each warehouse MaterialStock to match actual stock
+        let warehouseFixed = false;
+        for (const stock of material.materialStocks) {
+          const actualWarehouseStock = await calculateStockFromMovements(material.id, stock.warehouseId);
+          const currentStock = stock.currentStock || 0;
+          const warehouseDifference = Math.abs(actualWarehouseStock - currentStock);
+          
+          if (warehouseDifference >= 0.01) {
+            await prisma.materialStock.update({
+              where: { id: stock.id },
+              data: { 
+                currentStock: actualWarehouseStock,
+                availableStock: actualWarehouseStock,
+                lastUpdated: new Date()
+              }
+            });
+            warehouseFixed = true;
+          }
+        }
+        
+        if (systemDifference >= 0.01 || warehouseFixed) {
           fixedCount++;
         }
       }
@@ -114,7 +192,7 @@ export async function POST(request: NextRequest) {
         {
           fixedCount: fixedCount,
           totalCount: totalCount,
-          operation: 'fix_all_stock_consistency'
+          operation: 'fix_all_stock_consistency_based_on_movements'
         },
         request
       );
@@ -124,13 +202,13 @@ export async function POST(request: NextRequest) {
         data: {
           fixed: fixedCount,
           total: totalCount,
-          message: `${fixedCount}/${totalCount} tutarsızlık düzeltildi`
+          message: `${fixedCount}/${totalCount} tutarsızlık düzeltildi (StockMovement tablosu baz alındı)`
         }
       });
     }
 
     if (materialId) {
-      // Fix single material inconsistency
+      // Fix single material inconsistency based on StockMovement table
       const material = await prisma.material.findUnique({
         where: { id: materialId },
         include: {
@@ -148,15 +226,27 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const totalWarehouseStock = material.materialStocks.reduce(
-        (sum, stock) => sum + (stock.currentStock || 0), 
-        0
-      );
-
+      // Calculate actual stock from StockMovement table
+      const actualTotalStock = await calculateTotalStockFromMovements(materialId);
+      
+      // Update system stock
       await prisma.material.update({
         where: { id: materialId },
-        data: { currentStock: totalWarehouseStock }
+        data: { currentStock: actualTotalStock }
       });
+      
+      // Update each warehouse MaterialStock
+      for (const stock of material.materialStocks) {
+        const actualWarehouseStock = await calculateStockFromMovements(materialId, stock.warehouseId);
+        await prisma.materialStock.update({
+          where: { id: stock.id },
+          data: { 
+            currentStock: actualWarehouseStock,
+            availableStock: actualWarehouseStock,
+            lastUpdated: new Date()
+          }
+        });
+      }
 
       // Log the activity
       const userId = request.headers.get('x-user-id') || '1';
@@ -166,8 +256,8 @@ export async function POST(request: NextRequest) {
         materialId,
         {
           before: { currentStock: material.currentStock },
-          after: { currentStock: totalWarehouseStock },
-          operation: 'fix_stock_consistency'
+          after: { currentStock: actualTotalStock },
+          operation: 'fix_stock_consistency_based_on_movements'
         },
         request
       );
@@ -177,8 +267,8 @@ export async function POST(request: NextRequest) {
         data: {
           materialId,
           oldStock: material.currentStock,
-          newStock: totalWarehouseStock,
-          message: 'Malzeme stoku düzeltildi'
+          newStock: actualTotalStock,
+          message: 'Malzeme stoku düzeltildi (StockMovement tablosu baz alındı)'
         }
       });
     }

@@ -352,6 +352,7 @@ export const warehouseService = {
     availableStock?: number;
     reservedStock?: number;
     location?: string;
+    averageCost?: number;
   }) {
     if (USE_PRISMA) {
       return await prisma.materialStock.upsert({
@@ -371,6 +372,7 @@ export const warehouseService = {
           currentStock: data.currentStock || 0,
           availableStock: data.availableStock || 0,
           reservedStock: data.reservedStock || 0,
+          averageCost: data.averageCost || 0,
           location: data.location,
           lastUpdated: new Date(),
         },

@@ -180,7 +180,7 @@ export function StockConsistencyPanel() {
           <CardHeader>
             <CardTitle className="text-red-600">Tutarsız Stoklar</CardTitle>
             <CardDescription>
-              Ana tablo ile depo stokları arasında fark bulunan malzemeler
+              StockMovement tablosuna göre hesaplanan gerçek stok ile sistem stokları arasında fark bulunan malzemeler
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -190,8 +190,13 @@ export function StockConsistencyPanel() {
                   <div>
                     <h4 className="font-medium">{item.materialName}</h4>
                     <p className="text-sm text-muted-foreground">
-                      Sistem: {item.systemStock?.toFixed(2) || item.totalStock.toFixed(2)} | Depo Toplamı: {item.totalStock.toFixed(2)} | Fark: {item.difference.toFixed(2)}
+                      Sistem: {item.systemStock?.toFixed(2)} | Hareket Toplamı: {item.actualStock?.toFixed(2) || item.totalStock.toFixed(2)} | Fark: {item.difference.toFixed(2)}
                     </p>
+                    {item.materialStockTotal !== undefined && (
+                      <p className="text-xs text-gray-500">
+                        Depo Toplamı: {item.materialStockTotal.toFixed(2)} | Depo Farkı: {item.materialStockDifference?.toFixed(2)}
+                      </p>
+                    )}
                     {item.materialCode && (
                       <p className="text-xs text-gray-500">Kod: {item.materialCode}</p>
                     )}

@@ -92,6 +92,9 @@ export async function PUT(
       );
     }
 
+    // Note: Recipe costs are not automatically updated on material changes.
+    // Recipe costs should only be updated through purchase invoices or manual recalculation.
+
     // Log the activity
     const userId = request.headers.get('x-user-id') || '1';
     await ActivityLogger.logUpdate(
