@@ -405,23 +405,160 @@ export const warehouseService = {
     fromWarehouseId: string;
     toWarehouseId: string;
     materialId: string;
+    unitId: string;
     quantity: number;
     reason: string;
     userId: string;
+    requestDate?: Date;
   }) {
     if (USE_PRISMA) {
-      return await prisma.warehouseTransfer.create({
-        data: {
-          ...data,
-          status: 'PENDING',
-          requestDate: new Date(),
-        },
-        include: {
-          fromWarehouse: true,
-          toWarehouse: true,
-          material: true,
-          user: true,
-        },
+      return await prisma.$transaction(async (tx) => {
+        // Create the warehouse transfer
+        const transfer = await tx.warehouseTransfer.create({
+          data: {
+            fromWarehouseId: data.fromWarehouseId,
+            toWarehouseId: data.toWarehouseId,
+            materialId: data.materialId,
+            unitId: data.unitId,
+            quantity: data.quantity,
+            reason: data.reason,
+            userId: data.userId,
+            status: 'PENDING',
+            requestDate: data.requestDate || new Date(),
+          },
+          include: {
+            fromWarehouse: true,
+            toWarehouse: true,
+            material: true,
+            unit: true,
+            user: true,
+          },
+        });
+
+        // Get current stock levels for both warehouses
+        const fromStock = await tx.materialStock.findUnique({
+          where: {
+            materialId_warehouseId: {
+              materialId: data.materialId,
+              warehouseId: data.fromWarehouseId,
+            },
+          },
+        });
+
+        const toStock = await tx.materialStock.findUnique({
+          where: {
+            materialId_warehouseId: {
+              materialId: data.materialId,
+              warehouseId: data.toWarehouseId,
+            },
+          },
+        });
+
+        const fromStockBefore = fromStock?.currentStock || 0;
+        const toStockBefore = toStock?.currentStock || 0;
+
+        // Get material cost information
+        const material = await tx.material.findUnique({
+          where: { id: data.materialId },
+          select: { averageCost: true }
+        });
+
+        const unitCost = material?.averageCost || 0;
+        const totalCost = unitCost * data.quantity;
+
+        // Create stock movement for outgoing warehouse (TRANSFER - OUT)
+        await tx.stockMovement.create({
+          data: {
+            materialId: data.materialId,
+            unitId: data.unitId,
+            userId: data.userId,
+            warehouseId: data.fromWarehouseId,
+            type: 'TRANSFER',
+            quantity: -data.quantity, // Negative for outgoing
+            unitCost: unitCost,
+            totalCost: -totalCost, // Negative cost for outgoing
+            reason: `Transfer çıkış - ${data.reason}`,
+            stockBefore: fromStockBefore,
+            stockAfter: fromStockBefore - data.quantity,
+            date: data.requestDate || new Date(),
+          },
+        });
+
+        // Create stock movement for incoming warehouse (TRANSFER - IN)
+        await tx.stockMovement.create({
+          data: {
+            materialId: data.materialId,
+            unitId: data.unitId,
+            userId: data.userId,
+            warehouseId: data.toWarehouseId,
+            type: 'TRANSFER',
+            quantity: data.quantity, // Positive for incoming
+            unitCost: unitCost,
+            totalCost: totalCost, // Positive cost for incoming
+            reason: `Transfer giriş - ${data.reason}`,
+            stockBefore: toStockBefore,
+            stockAfter: toStockBefore + data.quantity,
+            date: data.requestDate || new Date(),
+          },
+        });
+
+        // Update MaterialStock for source warehouse
+        await tx.materialStock.upsert({
+          where: {
+            materialId_warehouseId: {
+              materialId: data.materialId,
+              warehouseId: data.fromWarehouseId,
+            },
+          },
+          create: {
+            materialId: data.materialId,
+            warehouseId: data.fromWarehouseId,
+            currentStock: -data.quantity,
+            availableStock: -data.quantity,
+            reservedStock: 0,
+            averageCost: 0,
+            lastUpdated: new Date(),
+          },
+          update: {
+            currentStock: {
+              decrement: data.quantity,
+            },
+            availableStock: {
+              decrement: data.quantity,
+            },
+            lastUpdated: new Date(),
+          },
+        });
+
+        // Update MaterialStock for destination warehouse
+        await tx.materialStock.upsert({
+          where: {
+            materialId_warehouseId: {
+              materialId: data.materialId,
+              warehouseId: data.toWarehouseId,
+            },
+          },
+          create: {
+            materialId: data.materialId,
+            warehouseId: data.toWarehouseId,
+            currentStock: data.quantity,
+            availableStock: data.quantity,
+            reservedStock: 0,
+            averageCost: 0,
+            lastUpdated: new Date(),
+          },
+          update: {
+            currentStock: {
+              increment: data.quantity,
+            },
+            availableStock: {
+              increment: data.quantity,
+            },
+            lastUpdated: new Date(),
+          },
+        });
+
+        return transfer;
       });
     }
     

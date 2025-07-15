@@ -90,8 +90,12 @@ export async function GET(request: NextRequest) {
       const materialStockDifference = actualTotalStock - materialStockTotal;
       const systemStockDifference = actualTotalStock - (material.currentStock || 0);
       
+      // Check warehouse-level consistency (each warehouse must be consistent)
+      const warehouseConsistency = warehouseStocks.every(ws => ws.isConsistent);
+      
       const isConsistent = Math.abs(materialStockDifference) < 0.01 && 
-                          Math.abs(systemStockDifference) < 0.01;
+                          Math.abs(systemStockDifference) < 0.01 &&
+                          warehouseConsistency; // Add warehouse-level check
       
       return {
         materialId: material.id,
@@ -105,6 +109,8 @@ export async function GET(request: NextRequest) {
         totalStock: actualTotalStock, // Use actual stock as the reference
         difference: systemStockDifference, // Show system vs actual difference
         isConsistent: isConsistent,
+        warehouseConsistency: warehouseConsistency,
+        inconsistentWarehouses: warehouseStocks.filter(ws => !ws.isConsistent).length,
         warehouseStocks: warehouseStocks
       };
     }));

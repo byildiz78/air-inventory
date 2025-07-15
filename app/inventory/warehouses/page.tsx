@@ -22,7 +22,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  TrendingUp
+  TrendingUp,
+  XCircle
 } from 'lucide-react';
 import { 
   mockMaterials,
@@ -60,8 +61,19 @@ export default function WarehousesPage() {
     toWarehouseId: '',
     materialId: '',
     quantity: '',
-    reason: ''
+    reason: '',
+    transferDate: new Date().toISOString().split('T')[0]
   });
+
+  // Additional state for enhanced transfer form
+  const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
+  const [availableStock, setAvailableStock] = useState<number>(0);
+  const [loadingStock, setLoadingStock] = useState(false);
+
+  // Transfer management states
+  const [editingTransfer, setEditingTransfer] = useState<any>(null);
+  const [viewingTransfer, setViewingTransfer] = useState<any>(null);
+  const [isTransferDetailOpen, setIsTransferDetailOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -114,8 +126,69 @@ export default function WarehousesPage() {
       toWarehouseId: '',
       materialId: '',
       quantity: '',
-      reason: ''
+      reason: '',
+      transferDate: new Date().toISOString().split('T')[0]
     });
+    setSelectedMaterial(null);
+    setAvailableStock(0);
+  };
+
+  // Transfer management functions
+  const handleTransferStatusUpdate = async (transferId: string, newStatus: string) => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`/api/warehouses/transfers/${transferId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          userId: '1' // Current user
+        }),
+      });
+      
+      if (response.ok) {
+        await loadData();
+        setViewingTransfer(null);
+        setIsTransferDetailOpen(false);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Transfer durumu güncellenirken hata oluştu');
+      }
+    } catch (error) {
+      console.error('Error updating transfer status:', error);
+      alert('Transfer durumu güncellenirken hata oluştu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTransferDelete = async (transferId: string) => {
+    if (confirm('Bu transferi silmek istediğinizden emin misiniz?')) {
+      try {
+        setLoading(true);
+        
+        const response = await fetch(`/api/warehouses/transfers/${transferId}`, {
+          method: 'DELETE',
+        });
+        
+        if (response.ok) {
+          await loadData();
+          setViewingTransfer(null);
+          setIsTransferDetailOpen(false);
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Transfer silinirken hata oluştu');
+        }
+      } catch (error) {
+        console.error('Error deleting transfer:', error);
+        alert('Transfer silinirken hata oluştu');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const getWarehouseTypeText = (type: MockWarehouse['type']) => {
@@ -284,11 +357,68 @@ export default function WarehousesPage() {
     });
   };
 
+  // Function to fetch material details and stock
+  const fetchMaterialAndStock = async (materialId: string, warehouseId: string) => {
+    if (!materialId || !warehouseId) return;
+    
+    setLoadingStock(true);
+    try {
+      // Fetch material details
+      const materialResponse = await fetch(`/api/materials/${materialId}`);
+      const materialData = await materialResponse.json();
+      
+      if (materialData.success) {
+        setSelectedMaterial(materialData.data);
+      }
+      
+      // Fetch stock for this material in the selected warehouse
+      const stockResponse = await fetch(`/api/warehouses/${warehouseId}/stock/${materialId}`);
+      const stockData = await stockResponse.json();
+      
+      if (stockData.success) {
+        setAvailableStock(stockData.data.currentStock || 0);
+      } else {
+        setAvailableStock(0);
+      }
+    } catch (error) {
+      console.error('Error fetching material and stock:', error);
+      setAvailableStock(0);
+    } finally {
+      setLoadingStock(false);
+    }
+  };
+
+  // Handle material selection
+  const handleMaterialChange = (materialId: string) => {
+    setTransferForm(prev => ({ ...prev, materialId }));
+    fetchMaterialAndStock(materialId, transferForm.fromWarehouseId);
+  };
+
+  // Handle warehouse change
+  const handleFromWarehouseChange = (warehouseId: string) => {
+    setTransferForm(prev => ({ ...prev, fromWarehouseId: warehouseId }));
+    if (transferForm.materialId) {
+      fetchMaterialAndStock(transferForm.materialId, warehouseId);
+    }
+  };
+
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!transferForm.fromWarehouseId || !transferForm.toWarehouseId || !transferForm.materialId || !transferForm.quantity) {
       alert('Lütfen tüm gerekli alanları doldurun');
+      return;
+    }
+
+    // Validate quantity doesn't exceed available stock
+    const quantity = Number(transferForm.quantity);
+    if (quantity > availableStock) {
+      alert(`Transfer edilecek miktar mevcut stoktan fazla olamaz. Mevcut stok: ${availableStock} ${selectedMaterial?.consumptionUnit?.name || 'birim'}`);
+      return;
+    }
+
+    if (quantity <= 0) {
+      alert('Transfer miktarı 0\'dan büyük olmalıdır');
       return;
     }
 
@@ -302,10 +432,11 @@ export default function WarehousesPage() {
           fromWarehouseId: transferForm.fromWarehouseId,
           toWarehouseId: transferForm.toWarehouseId,
           materialId: transferForm.materialId,
-          quantity: Number(transferForm.quantity),
-          unitId: '2', // gram - default unit
+          unitId: selectedMaterial?.consumptionUnitId || '2', // Use consumption unit
+          quantity: quantity,
           reason: transferForm.reason,
           userId: '1', // default user
+          transferDate: transferForm.transferDate
         }),
       });
 
@@ -353,25 +484,31 @@ export default function WarehousesPage() {
                   Transfer Yap
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Depolar Arası Transfer</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                    <ArrowRightLeft className="w-5 h-5" />
+                    Depolar Arası Transfer
+                  </DialogTitle>
                   <DialogDescription>
-                    Malzemeyi bir depodan diğerine transfer edin
+                    Malzemeyi bir depodan diğerine güvenli şekilde transfer edin
                   </DialogDescription>
                 </DialogHeader>
                 <form className="space-y-4" onSubmit={handleTransfer}>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Kaynak Depo</Label>
-                      <Select value={transferForm.fromWarehouseId} onValueChange={(value) => setTransferForm(prev => ({ ...prev, fromWarehouseId: value }))}>
+                      <Select value={transferForm.fromWarehouseId} onValueChange={handleFromWarehouseChange}>
                         <SelectTrigger>
                           <SelectValue placeholder="Depo seçin" />
                         </SelectTrigger>
                         <SelectContent>
                           {warehouses.map(warehouse => (
                             <SelectItem key={warehouse.id} value={warehouse.id}>
-                              {warehouse.name}
+                              <div className="flex items-center gap-2">
+                                <Package className="w-4 h-4" />
+                                {warehouse.name}
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -386,7 +523,10 @@ export default function WarehousesPage() {
                         <SelectContent>
                           {warehouses.filter(w => w.id !== transferForm.fromWarehouseId).map(warehouse => (
                             <SelectItem key={warehouse.id} value={warehouse.id}>
-                              {warehouse.name}
+                              <div className="flex items-center gap-2">
+                                <Package className="w-4 h-4" />
+                                {warehouse.name}
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -396,28 +536,92 @@ export default function WarehousesPage() {
                   
                   <div>
                     <Label>Malzeme</Label>
-                    <Select value={transferForm.materialId} onValueChange={(value) => setTransferForm(prev => ({ ...prev, materialId: value }))}>
+                    <Select value={transferForm.materialId} onValueChange={handleMaterialChange}>
                       <SelectTrigger>
                         <SelectValue placeholder="Malzeme seçin" />
                       </SelectTrigger>
                       <SelectContent>
                         {mockMaterials.map(material => (
                           <SelectItem key={material.id} value={material.id}>
-                            {material.name}
+                            <div className="flex items-center gap-2">
+                              <Package className="w-4 h-4 text-blue-600" />
+                              <div>
+                                <div className="font-medium">{material.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {material.category}
+                                </div>
+                              </div>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   
-                  <div>
-                    <Label>Miktar</Label>
-                    <Input
-                      type="number"
-                      value={transferForm.quantity}
-                      onChange={(e) => setTransferForm(prev => ({ ...prev, quantity: e.target.value }))}
-                      placeholder="Transfer edilecek miktar"
-                    />
+                  {/* Stock Information */}
+                  {selectedMaterial && transferForm.fromWarehouseId && (
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Package className="w-5 h-5 text-blue-600" />
+                        <h4 className="font-medium">Stok Bilgileri</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Seçilen Malzeme:</span>
+                          <div className="font-medium">{selectedMaterial.name}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Birim:</span>
+                          <div className="font-medium">{selectedMaterial.consumptionUnit?.name || 'Bilinmeyen'}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Mevcut Stok:</span>
+                          <div className="font-medium text-green-600">
+                            {loadingStock ? 'Yükleniyor...' : `${availableStock} ${selectedMaterial.consumptionUnit?.name || 'birim'}`}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Ortalama Maliyet:</span>
+                          <div className="font-medium">₺{selectedMaterial.averageCost?.toFixed(2) || '0.00'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Transfer Tarihi</Label>
+                      <Input
+                        type="date"
+                        value={transferForm.transferDate}
+                        onChange={(e) => setTransferForm(prev => ({ ...prev, transferDate: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>
+                        Miktar
+                        {selectedMaterial && (
+                          <span className="text-muted-foreground ml-1">
+                            ({selectedMaterial.consumptionUnit?.name || 'birim'})
+                          </span>
+                        )}
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={availableStock}
+                        value={transferForm.quantity}
+                        onChange={(e) => setTransferForm(prev => ({ ...prev, quantity: e.target.value }))}
+                        placeholder="Transfer edilecek miktar"
+                        disabled={!selectedMaterial || !transferForm.fromWarehouseId}
+                      />
+                      {selectedMaterial && availableStock > 0 && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Maksimum: {availableStock} {selectedMaterial.consumptionUnit?.name || 'birim'}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div>
@@ -430,7 +634,12 @@ export default function WarehousesPage() {
                   </div>
                   
                   <div className="flex gap-2 pt-4">
-                    <Button type="submit" className="bg-orange-500 hover:bg-orange-600">
+                    <Button 
+                      type="submit" 
+                      className="bg-orange-500 hover:bg-orange-600"
+                      disabled={!selectedMaterial || !transferForm.fromWarehouseId || !transferForm.toWarehouseId || !transferForm.quantity || loadingStock}
+                    >
+                      <ArrowRightLeft className="w-4 h-4 mr-2" />
                       Transfer Başlat
                     </Button>
                     <Button type="button" variant="outline" onClick={() => {
@@ -555,6 +764,147 @@ export default function WarehousesPage() {
                     </Button>
                   </div>
                 </form>
+              </DialogContent>
+            </Dialog>
+
+            {/* Transfer Detail Modal */}
+            <Dialog open={isTransferDetailOpen} onOpenChange={setIsTransferDetailOpen}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <ArrowRightLeft className="w-5 h-5" />
+                    Transfer Detayı
+                  </DialogTitle>
+                  <DialogDescription>
+                    Transfer bilgilerini görüntüleyin ve durumunu güncelleyin
+                  </DialogDescription>
+                </DialogHeader>
+                
+                {viewingTransfer && (
+                  <div className="space-y-4">
+                    {/* Transfer Info */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Transfer ID</Label>
+                        <div className="text-sm text-muted-foreground">{viewingTransfer.id}</div>
+                      </div>
+                      <div>
+                        <Label>Durum</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          {(() => {
+                            const statusBadge = getTransferStatusBadge(viewingTransfer.status);
+                            const StatusIcon = statusBadge.icon;
+                            return StatusIcon ? <StatusIcon className="w-4 h-4" /> : null;
+                          })()}
+                          <Badge variant={getTransferStatusBadge(viewingTransfer.status).variant}>
+                            {getTransferStatusBadge(viewingTransfer.status).text}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Material Info */}
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-medium mb-2">Transfer Detayları</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Malzeme:</span>
+                          <div className="font-medium">{getMaterialById(viewingTransfer.materialId)?.name}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Miktar:</span>
+                          <div className="font-medium">{(viewingTransfer.quantity / 1000).toFixed(1)} kg</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Kaynak Depo:</span>
+                          <div className="font-medium">{getWarehouseById(viewingTransfer.fromWarehouseId)?.name}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Hedef Depo:</span>
+                          <div className="font-medium">{getWarehouseById(viewingTransfer.toWarehouseId)?.name}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dates */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Talep Tarihi</Label>
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(viewingTransfer.requestDate).toLocaleDateString('tr-TR')}
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Talep Eden</Label>
+                        <div className="text-sm text-muted-foreground">
+                          {getUserById(viewingTransfer.userId)?.name}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Reason */}
+                    <div>
+                      <Label>Sebep</Label>
+                      <div className="text-sm text-muted-foreground">
+                        {viewingTransfer.reason || 'Belirtilmemiş'}
+                      </div>
+                    </div>
+
+                    {/* Cost Information */}
+                    {viewingTransfer.totalCost && (
+                      <div className="p-4 bg-green-50 rounded-lg">
+                        <h4 className="font-medium mb-2">Maliyet Bilgisi</h4>
+                        <div className="text-lg font-bold text-green-600">
+                          ₺{viewingTransfer.totalCost.toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 pt-4">
+                      {viewingTransfer.status === 'PENDING' && (
+                        <>
+                          <Button
+                            onClick={() => handleTransferStatusUpdate(viewingTransfer.id, 'COMPLETED')}
+                            className="bg-green-600 hover:bg-green-700"
+                            disabled={loading}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Tamamla
+                          </Button>
+                          <Button
+                            onClick={() => handleTransferStatusUpdate(viewingTransfer.id, 'CANCELLED')}
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50"
+                            disabled={loading}
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            İptal Et
+                          </Button>
+                        </>
+                      )}
+                      
+                      {viewingTransfer.status === 'PENDING' && (
+                        <Button
+                          onClick={() => handleTransferDelete(viewingTransfer.id)}
+                          variant="outline"
+                          className="border-red-300 text-red-600 hover:bg-red-50"
+                          disabled={loading}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Sil
+                        </Button>
+                      )}
+                      
+                      <Button
+                        onClick={() => setIsTransferDetailOpen(false)}
+                        variant="outline"
+                      >
+                        Kapat
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </DialogContent>
             </Dialog>
           </div>
@@ -803,18 +1153,44 @@ export default function WarehousesPage() {
                           </div>
                         </div>
                         
-                        <div className="text-right">
-                          <div className="font-medium">
-                            {(transfer.quantity / 1000).toFixed(1)} kg
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {new Date(transfer.requestDate).toLocaleDateString('tr-TR')}
-                          </div>
-                          {transfer.totalCost && (
-                            <div className="text-sm font-medium text-green-600">
-                              ₺{transfer.totalCost.toLocaleString()}
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <div className="font-medium">
+                              {(transfer.quantity / 1000).toFixed(1)} kg
                             </div>
-                          )}
+                            <div className="text-sm text-muted-foreground">
+                              {new Date(transfer.requestDate).toLocaleDateString('tr-TR')}
+                            </div>
+                            {transfer.totalCost && (
+                              <div className="text-sm font-medium text-green-600">
+                                ₺{transfer.totalCost.toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setViewingTransfer(transfer);
+                                setIsTransferDetailOpen(true);
+                              }}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            
+                            {transfer.status === 'PENDING' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-green-50 hover:bg-green-100"
+                                onClick={() => handleTransferStatusUpdate(transfer.id, 'COMPLETED')}
+                              >
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

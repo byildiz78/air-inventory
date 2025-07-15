@@ -29,11 +29,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Validate required fields
-    if (!body.fromWarehouseId || !body.toWarehouseId || !body.materialId || !body.quantity || !body.userId) {
+    if (!body.fromWarehouseId || !body.toWarehouseId || !body.materialId || !body.unitId || !body.quantity || !body.userId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields: fromWarehouseId, toWarehouseId, materialId, quantity, userId',
+          error: 'Missing required fields: fromWarehouseId, toWarehouseId, materialId, unitId, quantity, userId',
         },
         { status: 400 }
       );
@@ -53,9 +53,11 @@ export async function POST(request: NextRequest) {
       fromWarehouseId: body.fromWarehouseId,
       toWarehouseId: body.toWarehouseId,
       materialId: body.materialId,
+      unitId: body.unitId,
       quantity: Number(body.quantity),
       reason: body.reason || 'Transfer request',
       userId: body.userId,
+      requestDate: body.transferDate ? new Date(body.transferDate) : new Date(),
     });
 
     return NextResponse.json({
