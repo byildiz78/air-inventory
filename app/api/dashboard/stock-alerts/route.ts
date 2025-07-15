@@ -46,7 +46,8 @@ export async function GET() {
         currentStock: item.currentStock,
         minStockLevel: item.material.minStockLevel,
         urgency,
-        warehouseName: item.warehouse.name
+        warehouseName: item.warehouse.name,
+        unitName: 'gram' // Default unit for now
       };
     });
 
