@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { warehouseService } from '@/lib/services/warehouse-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(
   request: NextRequest,
@@ -56,6 +57,9 @@ export async function PUT(
   try {
     const body = await request.json();
     
+    // Get current warehouse for logging
+    const currentWarehouse = await warehouseService.getById(params.id);
+    
     const updatedWarehouse = await warehouseService.update(params.id, {
       name: body.name,
       description: body.description,
@@ -76,6 +80,31 @@ export async function PUT(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logUpdate(
+      userId,
+      'warehouse',
+      params.id,
+      {
+        before: {
+          name: currentWarehouse?.name,
+          description: currentWarehouse?.description,
+          location: currentWarehouse?.location,
+          type: currentWarehouse?.type,
+          capacity: currentWarehouse?.capacity
+        },
+        after: {
+          name: updatedWarehouse.name,
+          description: updatedWarehouse.description,
+          location: updatedWarehouse.location,
+          type: updatedWarehouse.type,
+          capacity: updatedWarehouse.capacity
+        }
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,
@@ -98,6 +127,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Get current warehouse for logging
+    const currentWarehouse = await warehouseService.getById(params.id);
+    
     const deleted = await warehouseService.delete(params.id);
 
     if (!deleted) {
@@ -109,6 +141,21 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logDelete(
+      userId,
+      'warehouse',
+      params.id,
+      {
+        name: currentWarehouse?.name,
+        description: currentWarehouse?.description,
+        location: currentWarehouse?.location,
+        type: currentWarehouse?.type
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

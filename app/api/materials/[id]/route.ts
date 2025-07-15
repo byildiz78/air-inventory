@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { materialService } from '@/lib/services/material-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(
   request: NextRequest,
@@ -62,6 +63,9 @@ export async function PUT(
       );
     }
 
+    // Get current material for logging
+    const currentMaterial = await materialService.getById(params.id);
+    
     const updatedMaterial = await materialService.update(params.id, {
       name: body.name,
       description: body.description,
@@ -88,6 +92,27 @@ export async function PUT(
       );
     }
 
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logUpdate(
+      userId,
+      'material',
+      params.id,
+      {
+        before: {
+          name: currentMaterial?.name,
+          minStockLevel: currentMaterial?.minStockLevel,
+          isActive: currentMaterial?.isActive
+        },
+        after: {
+          name: updatedMaterial.name,
+          minStockLevel: updatedMaterial.minStockLevel,
+          isActive: updatedMaterial.isActive
+        }
+      },
+      request
+    );
+
     return NextResponse.json({
       success: true,
       data: updatedMaterial,
@@ -109,6 +134,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Get material for logging before deletion
+    const material = await materialService.getById(params.id);
+    
     const deleted = await materialService.delete(params.id);
 
     if (!deleted) {
@@ -120,6 +148,19 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logDelete(
+      userId,
+      'material',
+      params.id,
+      {
+        name: material?.name,
+        categoryId: material?.categoryId
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

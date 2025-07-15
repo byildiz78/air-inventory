@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { recipeService } from '@/lib/services/recipe-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(
   request: NextRequest,
@@ -40,6 +41,9 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
+
+    // Get current recipe for logging
+    const currentRecipe = await recipeService.getById(params.id);
 
     // Validate fields if provided
     if (body.name !== undefined && (!body.name || !body.name.trim())) {
@@ -108,6 +112,29 @@ export async function PUT(
       );
     }
 
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logUpdate(
+      userId,
+      'recipe',
+      params.id,
+      {
+        before: {
+          name: currentRecipe?.name,
+          category: currentRecipe?.category,
+          servingSize: currentRecipe?.servingSize,
+          suggestedPrice: currentRecipe?.suggestedPrice
+        },
+        after: {
+          name: recipe.name,
+          category: recipe.category,
+          servingSize: recipe.servingSize,
+          suggestedPrice: recipe.suggestedPrice
+        }
+      },
+      request
+    );
+
     return NextResponse.json({
       success: true,
       data: recipe,
@@ -129,6 +156,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Get current recipe for logging
+    const currentRecipe = await recipeService.getById(params.id);
+    
     const success = await recipeService.delete(params.id);
 
     if (!success) {
@@ -140,6 +170,20 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logDelete(
+      userId,
+      'recipe',
+      params.id,
+      {
+        name: currentRecipe?.name,
+        category: currentRecipe?.category,
+        servingSize: currentRecipe?.servingSize
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

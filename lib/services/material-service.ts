@@ -11,6 +11,10 @@ import { Material, Prisma } from '@prisma/client';
 
 // Flag to switch between mock data and API
 const USE_API = false; // Use mock data for now to avoid circular dependency
+const USE_PRISMA = true; // Use Prisma for direct database operations
+
+// Check if running in API context (server-side)
+const isServerSide = typeof window === 'undefined';
 
 type MaterialCreateData = Omit<Material, 'id' | 'createdAt' | 'updatedAt'>;
 type MaterialUpdateData = Partial<MaterialCreateData>;
@@ -43,7 +47,8 @@ type MaterialWithRelations = Prisma.MaterialGetPayload<{
 
 export const materialService = {
   async getAll(includeInactive = false) {
-    if (USE_API) {
+    // Use API on client-side, Prisma on server-side
+    if (!isServerSide && USE_API) {
       try {
         const queryParam = includeInactive ? '?includeInactive=true' : '';
         const response = await fetch(`/api/materials${queryParam}`);
@@ -60,6 +65,69 @@ export const materialService = {
       }
     }
     
+    // Use Prisma on server-side
+    if (isServerSide && USE_PRISMA) {
+      const whereClause = includeInactive ? {} : { isActive: true };
+      
+      return await prisma.material.findMany({
+        where: whereClause,
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
+          purchaseUnit: {
+            select: {
+              id: true,
+              name: true,
+              abbreviation: true,
+            },
+          },
+          consumptionUnit: {
+            select: {
+              id: true,
+              name: true,
+              abbreviation: true,
+            },
+          },
+          supplier: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          defaultTax: {
+            select: {
+              id: true,
+              name: true,
+              rate: true,
+            },
+          },
+          defaultWarehouse: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          materialStocks: {
+            select: {
+              warehouseId: true,
+              currentStock: true,
+              availableStock: true,
+              reservedStock: true,
+            },
+          },
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      });
+    }
+    
     if (includeInactive) {
       return mockMaterials;
     }
@@ -67,7 +135,8 @@ export const materialService = {
   },
 
   async getById(id: string) {
-    if (USE_API) {
+    // Use API on client-side, Prisma on server-side
+    if (!isServerSide && USE_API) {
       try {
         const response = await fetch(`/api/materials/${id}`);
         if (!response.ok) {
@@ -81,6 +150,26 @@ export const materialService = {
         console.error(`Error fetching material with id ${id}:`, error);
         throw error;
       }
+    }
+    
+    // Use Prisma on server-side
+    if (isServerSide && USE_PRISMA) {
+      return await prisma.material.findUnique({
+        where: { id },
+        include: {
+          category: true,
+          purchaseUnit: true,
+          consumptionUnit: true,
+          supplier: true,
+          defaultTax: true,
+          defaultWarehouse: true,
+          materialStocks: {
+            include: {
+              warehouse: true
+            }
+          }
+        }
+      });
     }
     
     return getMockDataById(mockMaterials, id) || null;

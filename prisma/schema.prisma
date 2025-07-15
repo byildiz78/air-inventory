@@ -211,6 +211,7 @@ model Warehouse {
   invoiceItems  InvoiceItem[]
   stockCounts   StockCount[]
   stockAdjustments StockAdjustment[]
+  stockMovements StockMovement[]
 
   @@map("warehouses")
 }
@@ -655,11 +656,12 @@ model InvoiceItem {
 // ================================
 
 model StockMovement {
-  id         String           @id @default(cuid())
-  materialId String
-  unitId     String
-  userId     String
-  invoiceId  String?
+  id          String           @id @default(cuid())
+  materialId  String
+  unitId      String
+  userId      String
+  invoiceId   String?
+  warehouseId String
   
   // Movement Details
   type       StockMovementType
@@ -678,10 +680,11 @@ model StockMovement {
   createdAt  DateTime @default(now())
 
   // Relations
-  material Material @relation(fields: [materialId], references: [id])
-  unit     Unit     @relation(fields: [unitId], references: [id])
-  user     User     @relation(fields: [userId], references: [id])
-  invoice  Invoice? @relation(fields: [invoiceId], references: [id])
+  material  Material  @relation(fields: [materialId], references: [id])
+  unit      Unit      @relation(fields: [unitId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  invoice   Invoice?  @relation(fields: [invoiceId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
 
   @@map("stock_movements")
 }

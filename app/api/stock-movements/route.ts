@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stockMovementService } from '@/lib/services/stock-movement-service';
 import { StockMovementType } from '@prisma/client';
+import { ActivityLogger } from '@/lib/activity-logger';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -103,6 +105,7 @@ export async function POST(request: NextRequest) {
       materialId: body.materialId,
       unitId: body.unitId,
       userId: body.userId,
+      warehouseId: body.warehouseId,
       type: body.type,
       quantity: body.quantity,
       reason: body.reason,
@@ -113,6 +116,38 @@ export async function POST(request: NextRequest) {
       invoiceId: body.invoiceId,
       date: body.date ? new Date(body.date) : undefined,
     });
+
+    // Log the activity
+    const userId = body.userId;
+    
+    // Get material name for logging
+    let materialName = '';
+    
+    // First fetch the material name directly from the database to ensure we have it
+    try {
+      const material = await prisma.material.findUnique({
+        where: { id: movement.materialId },
+        select: { name: true }
+      });
+      materialName = material?.name || '';
+    } catch (error) {
+      console.error('Error fetching material name:', error);
+    }
+    
+    await ActivityLogger.logCreate(
+      userId,
+      'stock_movement',
+      movement.id,
+      {
+        materialName,
+        type: movement.type,
+        quantity: movement.quantity,
+        reason: movement.reason,
+        stockBefore: movement.stockBefore,
+        stockAfter: movement.stockAfter
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

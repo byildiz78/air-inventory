@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supplierService } from '@/lib/services/supplier-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,6 +60,21 @@ export async function POST(request: NextRequest) {
       address: body.address || null,
       taxNumber: body.taxNumber || null,
     });
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logCreate(
+      userId,
+      'supplier',
+      newSupplier.id,
+      {
+        name: newSupplier.name,
+        contactName: newSupplier.contactName,
+        phone: newSupplier.phone,
+        email: newSupplier.email
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

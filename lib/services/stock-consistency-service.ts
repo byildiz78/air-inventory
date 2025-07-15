@@ -3,8 +3,8 @@ import { stockCalculationService } from './stock-calculation-service';
 import { mockMaterials, mockMaterialStocks } from '../mock/index';
 import { StockSummary, StockAlert } from '../types/stock';
 
-// Flag to switch between mock data and Prisma
-const USE_PRISMA = false; // Will be set to true when we migrate
+// Flag to switch between mock data and API
+const USE_API = true; // Use API for real-time data
 
 export const stockConsistencyService = {
   async checkConsistency(materialId?: string): Promise<StockSummary[]> {
@@ -15,6 +15,20 @@ export const stockConsistencyService = {
   },
 
   async checkAllStockConsistency(): Promise<StockSummary[]> {
+    if (USE_API) {
+      try {
+        const response = await fetch('/api/stock/consistency');
+        if (!response.ok) {
+          throw new Error('Failed to fetch stock consistency data');
+        }
+        const result = await response.json();
+        return result.data || [];
+      } catch (error) {
+        console.error('Error fetching stock consistency:', error);
+        return [];
+      }
+    }
+    
     const summaries: StockSummary[] = [];
     
     for (const material of mockMaterials) {
@@ -69,6 +83,26 @@ export const stockConsistencyService = {
   },
 
   async fixAllStockInconsistencies() {
+    if (USE_API) {
+      try {
+        const response = await fetch('/api/stock/consistency', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fixAll: true })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fix inconsistencies');
+        }
+        
+        const result = await response.json();
+        return result.data;
+      } catch (error) {
+        console.error('Error fixing inconsistencies:', error);
+        return { total: 0, fixed: 0 };
+      }
+    }
+    
     const summaries = await this.checkAllStockConsistency();
     const inconsistentItems = summaries.filter(item => !item.isConsistent);
     
@@ -89,6 +123,26 @@ export const stockConsistencyService = {
   },
 
   async fixSingleMaterialInconsistency(materialId: string) {
+    if (USE_API) {
+      try {
+        const response = await fetch('/api/stock/consistency', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ materialId })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fix material inconsistency');
+        }
+        
+        const result = await response.json();
+        return result.data;
+      } catch (error) {
+        console.error('Error fixing material inconsistency:', error);
+        return { success: false, message: 'Error fixing inconsistency' };
+      }
+    }
+    
     const summary = await this.calculateMaterialStockSummary(materialId);
     
     if (summary.isConsistent) {
@@ -109,6 +163,19 @@ export const stockConsistencyService = {
   },
 
   async getStockAlerts(): Promise<StockAlert[]> {
+    if (USE_API) {
+      try {
+        const response = await fetch('/api/stock/alerts');
+        if (!response.ok) {
+          throw new Error('Failed to fetch stock alerts');
+        }
+        const result = await response.json();
+        return result.data || [];
+      } catch (error) {
+        console.error('Error fetching stock alerts:', error);
+        return [];
+      }
+    }
     return stockAlertService.getStockAlerts();
   },
 
@@ -130,6 +197,25 @@ export const stockConsistencyService = {
   },
 
   async recalculateAverageCosts() {
+    if (USE_API) {
+      try {
+        const response = await fetch('/api/stock/recalculate-costs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to recalculate average costs');
+        }
+        
+        const result = await response.json();
+        return result.data;
+      } catch (error) {
+        console.error('Error recalculating average costs:', error);
+        return [];
+      }
+    }
+    
     const results = [];
     
     for (const material of mockMaterials) {

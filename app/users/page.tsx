@@ -23,51 +23,20 @@ import {
   Clock
 } from 'lucide-react';
 import Link from 'next/link';
-import { prisma } from '@/lib/prisma';
 
-// Mock user data for now
-const mockUsers = [
-  {
-    id: '1',
-    email: 'admin@restaurant.com',
-    name: 'Admin User',
-    role: 'ADMIN',
-    isSuperAdmin: true,
-    isActive: true,
-    createdAt: new Date('2024-01-01'),
-  },
-  {
-    id: '2',
-    email: 'manager@restaurant.com',
-    name: 'Restaurant Manager',
-    role: 'MANAGER',
-    isSuperAdmin: false,
-    isActive: true,
-    createdAt: new Date('2024-01-02'),
-  },
-  {
-    id: '3',
-    email: 'staff@restaurant.com',
-    name: 'Kitchen Staff',
-    role: 'STAFF',
-    isSuperAdmin: false,
-    isActive: true,
-    createdAt: new Date('2024-01-03'),
-  },
-  {
-    id: '4',
-    email: 'inactive@restaurant.com',
-    name: 'Inactive User',
-    role: 'STAFF',
-    isSuperAdmin: false,
-    isActive: false,
-    createdAt: new Date('2024-01-04'),
-  },
-];
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  isSuperAdmin: boolean;
+  isActive: boolean;
+  createdAt: Date | string;
+}
 
 export default function UsersPage() {
-  const [users, setUsers] = useState(mockUsers);
-  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -87,6 +56,27 @@ export default function UsersPage() {
     isSuperAdmin: false,
     isActive: true
   });
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      } else {
+        console.error('Failed to fetch users');
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter users
   const filteredUsers = users.filter(user => {
@@ -116,18 +106,26 @@ export default function UsersPage() {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // In a real app, this would be an API call
-      const newUser = {
-        id: Math.random().toString(36).substr(2, 9),
-        ...userForm,
-        createdAt: new Date()
-      };
-      
-      setUsers(prev => [...prev, newUser]);
-      setIsAddUserOpen(false);
-      resetForm();
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userForm),
+      });
+
+      if (response.ok) {
+        const newUser = await response.json();
+        setUsers(prev => [...prev, newUser]);
+        setIsAddUserOpen(false);
+        resetForm();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Kullanıcı eklenirken hata oluştu');
+      }
     } catch (error) {
       console.error('Error adding user:', error);
+      alert('Kullanıcı eklenirken hata oluştu');
     }
   };
 
@@ -136,38 +134,74 @@ export default function UsersPage() {
     if (!selectedUser) return;
     
     try {
-      // In a real app, this would be an API call
-      setUsers(prev => prev.map(user => 
-        user.id === selectedUser.id ? { ...user, ...userForm } : user
-      ));
-      
-      setIsEditUserOpen(false);
-      setSelectedUser(null);
-      resetForm();
+      const response = await fetch(`/api/users/${selectedUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userForm),
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        setUsers(prev => prev.map(user => 
+          user.id === selectedUser.id ? updatedUser : user
+        ));
+        setIsEditUserOpen(false);
+        setSelectedUser(null);
+        resetForm();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Kullanıcı güncellenirken hata oluştu');
+      }
     } catch (error) {
       console.error('Error updating user:', error);
+      alert('Kullanıcı güncellenirken hata oluştu');
     }
   };
 
   const handleDeleteUser = async (id: string) => {
     if (confirm('Bu kullanıcıyı silmek istediğinizden emin misiniz?')) {
       try {
-        // In a real app, this would be an API call
-        setUsers(prev => prev.filter(user => user.id !== id));
+        const response = await fetch(`/api/users/${id}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          setUsers(prev => prev.filter(user => user.id !== id));
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Kullanıcı silinirken hata oluştu');
+        }
       } catch (error) {
         console.error('Error deleting user:', error);
+        alert('Kullanıcı silinirken hata oluştu');
       }
     }
   };
 
   const handleToggleStatus = async (id: string, currentStatus: boolean) => {
     try {
-      // In a real app, this would be an API call
-      setUsers(prev => prev.map(user => 
-        user.id === id ? { ...user, isActive: !currentStatus } : user
-      ));
+      const response = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isActive: !currentStatus }),
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        setUsers(prev => prev.map(user => 
+          user.id === id ? updatedUser : user
+        ));
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Kullanıcı durumu değiştirilirken hata oluştu');
+      }
     } catch (error) {
       console.error('Error toggling user status:', error);
+      alert('Kullanıcı durumu değiştirilirken hata oluştu');
     }
   };
 
@@ -197,6 +231,17 @@ export default function UsersPage() {
       default: return { variant: 'outline' as const, text: role, color: 'text-gray-600' };
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Kullanıcılar yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -414,7 +459,14 @@ export default function UsersPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {filteredUsers.map((user) => {
+              {filteredUsers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Henüz kullanıcı bulunmuyor</p>
+                  <p className="text-sm">Yeni kullanıcı eklemek için yukarıdaki butonu kullanın</p>
+                </div>
+              ) : (
+                filteredUsers.map((user) => {
                 const roleBadge = getRoleBadge(user.role);
                 
                 return (
@@ -486,7 +538,8 @@ export default function UsersPage() {
                     </div>
                   </div>
                 );
-              })}
+              })
+              )}
             </div>
           </CardContent>
         </Card>

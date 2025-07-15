@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supplierService } from '@/lib/services/supplier-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(
   request: NextRequest,
@@ -56,6 +57,9 @@ export async function PUT(
   try {
     const body = await request.json();
     
+    // Get current supplier for logging
+    const currentSupplier = await supplierService.getById(params.id);
+    
     const updatedSupplier = await supplierService.update(params.id, {
       name: body.name,
       contactName: body.contactName,
@@ -74,6 +78,29 @@ export async function PUT(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logUpdate(
+      userId,
+      'supplier',
+      params.id,
+      {
+        before: {
+          name: currentSupplier?.name,
+          contactName: currentSupplier?.contactName,
+          phone: currentSupplier?.phone,
+          email: currentSupplier?.email
+        },
+        after: {
+          name: updatedSupplier.name,
+          contactName: updatedSupplier.contactName,
+          phone: updatedSupplier.phone,
+          email: updatedSupplier.email
+        }
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,
@@ -96,6 +123,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Get current supplier for logging
+    const currentSupplier = await supplierService.getById(params.id);
+    
     const deleted = await supplierService.delete(params.id);
 
     if (!deleted) {
@@ -107,6 +137,21 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logDelete(
+      userId,
+      'supplier',
+      params.id,
+      {
+        name: currentSupplier?.name,
+        contactName: currentSupplier?.contactName,
+        phone: currentSupplier?.phone,
+        email: currentSupplier?.email
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

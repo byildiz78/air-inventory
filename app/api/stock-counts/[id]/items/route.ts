@@ -45,14 +45,14 @@ export async function GET(request: NextRequest, { params }: Params) {
       stockCountId: item.stockCountId,
       materialId: item.materialId,
       materialName: item.material.name,
-      materialCode: item.material.code,
+      // materialCode removed as it doesn't exist in the Material model
       systemStock: item.systemStock,
       countedStock: item.countedStock,
       difference: item.difference,
       reason: item.reason,
       countedAt: item.countedAt,
       isCompleted: item.isCompleted,
-      unit: item.material.consumptionUnit || 'Adet',
+      unit: item.material.consumptionUnitId, // Using the unit ID instead of the unit object
       expectedStock: item.systemStock, // Expected stock is the same as system stock
       createdAt: item.createdAt,
       updatedAt: item.updatedAt
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       }
     });
 
-    const currentStock = materialStock ? materialStock.quantity : 0;
+    const currentStock = materialStock ? materialStock.currentStock : 0;
 
     // Create stock count item
     const stockCountItem = await prisma.stockCountItem.create({

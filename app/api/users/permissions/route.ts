@@ -111,8 +111,11 @@ export async function POST(request: NextRequest) {
       'user_permissions',
       data.userId,
       {
-        action: 'update_permissions',
-        permissionIds: data.permissionIds,
+        before: { action: 'previous_permissions' },
+        after: { 
+          action: 'update_permissions',
+          permissionIds: data.permissionIds 
+        }
       },
       request
     );

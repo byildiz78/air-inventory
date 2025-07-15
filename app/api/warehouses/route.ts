@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { warehouseService } from '@/lib/services/warehouse-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,6 +59,22 @@ export async function POST(request: NextRequest) {
       maxTemperature: body.maxTemperature || null,
       isActive: body.isActive !== undefined ? body.isActive : true,
     });
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logCreate(
+      userId,
+      'warehouse',
+      newWarehouse.id,
+      {
+        name: newWarehouse.name,
+        description: newWarehouse.description,
+        location: newWarehouse.location,
+        type: newWarehouse.type,
+        capacity: newWarehouse.capacity
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

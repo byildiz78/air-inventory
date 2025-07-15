@@ -73,6 +73,9 @@ export default function StockMovementsPage() {
         movementsRes.json(),
       ]);
 
+      console.log('Materials response:', materialsData);
+      console.log('Stock movements response:', movementsData);
+
       setMaterials(materialsData.data || []);
       setMovements(movementsData.data || []);
     } catch (error) {

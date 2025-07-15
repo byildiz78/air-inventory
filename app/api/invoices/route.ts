@@ -1,5 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ActivityLogger } from '@/lib/activity-logger';
+
+// Helper function to calculate stock at a specific date and warehouse
+async function calculateStockAtDate(materialId: string, warehouseId: string | undefined, date: Date): Promise<number> {
+  // Get all stock movements for this material and warehouse up to the specified date
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId,
+      warehouseId: warehouseId,
+      date: {
+        lt: date // Less than the target date
+      }
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  // Calculate stock by summing all movements
+  let stock = 0;
+  for (const movement of movements) {
+    stock += movement.quantity;
+  }
+
+  return stock;
+}
+
+// Helper function to recalculate stock levels for all movements after a specific date
+async function recalculateStockAfterDate(materialId: string, warehouseId: string | undefined, fromDate: Date): Promise<void> {
+  // Get all movements for this material and warehouse after the specified date
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId,
+      warehouseId: warehouseId,
+      date: {
+        gte: fromDate // Greater than or equal to the from date
+      }
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  // Recalculate stock levels for each movement
+  for (const movement of movements) {
+    const stockBefore = await calculateStockAtDate(materialId, warehouseId, movement.date);
+    const stockAfter = stockBefore + movement.quantity;
+
+    // Update the movement with correct stock levels
+    await prisma.stockMovement.update({
+      where: { id: movement.id },
+      data: {
+        stockBefore: stockBefore,
+        stockAfter: stockAfter
+      }
+    });
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -186,29 +244,61 @@ export async function POST(request: NextRequest) {
 
         // Create stock movements for each item
         if (body.createStockMovements) {
-          await Promise.all(body.items.map((item: any) => 
-            tx.stockMovement.create({
+          await Promise.all(body.items.map(async (item: any) => {
+            // Calculate stock at the specific date and warehouse
+            const movementDate = new Date(body.date);
+            const stockBefore = await calculateStockAtDate(item.materialId, item.warehouseId, movementDate);
+            const quantity = body.type === 'PURCHASE' ? item.quantity : -item.quantity;
+            const stockAfter = stockBefore + quantity;
+            
+            const stockMovement = await tx.stockMovement.create({
               data: {
                 materialId: item.materialId,
                 unitId: item.unitId,
                 userId: body.userId,
                 invoiceId: invoice.id,
+                warehouseId: item.warehouseId,
                 type: body.type === 'PURCHASE' ? 'IN' : 'OUT',
-                quantity: body.type === 'PURCHASE' ? item.quantity : -item.quantity,
+                quantity: quantity,
                 reason: `${body.type === 'PURCHASE' ? 'Alış' : 'Satış'} Faturası: ${body.invoiceNumber}`,
                 unitCost: item.unitPrice,
                 totalCost: item.totalAmount,
-                stockBefore: 0, // This will be calculated by a trigger or in the future
-                stockAfter: 0,  // This will be calculated by a trigger or in the future
-                date: new Date(body.date)
+                stockBefore: stockBefore,
+                stockAfter: stockAfter,
+                date: movementDate
               }
-            })
-          ));
+            });
+
+            return stockMovement;
+          }));
         }
       }
 
       return invoice;
     });
+
+    // Recalculate stock levels for affected materials (outside transaction)
+    if (body.items && body.items.length > 0 && body.createStockMovements) {
+      for (const item of body.items) {
+        await recalculateStockAfterDate(item.materialId, item.warehouseId, new Date(body.date));
+      }
+    }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logCreate(
+      userId,
+      'invoice',
+      result.id,
+      {
+        invoiceNumber: result.invoiceNumber,
+        type: result.type,
+        supplierName: result.supplier?.name,
+        totalAmount: result.totalAmount,
+        itemCount: body.items?.length || 0
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

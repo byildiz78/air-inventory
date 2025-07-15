@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { materialService } from '@/lib/services/material-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -89,6 +90,21 @@ export async function POST(request: NextRequest) {
       averageCost: body.averageCost || 0,
       isActive: body.isActive !== undefined ? body.isActive : true,
     });
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logCreate(
+      userId,
+      'material',
+      newMaterial.id,
+      {
+        name: newMaterial.name,
+        categoryId: newMaterial.categoryId,
+        currentStock: newMaterial.currentStock,
+        minStockLevel: newMaterial.minStockLevel
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

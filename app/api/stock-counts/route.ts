@@ -193,14 +193,14 @@ export async function POST(request: NextRequest) {
             stockCountId: item.stockCountId,
             materialId: item.materialId,
             materialName: item.material.name,
-            materialCode: item.material.code,
+            // materialCode removed as it doesn't exist in the Material model
             systemStock: item.systemStock,
             countedStock: item.countedStock,
             difference: item.difference,
             reason: item.reason,
             countedAt: item.countedAt,
             isCompleted: item.isCompleted,
-            unit: item.material.consumptionUnit || 'Adet',
+            unit: item.material.consumptionUnitId, // Using the unit ID instead of the unit object
             expectedStock: item.systemStock // Expected stock is the same as system stock
           };
         })

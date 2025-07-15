@@ -23,6 +23,14 @@ export async function POST(
       }, { status: 404 });
     }
     
+    // Satış kaleminin varlığını kontrol et
+    if (!sale.salesItemId) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Bu satış için satış kalemi bulunamadı' 
+      }, { status: 404 });
+    }
+    
     // Satış kalemi için reçete eşleştirmelerini getir
     const mappings = await prisma.recipeMapping.findMany({
       where: {
@@ -65,7 +73,8 @@ export async function POST(
     const stockMovements = [];
     
     for (const ingredient of recipe.ingredients) {
-      if (!ingredient.material || !ingredient.material.trackInventory) {
+      // Malzeme kontrolü
+      if (!ingredient.material) {
         continue;
       }
       
@@ -80,28 +89,28 @@ export async function POST(
       }
       
       // Mevcut stok bilgisini getir
-      const warehouseStock = await prisma.warehouseStock.findUnique({
+      const materialStock = await prisma.materialStock.findUnique({
         where: {
-          warehouseId_materialId: {
-            warehouseId: warehouseId,
+          materialId_warehouseId: {
             materialId: ingredient.materialId,
+            warehouseId: warehouseId,
           }
         }
       });
       
-      if (!warehouseStock) {
+      if (!materialStock) {
         continue;
       }
       
       // Yeni stok miktarını hesapla
-      const newStockQuantity = warehouseStock.currentStock - reduceQuantity;
+      const newStockQuantity = materialStock.currentStock - reduceQuantity;
       
       // Depo stoğunu güncelle
-      await prisma.warehouseStock.update({
+      await prisma.materialStock.update({
         where: {
-          warehouseId_materialId: {
-            warehouseId: warehouseId,
+          materialId_warehouseId: {
             materialId: ingredient.materialId,
+            warehouseId: warehouseId,
           }
         },
         data: {
@@ -116,7 +125,7 @@ export async function POST(
           id: ingredient.materialId
         },
         data: {
-          totalStock: {
+          currentStock: {
             decrement: reduceQuantity
           }
         }
@@ -129,13 +138,11 @@ export async function POST(
           warehouseId: warehouseId,
           quantity: -reduceQuantity,
           unitId: ingredient.unitId,
-          type: 'SALE',
-          referenceId: saleId,
-          referenceType: 'SALE',
-          notes: `Satış: ${sale.salesItem.name}`,
+          type: 'OUT', // Stok çıkışı
+          reason: `Satış: ${sale.salesItem?.name || sale.itemName} (ID: ${saleId})`,
           userId: sale.userId,
           date: new Date(sale.date),
-          stockBefore: warehouseStock.currentStock,
+          stockBefore: materialStock.currentStock,
           stockAfter: newStockQuantity,
         }
       });

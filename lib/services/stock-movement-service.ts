@@ -36,6 +36,12 @@ export const stockMovementService = {
               email: true,
             },
           },
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           invoice: {
             select: {
               id: true,
@@ -76,6 +82,12 @@ export const stockMovementService = {
               id: true,
               name: true,
               email: true,
+            },
+          },
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
             },
           },
           invoice: {
@@ -120,6 +132,12 @@ export const stockMovementService = {
               email: true,
             },
           },
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           invoice: {
             select: {
               id: true,
@@ -139,6 +157,7 @@ export const stockMovementService = {
     materialId: string;
     unitId: string;
     userId: string;
+    warehouseId?: string;
     type: StockMovementType;
     quantity: number;
     reason?: string;
@@ -157,6 +176,17 @@ export const stockMovementService = {
 
       if (data.quantity === 0) {
         throw new Error('Quantity cannot be zero');
+      }
+
+      // Calculate stock before and after if not provided
+      let stockBefore = data.stockBefore;
+      let stockAfter = data.stockAfter;
+      
+      if (stockBefore === undefined || stockAfter === undefined) {
+        // Calculate stock at the specific date and warehouse
+        const movementDate = data.date || new Date();
+        stockBefore = await this.calculateStockAtDate(data.materialId, data.warehouseId, movementDate);
+        stockAfter = stockBefore + data.quantity; // quantity can be negative for OUT movements
       }
 
       // Validate that material, unit and user exist
@@ -189,13 +219,14 @@ export const stockMovementService = {
           materialId: data.materialId,
           unitId: data.unitId,
           userId: data.userId,
+          warehouseId: data.warehouseId,
           type: data.type,
           quantity: data.quantity,
           reason: data.reason,
           unitCost: data.unitCost,
           totalCost: data.totalCost,
-          stockBefore: data.stockBefore,
-          stockAfter: data.stockAfter,
+          stockBefore: stockBefore,
+          stockAfter: stockAfter,
           invoiceId: data.invoiceId,
           date: data.date || new Date(),
         },
@@ -220,6 +251,12 @@ export const stockMovementService = {
               email: true,
             },
           },
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           invoice: {
             select: {
               id: true,
@@ -228,6 +265,9 @@ export const stockMovementService = {
           },
         },
       });
+
+      // Recalculate stock levels for all movements after this date (outside any transaction)
+      await this.recalculateStockAfterDate(data.materialId, data.warehouseId, stockMovement.date);
 
       return stockMovement;
     }
@@ -323,6 +363,12 @@ export const stockMovementService = {
               email: true,
             },
           },
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           invoice: {
             select: {
               id: true,
@@ -400,6 +446,12 @@ export const stockMovementService = {
               email: true,
             },
           },
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           invoice: {
             select: {
               id: true,
@@ -451,6 +503,70 @@ export const stockMovementService = {
     }
     
     return filtered;
+  },
+
+  // Calculate stock at a specific date and warehouse
+  async calculateStockAtDate(materialId: string, warehouseId: string | undefined, date: Date): Promise<number> {
+    if (USE_PRISMA) {
+      // Get all stock movements for this material and warehouse up to the specified date
+      const movements = await prisma.stockMovement.findMany({
+        where: {
+          materialId: materialId,
+          warehouseId: warehouseId,
+          date: {
+            lt: date // Less than the target date
+          }
+        },
+        orderBy: {
+          date: 'asc'
+        }
+      });
+
+      // Calculate stock by summing all movements
+      let stock = 0;
+      for (const movement of movements) {
+        stock += movement.quantity;
+      }
+
+      return stock;
+    }
+    
+    // Mock implementation
+    return 0;
+  },
+
+  // Recalculate stock levels for all movements after a specific date
+  async recalculateStockAfterDate(materialId: string, warehouseId: string | undefined, fromDate: Date): Promise<void> {
+    if (USE_PRISMA) {
+      // Get all movements for this material and warehouse after the specified date
+      const movements = await prisma.stockMovement.findMany({
+        where: {
+          materialId: materialId,
+          warehouseId: warehouseId,
+          date: {
+            gte: fromDate // Greater than or equal to the from date
+          }
+        },
+        orderBy: {
+          date: 'asc'
+        }
+      });
+
+      // Recalculate stock levels for each movement
+      for (const movement of movements) {
+        const stockBefore = await this.calculateStockAtDate(materialId, warehouseId, movement.date);
+        const stockAfter = stockBefore + movement.quantity;
+
+        // Update the movement with correct stock levels
+        await prisma.stockMovement.update({
+          where: { id: movement.id },
+          data: {
+            stockBefore: stockBefore,
+            stockAfter: stockAfter
+          }
+        });
+      }
+    }
   },
 
   // Get statistics

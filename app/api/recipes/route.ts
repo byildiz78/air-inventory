@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { recipeService } from '@/lib/services/recipe-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -92,6 +93,24 @@ export async function POST(request: NextRequest) {
       profitMargin: body.profitMargin,
       ingredients: body.ingredients,
     });
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    
+    if (recipe) {
+      await ActivityLogger.logCreate(
+        userId,
+        'recipe',
+        recipe.id,
+        {
+          name: recipe.name,
+          category: recipe.category,
+          servingSize: recipe.servingSize,
+          ingredientCount: body.ingredients?.length || 0
+        },
+        request
+      );
+    }
 
     return NextResponse.json({
       success: true,

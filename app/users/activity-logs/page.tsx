@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,76 +27,28 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-// Mock activity log data
-const mockActivityLogs = [
-  {
-    id: '1',
-    userId: '1',
-    userName: 'Admin User',
-    action: 'create',
-    entityType: 'material',
-    entityId: '1',
-    entityName: 'Dana Kuşbaşı',
-    details: JSON.stringify({ name: 'Dana Kuşbaşı', categoryId: '1a', currentStock: 25500 }),
-    ipAddress: '192.168.1.1',
-    createdAt: new Date('2024-01-15T10:30:00'),
-  },
-  {
-    id: '2',
-    userId: '1',
-    userName: 'Admin User',
-    action: 'update',
-    entityType: 'material',
-    entityId: '1',
-    entityName: 'Dana Kuşbaşı',
-    details: JSON.stringify({ 
-      before: { currentStock: 25500, minStockLevel: 10000 },
-      after: { currentStock: 25500, minStockLevel: 15000 }
-    }),
-    ipAddress: '192.168.1.1',
-    createdAt: new Date('2024-01-15T11:45:00'),
-  },
-  {
-    id: '3',
-    userId: '2',
-    userName: 'Restaurant Manager',
-    action: 'create',
-    entityType: 'recipe',
-    entityId: '1',
-    entityName: 'Kuşbaşılı Pilav',
-    details: JSON.stringify({ name: 'Kuşbaşılı Pilav', servingSize: 4, totalCost: 85.5 }),
-    ipAddress: '192.168.1.2',
-    createdAt: new Date('2024-01-16T09:15:00'),
-  },
-  {
-    id: '4',
-    userId: '2',
-    userName: 'Restaurant Manager',
-    action: 'delete',
-    entityType: 'recipe',
-    entityId: '3',
-    entityName: 'Silinmiş Reçete',
-    details: null,
-    ipAddress: '192.168.1.2',
-    createdAt: new Date('2024-01-16T14:20:00'),
-  },
-  {
-    id: '5',
-    userId: '1',
-    userName: 'Admin User',
-    action: 'create',
-    entityType: 'invoice',
-    entityId: '1',
-    entityName: 'ALF-2024-001',
-    details: JSON.stringify({ invoiceNumber: 'ALF-2024-001', totalAmount: 1710 }),
-    ipAddress: '192.168.1.1',
-    createdAt: new Date('2024-01-17T11:30:00'),
-  },
-];
+interface ActivityLog {
+  id: string;
+  userId: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  action: string;
+  entityType: string;
+  entityId: string;
+  entityName: string;
+  details: string | null;
+  ipAddress: string;
+  createdAt: Date | string;
+}
 
 export default function ActivityLogsPage() {
-  const [logs, setLogs] = useState(mockActivityLogs);
-  const [loading, setLoading] = useState(false);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -98,27 +58,44 @@ export default function ActivityLogsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Filter logs
+  useEffect(() => {
+    loadActivityLogs();
+  }, [actionFilter, entityFilter, userFilter, dateFrom, dateTo]);
+
+  const loadActivityLogs = async () => {
+    try {
+      setLoading(true);
+      
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (actionFilter !== 'all') params.append('action', actionFilter);
+      if (entityFilter !== 'all') params.append('entityType', entityFilter);
+      if (userFilter !== 'all') params.append('userId', userFilter);
+      if (dateFrom) params.append('fromDate', dateFrom);
+      if (dateTo) params.append('toDate', dateTo);
+      
+      const response = await fetch(`/api/activity-logs?${params.toString()}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data.logs || []);
+      } else {
+        console.error('Failed to fetch activity logs');
+      }
+    } catch (error) {
+      console.error('Error loading activity logs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter logs (only client-side search now, other filters handled by API)
   const filteredLogs = logs.filter(log => {
     const matchesSearch = 
-      log.entityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.userName.toLowerCase().includes(searchTerm.toLowerCase());
+      (log.entityName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (log.user?.name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     
-    const matchesAction = actionFilter === 'all' || log.action === actionFilter;
-    const matchesEntity = entityFilter === 'all' || log.entityType === entityFilter;
-    const matchesUser = userFilter === 'all' || log.userId === userFilter;
-    
-    let matchesDate = true;
-    if (dateFrom) {
-      matchesDate = matchesDate && new Date(log.createdAt) >= new Date(dateFrom);
-    }
-    if (dateTo) {
-      const toDate = new Date(dateTo);
-      toDate.setHours(23, 59, 59, 999);
-      matchesDate = matchesDate && new Date(log.createdAt) <= toDate;
-    }
-
-    return matchesSearch && matchesAction && matchesEntity && matchesUser && matchesDate;
+    return matchesSearch;
   });
 
   const getActionBadge = (action: string) => {
@@ -143,11 +120,50 @@ export default function ActivityLogsPage() {
   // Get unique users from logs
   const uniqueUsers = [...new Set(logs.map(log => log.userId))].map(userId => {
     const user = logs.find(log => log.userId === userId);
-    return { id: userId, name: user?.userName || 'Unknown' };
+    return { id: userId, name: user?.user.name || 'Unknown' };
   });
 
   // Get unique entity types from logs
   const uniqueEntityTypes = [...new Set(logs.map(log => log.entityType))];
+
+  const exportToExcel = () => {
+    // Simple CSV export (can be enhanced with a proper Excel library)
+    const csvData = filteredLogs.map(log => [
+      new Date(log.createdAt).toLocaleDateString('tr-TR'),
+      new Date(log.createdAt).toLocaleTimeString('tr-TR'),
+      log.user.name,
+      getActionBadge(log.action).text,
+      getEntityBadge(log.entityType).text,
+      log.entityName,
+      log.ipAddress
+    ]);
+    
+    const csvContent = [
+      ['Tarih', 'Saat', 'Kullanıcı', 'İşlem', 'Veri Tipi', 'Veri Adı', 'IP Adresi'],
+      ...csvData
+    ].map(row => row.join(',')).join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `activity-logs-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">İşlem logları yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -168,7 +184,7 @@ export default function ActivityLogsPage() {
             </div>
           </div>
           
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => exportToExcel()}>
             <Download className="w-4 h-4 mr-2" />
             Excel'e Aktar
           </Button>
@@ -294,7 +310,7 @@ export default function ActivityLogsPage() {
                           </div>
                           <p className="text-sm text-muted-foreground">
                             <User className="w-3 h-3 inline-block mr-1" />
-                            {log.userName}
+                            {log.user.name}
                           </p>
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -311,7 +327,14 @@ export default function ActivityLogsPage() {
                       </div>
                       
                       <div>
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedLog(log);
+                            setIsDetailModalOpen(true);
+                          }}
+                        >
                           Detay
                         </Button>
                       </div>
@@ -323,6 +346,80 @@ export default function ActivityLogsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Details Modal */}
+      <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>İşlem Detayları</DialogTitle>
+            <DialogDescription>
+              {selectedLog?.entityName} - {selectedLog?.action === 'create' ? 'Ekleme' : selectedLog?.action === 'update' ? 'Güncelleme' : 'Silme'} işlemi
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            {selectedLog?.details ? (
+              <div className="space-y-4">
+                {(() => {
+                  try {
+                    const detailsObj = JSON.parse(selectedLog.details);
+                    
+                    if (detailsObj.before || detailsObj.after) {
+                      return (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <h4 className="font-medium text-sm">Önceki Değerler</h4>
+                            {detailsObj.before ? (
+                              <pre className="bg-gray-100 p-3 rounded-md text-xs overflow-auto max-h-80">
+                                {JSON.stringify(detailsObj.before, null, 2)}
+                              </pre>
+                            ) : (
+                              <p className="text-muted-foreground text-sm">Veri yok</p>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <h4 className="font-medium text-sm">Sonraki Değerler</h4>
+                            {detailsObj.after ? (
+                              <pre className="bg-gray-100 p-3 rounded-md text-xs overflow-auto max-h-80">
+                                {JSON.stringify(detailsObj.after, null, 2)}
+                              </pre>
+                            ) : (
+                              <p className="text-muted-foreground text-sm">Veri yok</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <pre className="bg-gray-100 p-3 rounded-md text-xs overflow-auto max-h-80">
+                          {JSON.stringify(detailsObj, null, 2)}
+                        </pre>
+                      );
+                    }
+                  } catch (e) {
+                    return (
+                      <p className="text-sm">{selectedLog.details}</p>
+                    );
+                  }
+                })()}
+              </div>
+            ) : (
+              <p className="text-muted-foreground">Bu işlem için detay bilgisi bulunmuyor.</p>
+            )}
+            
+            <div className="mt-4 text-xs text-muted-foreground">
+              <p>İşlem ID: {selectedLog?.id}</p>
+              <p>Tarih: {selectedLog && new Date(selectedLog.createdAt).toLocaleString('tr-TR')}</p>
+              <p>IP Adresi: {selectedLog?.ipAddress}</p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>Kapat</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

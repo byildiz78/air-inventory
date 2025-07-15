@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { unitService } from '@/lib/services/unit-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,6 +60,21 @@ export async function POST(request: NextRequest) {
       baseUnitId: body.baseUnitId || null,
       conversionFactor: body.conversionFactor || 1.0,
     });
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logCreate(
+      userId,
+      'unit',
+      newUnit.id,
+      {
+        name: newUnit.name,
+        abbreviation: newUnit.abbreviation,
+        type: newUnit.type,
+        isBaseUnit: newUnit.isBaseUnit
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

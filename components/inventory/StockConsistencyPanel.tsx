@@ -188,10 +188,13 @@ export function StockConsistencyPanel() {
               {inconsistentItems.map((item) => (
                 <div key={item.materialId} className="flex items-center justify-between p-3 border rounded-lg bg-red-50">
                   <div>
-                    <h4 className="font-medium">Malzeme ID: {item.materialId}</h4>
+                    <h4 className="font-medium">{item.materialName}</h4>
                     <p className="text-sm text-muted-foreground">
-                      Sistem: {item.totalStock.toFixed(2)} | Fark: {item.difference.toFixed(2)}
+                      Sistem: {item.systemStock?.toFixed(2) || item.totalStock.toFixed(2)} | Depo Toplamı: {item.totalStock.toFixed(2)} | Fark: {item.difference.toFixed(2)}
                     </p>
+                    {item.materialCode && (
+                      <p className="text-xs text-gray-500">Kod: {item.materialCode}</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="destructive">

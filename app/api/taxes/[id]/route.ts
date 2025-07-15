@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { taxService } from '@/lib/services/tax-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(
   request: NextRequest,
@@ -41,6 +42,9 @@ export async function PUT(
   try {
     const body = await request.json();
     
+    // Get current tax for logging
+    const currentTax = await taxService.getById(params.id);
+    
     // Validate rate if provided
     if (body.rate !== undefined && (body.rate < 0 || body.rate > 100)) {
       return NextResponse.json(
@@ -71,6 +75,29 @@ export async function PUT(
       );
     }
 
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logUpdate(
+      userId,
+      'tax',
+      params.id,
+      {
+        before: {
+          name: currentTax?.name,
+          rate: currentTax?.rate,
+          type: currentTax?.type,
+          isDefault: currentTax?.isDefault
+        },
+        after: {
+          name: updatedTax.name,
+          rate: updatedTax.rate,
+          type: updatedTax.type,
+          isDefault: updatedTax.isDefault
+        }
+      },
+      request
+    );
+
     return NextResponse.json({
       success: true,
       data: updatedTax,
@@ -92,6 +119,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Get current tax for logging
+    const currentTax = await taxService.getById(params.id);
+    
     const deleted = await taxService.delete(params.id);
 
     if (!deleted) {
@@ -103,6 +133,20 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logDelete(
+      userId,
+      'tax',
+      params.id,
+      {
+        name: currentTax?.name,
+        rate: currentTax?.rate,
+        type: currentTax?.type
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

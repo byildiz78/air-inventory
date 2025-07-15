@@ -452,7 +452,7 @@ export default function MaterialsPage() {
                       </div>
                       
                       <div className="text-right">
-                        <div className="font-medium">₺{material.averageCost || 0}</div>
+                        <div className="font-medium">₺{(material.averageCost || 0).toFixed(2)}</div>
                         <div className="text-sm text-muted-foreground">Ort. maliyet</div>
                       </div>
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { categoryService } from '@/lib/services/category-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(
   request: NextRequest,
@@ -63,6 +64,9 @@ export async function PUT(
   try {
     const body = await request.json();
     
+    // Get current category for logging
+    const currentCategory = await categoryService.getById(params.id);
+    
     const updatedCategory = await categoryService.update(params.id, {
       name: body.name,
       description: body.description,
@@ -79,6 +83,27 @@ export async function PUT(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logUpdate(
+      userId,
+      'category',
+      params.id,
+      {
+        before: {
+          name: currentCategory?.name,
+          description: currentCategory?.description,
+          color: currentCategory?.color
+        },
+        after: {
+          name: updatedCategory.name,
+          description: updatedCategory.description,
+          color: updatedCategory.color
+        }
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,
@@ -101,6 +126,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Get current category for logging
+    const currentCategory = await categoryService.getById(params.id);
+    
     const deleted = await categoryService.delete(params.id);
 
     if (!deleted) {
@@ -112,6 +140,20 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logDelete(
+      userId,
+      'category',
+      params.id,
+      {
+        name: currentCategory?.name,
+        description: currentCategory?.description,
+        color: currentCategory?.color
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { materialService } from '@/lib/services/material-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Get current material for logging
+    const currentMaterial = await materialService.getById(params.id);
+    
     const updatedMaterial = await materialService.toggleActive(params.id);
 
     if (!updatedMaterial) {
@@ -17,6 +21,19 @@ export async function PUT(
         { status: 404 }
       );
     }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logUpdate(
+      userId,
+      'material',
+      params.id,
+      {
+        before: { isActive: currentMaterial?.isActive },
+        after: { isActive: updatedMaterial.isActive }
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

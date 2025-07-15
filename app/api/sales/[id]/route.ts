@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(
   request: NextRequest,
@@ -98,10 +99,12 @@ export async function PUT(
     const salesItem = await prisma.salesItem.findUnique({
       where: { id: body.salesItemId },
       include: {
-        recipeMapping: {
+        mappings: {
+          where: { isActive: true },
           include: {
             recipe: true
-          }
+          },
+          orderBy: { priority: 'asc' }
         }
       }
     });
@@ -116,8 +119,8 @@ export async function PUT(
       );
     }
 
-    // Calculate total amount
-    const totalAmount = body.quantity * body.unitPrice;
+    // Calculate total price
+    const totalPrice = body.quantity * body.unitPrice;
 
     // Get recipe ID if available
     let recipeId = null;
@@ -125,15 +128,17 @@ export async function PUT(
     let grossProfit = 0;
     let profitMargin = 0;
 
-    if (salesItem.recipeMapping && salesItem.recipeMapping.recipeId) {
-      recipeId = salesItem.recipeMapping.recipeId;
+    // Use the first active mapping if available
+    if (salesItem.mappings && salesItem.mappings.length > 0) {
+      const activeMapping = salesItem.mappings[0];
+      recipeId = activeMapping.recipeId;
       
       // Calculate cost and profit if recipe exists
-      const recipe = salesItem.recipeMapping.recipe;
+      const recipe = activeMapping.recipe;
       if (recipe && recipe.totalCost) {
         totalCost = recipe.totalCost * body.quantity;
-        grossProfit = totalAmount - totalCost;
-        profitMargin = totalAmount > 0 ? (grossProfit / totalAmount) * 100 : 0;
+        grossProfit = totalPrice - totalCost;
+        profitMargin = totalPrice > 0 ? (grossProfit / totalPrice) * 100 : 0;
       }
     }
 
@@ -146,7 +151,7 @@ export async function PUT(
         salesItemId: body.salesItemId,
         quantity: body.quantity,
         unitPrice: body.unitPrice,
-        totalAmount,
+        totalPrice,
         customerName: body.customerName || null,
         notes: body.notes || null,
         userId: body.userId,
@@ -162,13 +167,35 @@ export async function PUT(
       }
     });
 
+    // Log the activity
+    const userId = body.userId;
+    await ActivityLogger.logUpdate(
+      userId,
+      'sale',
+      id,
+      {
+        before: {
+          itemName: existingSale.itemName,
+          quantity: existingSale.quantity,
+          unitPrice: existingSale.unitPrice,
+          totalPrice: existingSale.totalPrice
+        },
+        after: {
+          itemName: updatedSale.itemName,
+          quantity: updatedSale.quantity,
+          unitPrice: updatedSale.unitPrice,
+          totalPrice: updatedSale.totalPrice
+        }
+      },
+      request
+    );
+
     // Update stock movements if recipe changed or quantity changed
     if (recipeId && (recipeId !== existingSale.recipeId || body.quantity !== existingSale.quantity)) {
-      // Delete existing stock movements
+      // Delete existing stock movements related to this sale
       await prisma.stockMovement.deleteMany({
         where: {
-          referenceId: id,
-          referenceType: 'SALE'
+          reason: { contains: `Satış ID: ${id}` }
         }
       });
 
@@ -183,19 +210,24 @@ export async function PUT(
 
       // Create new stock movements for each ingredient
       for (const ingredient of recipeIngredients) {
-        if (ingredient.material && ingredient.material.trackInventory) {
+        if (ingredient.material) {
+          const warehouseId = ingredient.material.defaultWarehouseId;
+          
+          // Skip if no default warehouse is set
+          if (!warehouseId) continue;
+          
           await prisma.stockMovement.create({
             data: {
               date: new Date(body.date),
               materialId: ingredient.materialId,
               quantity: -(ingredient.quantity * body.quantity), // Negative for consumption
               unitId: ingredient.unitId,
-              warehouseId: ingredient.material.defaultWarehouseId || null,
-              type: 'SALE',
-              referenceId: id,
-              referenceType: 'SALE',
-              notes: `Satış: ${salesItem.name} (Güncelleme)`,
-              userId: body.userId
+              warehouseId: warehouseId,
+              type: 'OUT',
+              reason: `Satış: ${salesItem.name} (ID: ${id}) (Güncelleme)`,
+              userId: body.userId,
+              stockBefore: 0, // These will be calculated separately
+              stockAfter: 0
             }
           });
         }
@@ -243,8 +275,7 @@ export async function DELETE(
     // Delete related stock movements
     await prisma.stockMovement.deleteMany({
       where: {
-        referenceId: id,
-        referenceType: 'SALE'
+        reason: { contains: `Satış ID: ${id}` }
       }
     });
 
@@ -252,6 +283,21 @@ export async function DELETE(
     await prisma.sale.delete({
       where: { id }
     });
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logDelete(
+      userId,
+      'sale',
+      id,
+      {
+        itemName: existingSale.itemName,
+        quantity: existingSale.quantity,
+        unitPrice: existingSale.unitPrice,
+        totalPrice: existingSale.totalPrice
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

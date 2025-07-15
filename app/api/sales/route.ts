@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -196,24 +197,60 @@ export async function POST(request: NextRequest) {
 
       // Create stock movements for each ingredient
       for (const ingredient of recipeIngredients) {
-        if (ingredient.material && ingredient.material.trackInventory) {
+        if (ingredient.material) {
+          const warehouseId = ingredient.material.defaultWarehouseId;
+          
+          // Skip if no default warehouse is set
+          if (!warehouseId) continue;
+          
+          // Get current stock for before/after values
+          const materialStock = await prisma.materialStock.findUnique({
+            where: {
+              materialId_warehouseId: {
+                materialId: ingredient.materialId,
+                warehouseId: warehouseId,
+              }
+            }
+          });
+          
+          const stockBefore = materialStock?.currentStock || 0;
+          const reduceQuantity = ingredient.quantity * body.quantity;
+          const stockAfter = stockBefore - reduceQuantity;
+          
           await prisma.stockMovement.create({
             data: {
               date: new Date(body.date),
               materialId: ingredient.materialId,
-              quantity: -(ingredient.quantity * body.quantity), // Negative for consumption
+              quantity: -reduceQuantity, // Negative for consumption
               unitId: ingredient.unitId,
-              warehouseId: ingredient.material.defaultWarehouseId || null,
-              type: 'SALE',
-              referenceId: sale.id,
-              referenceType: 'SALE',
-              notes: `Satış: ${salesItem.name}`,
-              userId: body.userId
+              warehouseId: warehouseId,
+              type: 'OUT',
+              reason: `Satış: ${salesItem.name} (ID: ${sale.id})`,
+              userId: body.userId,
+              stockBefore: stockBefore,
+              stockAfter: stockAfter
             }
           });
         }
       }
     }
+
+    // Log the activity
+    const userId = body.userId;
+    await ActivityLogger.logCreate(
+      userId,
+      'sale',
+      sale.id,
+      {
+        itemName: sale.itemName,
+        quantity: sale.quantity,
+        unitPrice: sale.unitPrice,
+        totalPrice: sale.totalPrice,
+        customerName: sale.customerName,
+        hasRecipe: !!recipeId
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

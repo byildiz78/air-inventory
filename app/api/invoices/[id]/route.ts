@@ -1,5 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ActivityLogger } from '@/lib/activity-logger';
+
+// Helper function to calculate stock at a specific date and warehouse
+async function calculateStockAtDate(materialId: string, warehouseId: string | undefined, date: Date): Promise<number> {
+  // Get all stock movements for this material and warehouse up to the specified date
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId,
+      warehouseId: warehouseId,
+      date: {
+        lt: date // Less than the target date
+      }
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  // Calculate stock by summing all movements
+  let stock = 0;
+  for (const movement of movements) {
+    stock += movement.quantity;
+  }
+
+  return stock;
+}
+
+// Helper function to recalculate stock levels for all movements after a specific date
+async function recalculateStockAfterDate(materialId: string, warehouseId: string | undefined, fromDate: Date): Promise<void> {
+  // Get all movements for this material and warehouse after the specified date
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId,
+      warehouseId: warehouseId,
+      date: {
+        gte: fromDate // Greater than or equal to the from date
+      }
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  // Recalculate stock levels for each movement
+  for (const movement of movements) {
+    const stockBefore = await calculateStockAtDate(materialId, warehouseId, movement.date);
+    const stockAfter = stockBefore + movement.quantity;
+
+    // Update the movement with correct stock levels
+    await prisma.stockMovement.update({
+      where: { id: movement.id },
+      data: {
+        stockBefore: stockBefore,
+        stockAfter: stockAfter
+      }
+    });
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -130,6 +188,11 @@ export async function PUT(
 
       // If items are provided, handle them
       if (body.items) {
+        // First, delete existing stock movements for this invoice
+        await tx.stockMovement.deleteMany({
+          where: { invoiceId: params.id }
+        });
+
         // Delete existing items if we're replacing them
         if (body.replaceItems) {
           await tx.invoiceItem.deleteMany({
@@ -184,11 +247,68 @@ export async function PUT(
               });
             }
           }));
+
+          // Create new stock movements for updated items
+          await Promise.all(body.items.map(async (item: any) => {
+            // Calculate stock at the specific date and warehouse
+            const movementDate = new Date(body.date || updatedInvoice.date);
+            const stockBefore = await calculateStockAtDate(item.materialId, item.warehouseId, movementDate);
+            const quantity = updatedInvoice.type === 'PURCHASE' ? item.quantity : -item.quantity;
+            const stockAfter = stockBefore + quantity;
+            
+            const stockMovement = await tx.stockMovement.create({
+              data: {
+                materialId: item.materialId,
+                unitId: item.unitId,
+                userId: body.userId || '1',
+                invoiceId: params.id,
+                warehouseId: item.warehouseId,
+                type: updatedInvoice.type === 'PURCHASE' ? 'IN' : 'OUT',
+                quantity: quantity,
+                reason: `${updatedInvoice.type === 'PURCHASE' ? 'Alış' : 'Satış'} Faturası (Güncellendi): ${updatedInvoice.invoiceNumber}`,
+                unitCost: item.unitPrice,
+                totalCost: item.totalAmount,
+                stockBefore: stockBefore,
+                stockAfter: stockAfter,
+                date: movementDate
+              }
+            });
+
+            return stockMovement;
+          }));
         }
       }
 
       return updatedInvoice;
     });
+
+    // Recalculate stock levels for affected materials (outside transaction)
+    if (body.items && body.items.length > 0) {
+      for (const item of body.items) {
+        await recalculateStockAfterDate(item.materialId, item.warehouseId, new Date(body.date || result.date));
+      }
+    }
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logUpdate(
+      userId,
+      'invoice',
+      params.id,
+      {
+        before: {
+          invoiceNumber: existingInvoice.invoiceNumber,
+          totalAmount: existingInvoice.totalAmount,
+          status: existingInvoice.status
+        },
+        after: {
+          invoiceNumber: result.invoiceNumber,
+          totalAmount: result.totalAmount,
+          status: result.status
+        }
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,
@@ -255,6 +375,20 @@ export async function DELETE(
         where: { id: params.id }
       });
     });
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logDelete(
+      userId,
+      'invoice',
+      params.id,
+      {
+        invoiceNumber: existingInvoice.invoiceNumber,
+        type: existingInvoice.type,
+        totalAmount: existingInvoice.totalAmount
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

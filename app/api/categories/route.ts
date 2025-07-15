@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { categoryService } from '@/lib/services/category-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,6 +74,20 @@ export async function POST(request: NextRequest) {
       color: body.color || '#3B82F6',
       parentId: body.parentId || null,
     });
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logCreate(
+      userId,
+      'category',
+      newCategory.id,
+      {
+        name: newCategory.name,
+        description: newCategory.description,
+        color: newCategory.color
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,

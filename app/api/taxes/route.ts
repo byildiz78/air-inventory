@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { taxService } from '@/lib/services/tax-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -76,6 +77,21 @@ export async function POST(request: NextRequest) {
       isActive: body.isActive !== undefined ? body.isActive : true,
       isDefault: body.isDefault !== undefined ? body.isDefault : false,
     });
+
+    // Log the activity
+    const userId = request.headers.get('x-user-id') || '1';
+    await ActivityLogger.logCreate(
+      userId,
+      'tax',
+      newTax.id,
+      {
+        name: newTax.name,
+        rate: newTax.rate,
+        type: newTax.type,
+        isDefault: newTax.isDefault
+      },
+      request
+    );
 
     return NextResponse.json({
       success: true,
