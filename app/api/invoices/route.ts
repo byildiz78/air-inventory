@@ -301,20 +301,50 @@ export async function POST(request: NextRequest) {
             // Calculate stock at the specific date and warehouse
             const movementDate = new Date(body.date);
             const stockBefore = await calculateStockAtDate(item.materialId, item.warehouseId, movementDate);
-            const quantity = body.type === 'PURCHASE' ? item.quantity : -item.quantity;
-            const stockAfter = stockBefore + quantity;
+            const invoiceQuantity = body.type === 'PURCHASE' ? item.quantity : -item.quantity;
             
+            // Get material with purchase and consumption units
+            const material = await tx.material.findUnique({
+              where: { id: item.materialId },
+              include: {
+                purchaseUnit: true,
+                consumptionUnit: true
+              }
+            });
+
+            if (!material) {
+              throw new Error(`Material not found: ${item.materialId}`);
+            }
+
+            // Calculate quantity in consumption unit
+            const purchaseUnit = material.purchaseUnit;
+            const consumptionUnit = material.consumptionUnit;
+            
+            let consumptionQuantity = invoiceQuantity;
+            let consumptionUnitCost = item.unitPrice;
+            
+            if (purchaseUnit && consumptionUnit && purchaseUnit.id !== consumptionUnit.id) {
+              // Convert from purchase unit to consumption unit
+              // Example: 1 kg = 1000 gr, so if conversionFactor for gram is 0.001, then 1 kg = 1000 gram
+              const conversionFactor = purchaseUnit.conversionFactor / consumptionUnit.conversionFactor;
+              consumptionQuantity = invoiceQuantity * conversionFactor;
+              consumptionUnitCost = item.unitPrice / conversionFactor;
+            }
+
+            // Calculate stock after with consumption quantity
+            const stockAfter = stockBefore + consumptionQuantity;
+
             const stockMovement = await tx.stockMovement.create({
               data: {
                 materialId: item.materialId,
-                unitId: item.unitId,
+                unitId: material.consumptionUnitId, // Use consumption unit for stock movements
                 userId: body.userId,
                 invoiceId: invoice.id,
                 warehouseId: item.warehouseId,
                 type: body.type === 'PURCHASE' ? 'IN' : 'OUT',
-                quantity: quantity,
+                quantity: consumptionQuantity, // Use consumption quantity
                 reason: `${body.type === 'PURCHASE' ? 'Alış' : 'Satış'} Faturası: ${body.invoiceNumber}`,
-                unitCost: item.unitPrice,
+                unitCost: consumptionUnitCost, // Use consumption unit cost
                 totalCost: item.totalAmount,
                 stockBefore: stockBefore,
                 stockAfter: stockAfter,
@@ -335,9 +365,24 @@ export async function POST(request: NextRequest) {
       for (const item of body.items) {
         await recalculateStockAfterDate(item.materialId, item.warehouseId, new Date(body.date));
         
-        // Update MaterialStock table
+        // Update MaterialStock table - use consumption unit cost
         const currentStock = await calculateCurrentStock(item.materialId, item.warehouseId);
-        await updateMaterialStock(item.materialId, item.warehouseId, currentStock, item.unitPrice);
+        // Get the consumption unit cost for this material
+        const material = await prisma.material.findUnique({
+          where: { id: item.materialId },
+          include: {
+            purchaseUnit: true,
+            consumptionUnit: true
+          }
+        });
+        
+        let consumptionUnitCost = item.unitPrice;
+        if (material && material.purchaseUnit && material.consumptionUnit && material.purchaseUnit.id !== material.consumptionUnit.id) {
+          const conversionFactor = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
+          consumptionUnitCost = item.unitPrice / conversionFactor;
+        }
+        
+        await updateMaterialStock(item.materialId, item.warehouseId, currentStock, consumptionUnitCost);
         
         // Update Material.currentStock and lastPurchasePrice with total across all warehouses
         const totalStock = await calculateTotalStockFromMovements(item.materialId);
