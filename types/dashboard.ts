@@ -61,7 +61,7 @@ export interface RecentSale {
 export interface StockMovementSummary {
   id: string;
   materialName: string;
-  type: 'IN' | 'OUT' | 'ADJUSTMENT' | 'WASTE';
+  type: 'IN' | 'OUT' | 'ADJUSTMENT' | 'WASTE' | 'TRANSFER';
   quantity: number;
   reason: string;
   date: Date;

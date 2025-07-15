@@ -107,8 +107,7 @@ async function updateMaterialStock(materialId: string, warehouseId: string | und
   await warehouseService.updateMaterialStock(warehouseId, materialId, {
     currentStock: newStock,
     availableStock: newStock,
-    averageCost: averageCost,
-    lastUpdated: new Date()
+    averageCost: averageCost
   });
 }
 
@@ -407,7 +406,7 @@ export async function POST(request: NextRequest) {
 
     // Update recipe costs for affected materials
     try {
-      const affectedMaterialIds = body.items ? body.items.map(item => item.materialId) : [];
+      const affectedMaterialIds = body.items ? body.items.map((item: any) => item.materialId) : [];
       let totalUpdatedRecipes = 0;
       let totalUpdatedIngredients = 0;
 
