@@ -34,21 +34,54 @@ import {
   LineChart,
   Line
 } from 'recharts';
-import { 
-  recipeService, 
-  salesService,
-  recipeMappingService
-} from '@/lib/data-service';
-import { 
-  MockRecipe, 
-  MockSale,
-  MockRecipeMapping
-} from '@/lib/mock-data';
+// Removed direct service imports - using API calls instead
+
+interface Recipe {
+  id: string;
+  name: string;
+  category?: string;
+  costPerServing: number;
+  totalCost: number;
+  servingSize: number;
+  profitMargin?: number;
+  suggestedPrice?: number;
+  isActive: boolean;
+  ingredients?: Array<{
+    id: string;
+    materialId: string;
+    quantity: number;
+    cost: number;
+    material: { name: string };
+    unit: { name: string };
+  }>;
+}
+
+interface Sale {
+  id: string;
+  date: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  grossProfit: number;
+  profitMargin: number;
+  recipeId?: string;
+  salesItemId?: string;
+}
+
+interface RecipeMapping {
+  id: string;
+  salesItemId: string;
+  recipeId: string;
+  portionRatio: number;
+  isActive: boolean;
+}
 
 export default function RecipeUsageReportPage() {
-  const [recipes, setRecipes] = useState<MockRecipe[]>([]);
-  const [sales, setSales] = useState<MockSale[]>([]);
-  const [recipeMappings, setRecipeMappings] = useState<MockRecipeMapping[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [recipeMappings, setRecipeMappings] = useState<RecipeMapping[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
   // Filters
@@ -63,17 +96,38 @@ export default function RecipeUsageReportPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [recipesData, salesData, recipeMappingsData] = await Promise.all([
-        recipeService.getAll(),
-        salesService.getAll(),
-        recipeMappingService.getAll(),
+      setError(null);
+      
+      // Fetch all data from APIs
+      const [recipesResponse, salesResponse, recipeMappingsResponse] = await Promise.all([
+        fetch('/api/recipes?includeIngredients=true'),
+        fetch('/api/sales'),
+        fetch('/api/recipe-mappings')
       ]);
-
-      setRecipes(recipesData);
-      setSales(salesData);
-      setRecipeMappings(recipeMappingsData);
+      
+      // Check if responses are ok
+      if (!recipesResponse.ok || !salesResponse.ok || !recipeMappingsResponse.ok) {
+        throw new Error('Failed to fetch data from APIs');
+      }
+      
+      // Parse JSON responses
+      const [recipesData, salesData, recipeMappingsData] = await Promise.all([
+        recipesResponse.json(),
+        salesResponse.json(),
+        recipeMappingsResponse.json()
+      ]);
+      
+      // Check if API responses are successful
+      if (!recipesData.success || !salesData.success || !recipeMappingsData.success) {
+        throw new Error('API responded with error');
+      }
+      
+      setRecipes(recipesData.data || []);
+      setSales(salesData.data || []);
+      setRecipeMappings(recipeMappingsData.data || []);
     } catch (error) {
       console.error('Recipe usage data loading error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -207,6 +261,21 @@ export default function RecipeUsageReportPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-muted-foreground">Reçete kullanım verileri yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">
+            <p className="text-lg font-medium">Hata: {error}</p>
+          </div>
+          <Button onClick={loadData} variant="outline">
+            Yeniden Dene
+          </Button>
         </div>
       </div>
     );

@@ -297,6 +297,7 @@ export default function NewInvoicePage() {
     }
     
     try {
+      if (loading) return; // Prevent double submission
       setLoading(true);
       
       const totals = calculateInvoiceTotals();

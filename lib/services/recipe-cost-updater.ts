@@ -2,6 +2,57 @@ import { prisma } from '@/lib/prisma';
 
 export class RecipeCostUpdater {
   /**
+   * Get dynamic material cost from most recent purchase invoice (by date)
+   */
+  private static async getDynamicMaterialCost(materialId: string): Promise<number> {
+    const lastPurchaseInvoiceItem = await prisma.invoiceItem.findFirst({
+      where: {
+        materialId: materialId,
+        invoice: {
+          type: 'PURCHASE'
+        }
+      },
+      orderBy: {
+        invoice: {
+          date: 'desc' // Order by actual invoice date, not creation date
+        }
+      },
+      include: {
+        invoice: true,
+        material: {
+          include: {
+            purchaseUnit: true,
+            consumptionUnit: true
+          }
+        }
+      }
+    });
+
+    if (lastPurchaseInvoiceItem) {
+      // Get the last purchase price from the most recent invoice (by date)
+      let lastPurchasePrice = lastPurchaseInvoiceItem.unitPrice; // This is in purchase unit
+      
+      // Convert to consumption unit for consistent cost calculation
+      if (lastPurchaseInvoiceItem.material.purchaseUnit && 
+          lastPurchaseInvoiceItem.material.consumptionUnit &&
+          lastPurchaseInvoiceItem.material.purchaseUnitId !== lastPurchaseInvoiceItem.material.consumptionUnitId) {
+        
+        const conversionFactor = lastPurchaseInvoiceItem.material.purchaseUnit.conversionFactor / 
+                                lastPurchaseInvoiceItem.material.consumptionUnit.conversionFactor;
+        lastPurchasePrice = lastPurchasePrice / conversionFactor;
+      }
+      
+      return lastPurchasePrice;
+    }
+
+    // Fallback: Use stored average cost if no purchase invoice found
+    const material = await prisma.material.findUnique({
+      where: { id: materialId }
+    });
+    return material?.averageCost || 0;
+  }
+
+  /**
    * Belirli bir malzeme ile ilişkili tüm reçete maliyetlerini günceller
    */
   static async updateRecipeCostsForMaterial(materialId: string): Promise<{
@@ -26,7 +77,32 @@ export class RecipeCostUpdater {
 
     // Her reçete malzemesinin maliyetini güncelle
     for (const ingredient of recipeIngredients) {
-      const newCost = (ingredient.material.averageCost || 0) * ingredient.quantity;
+      // Get unit information for conversion if needed
+      const recipeUnit = await prisma.unit.findUnique({
+        where: { id: ingredient.unitId }
+      });
+
+      // Get dynamic cost from most recent purchase invoice (by date)
+      let unitCost = await this.getDynamicMaterialCost(ingredient.materialId);
+      
+      if (recipeUnit && ingredient.material.consumptionUnitId !== ingredient.unitId) {
+        // Get consumption unit for conversion
+        const consumptionUnit = await prisma.unit.findUnique({
+          where: { id: ingredient.material.consumptionUnitId }
+        });
+
+        if (consumptionUnit && recipeUnit) {
+          // Convert cost from consumption unit to recipe unit
+          // Example: Material cost is 0.01 TL/gram, recipe uses kg
+          // conversionFactor: gram = 0.001, kg = 1
+          // unitCost = 0.01 * (0.001 / 1) = 0.00001 TL/kg -> Wrong!
+          // unitCost = 0.01 * (1 / 0.001) = 10 TL/kg -> Correct!
+          const conversionFactor = consumptionUnit.conversionFactor / recipeUnit.conversionFactor;
+          unitCost = unitCost * conversionFactor;
+        }
+      }
+
+      const newCost = unitCost * ingredient.quantity;
       
       await prisma.recipeIngredient.update({
         where: { id: ingredient.id },
@@ -71,11 +147,31 @@ export class RecipeCostUpdater {
       // Her malzemenin maliyetini güncelle
       for (const ingredient of recipe.ingredients) {
         const material = await prisma.material.findUnique({
-          where: { id: ingredient.materialId }
+          where: { id: ingredient.materialId },
+          include: {
+            consumptionUnit: true
+          }
         });
 
         if (material) {
-          const cost = (material.averageCost || 0) * ingredient.quantity;
+          // Get recipe ingredient unit
+          const recipeUnit = await prisma.unit.findUnique({
+            where: { id: ingredient.unitId }
+          });
+
+          // Get dynamic cost from most recent purchase invoice (by date)
+          let unitCost = await this.getDynamicMaterialCost(ingredient.materialId);
+          
+          if (recipeUnit && material.consumptionUnitId !== ingredient.unitId) {
+            const consumptionUnit = material.consumptionUnit;
+            if (consumptionUnit && recipeUnit) {
+              // Convert cost from consumption unit to recipe unit
+              const conversionFactor = consumptionUnit.conversionFactor / recipeUnit.conversionFactor;
+              unitCost = unitCost * conversionFactor;
+            }
+          }
+
+          const cost = unitCost * ingredient.quantity;
           totalCost += cost;
 
           await prisma.recipeIngredient.update({
@@ -124,11 +220,31 @@ export class RecipeCostUpdater {
       // Her malzemenin maliyetini güncelle
       for (const ingredient of recipe.ingredients) {
         const material = await prisma.material.findUnique({
-          where: { id: ingredient.materialId }
+          where: { id: ingredient.materialId },
+          include: {
+            consumptionUnit: true
+          }
         });
 
         if (material) {
-          const cost = (material.averageCost || 0) * ingredient.quantity;
+          // Get recipe ingredient unit
+          const recipeUnit = await prisma.unit.findUnique({
+            where: { id: ingredient.unitId }
+          });
+
+          // Get dynamic cost from most recent purchase invoice (by date)
+          let unitCost = await this.getDynamicMaterialCost(ingredient.materialId);
+          
+          if (recipeUnit && material.consumptionUnitId !== ingredient.unitId) {
+            const consumptionUnit = material.consumptionUnit;
+            if (consumptionUnit && recipeUnit) {
+              // Convert cost from consumption unit to recipe unit
+              const conversionFactor = consumptionUnit.conversionFactor / recipeUnit.conversionFactor;
+              unitCost = unitCost * conversionFactor;
+            }
+          }
+
+          const cost = unitCost * ingredient.quantity;
           totalCost += cost;
 
           await prisma.recipeIngredient.update({

@@ -324,7 +324,7 @@ export default function InvoicesPage() {
                               <Eye className="w-4 h-4" />
                             </Button>
                           </Link>
-                          <Link href={`/invoices/${invoice.id}/edit`}>
+                          <Link href={`/invoices/edit?id=${invoice.id}`}>
                             <Button variant="outline" size="sm">
                               <Edit className="w-4 h-4" />
                             </Button>

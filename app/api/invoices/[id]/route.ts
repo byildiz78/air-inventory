@@ -2,6 +2,45 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
 
+// Helper function to calculate current stock for a material and warehouse
+async function calculateCurrentStock(materialId: string, warehouseId: string | undefined): Promise<number> {
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId,
+      warehouseId: warehouseId,
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  let stock = 0;
+  for (const movement of movements) {
+    stock += movement.quantity;
+  }
+
+  return stock;
+}
+
+// Helper function to calculate total stock from movements across all warehouses
+async function calculateTotalStockFromMovements(materialId: string): Promise<number> {
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      materialId: materialId
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  let totalStock = 0;
+  for (const movement of movements) {
+    totalStock += movement.quantity;
+  }
+
+  return totalStock;
+}
+
 // Helper function to calculate stock at a specific date and warehouse
 async function calculateStockAtDate(materialId: string, warehouseId: string | undefined, date: Date): Promise<number> {
   // Get all stock movements for this material and warehouse up to the specified date
@@ -95,6 +134,13 @@ export async function GET(
       ...invoice,
       supplierName: invoice.supplier?.name,
       userName: invoice.user?.name,
+      supplierInfo: {
+        contactName: invoice.supplier?.contactName,
+        phone: invoice.supplier?.phone,
+        email: invoice.supplier?.email,
+        taxNumber: invoice.supplier?.taxNumber,
+        address: invoice.supplier?.address
+      },
       items: invoice.items.map((item: any) => ({
         ...item,
         materialName: item.material.name,
@@ -189,9 +235,11 @@ export async function PUT(
       // If items are provided, handle them
       if (body.items) {
         // First, delete existing stock movements for this invoice
-        await tx.stockMovement.deleteMany({
+        console.log(`Deleting existing stock movements for invoice ${params.id}`);
+        const deletedCount = await tx.stockMovement.deleteMany({
           where: { invoiceId: params.id }
         });
+        console.log(`Deleted ${deletedCount.count} stock movements`);
 
         // Delete existing items if we're replacing them
         if (body.replaceItems) {
@@ -253,20 +301,48 @@ export async function PUT(
             // Calculate stock at the specific date and warehouse
             const movementDate = new Date(body.date || updatedInvoice.date);
             const stockBefore = await calculateStockAtDate(item.materialId, item.warehouseId, movementDate);
-            const quantity = updatedInvoice.type === 'PURCHASE' ? item.quantity : -item.quantity;
-            const stockAfter = stockBefore + quantity;
+            const invoiceQuantity = updatedInvoice.type === 'PURCHASE' ? item.quantity : -item.quantity;
+            
+            // Get material with purchase and consumption units
+            const material = await tx.material.findUnique({
+              where: { id: item.materialId },
+              include: {
+                purchaseUnit: true,
+                consumptionUnit: true
+              }
+            });
+
+            if (!material) {
+              throw new Error(`Material not found: ${item.materialId}`);
+            }
+
+            // Calculate quantity in consumption unit
+            const purchaseUnit = material.purchaseUnit;
+            const consumptionUnit = material.consumptionUnit;
+            
+            let consumptionQuantity = invoiceQuantity;
+            let consumptionUnitCost = item.unitPrice;
+            
+            if (purchaseUnit && consumptionUnit && purchaseUnit.id !== consumptionUnit.id) {
+              // Convert from purchase unit to consumption unit
+              const conversionFactor = purchaseUnit.conversionFactor / consumptionUnit.conversionFactor;
+              consumptionQuantity = invoiceQuantity * conversionFactor;
+              consumptionUnitCost = item.unitPrice / conversionFactor;
+            }
+
+            const stockAfter = stockBefore + consumptionQuantity;
             
             const stockMovement = await tx.stockMovement.create({
               data: {
                 materialId: item.materialId,
-                unitId: item.unitId,
+                unitId: material.consumptionUnitId, // Use consumption unit
                 userId: body.userId || '1',
                 invoiceId: params.id,
                 warehouseId: item.warehouseId,
                 type: updatedInvoice.type === 'PURCHASE' ? 'IN' : 'OUT',
-                quantity: quantity,
+                quantity: consumptionQuantity, // Use consumption quantity
                 reason: `${updatedInvoice.type === 'PURCHASE' ? 'Alış' : 'Satış'} Faturası (Güncellendi): ${updatedInvoice.invoiceNumber}`,
-                unitCost: item.unitPrice,
+                unitCost: consumptionUnitCost, // Use consumption unit cost
                 totalCost: item.totalAmount,
                 stockBefore: stockBefore,
                 stockAfter: stockAfter,
@@ -286,6 +362,58 @@ export async function PUT(
     if (body.items && body.items.length > 0) {
       for (const item of body.items) {
         await recalculateStockAfterDate(item.materialId, item.warehouseId, new Date(body.date || result.date));
+        
+        // Update Material.currentStock, lastPurchasePrice and averageCost (only for PURCHASE invoices)
+        if (result.type === 'PURCHASE') {
+          const currentStock = await calculateCurrentStock(item.materialId, item.warehouseId);
+          const totalStock = await calculateTotalStockFromMovements(item.materialId);
+          
+          // Get material with units for conversion
+          const material = await prisma.material.findUnique({
+            where: { id: item.materialId },
+            include: {
+              purchaseUnit: true,
+              consumptionUnit: true
+            }
+          });
+          
+          // Convert lastPurchasePrice to consumption unit for averageCost
+          let newAverageCost = item.unitPrice; // item.unitPrice is in purchase unit
+          if (material && material.purchaseUnit && material.consumptionUnit && material.purchaseUnit.id !== material.consumptionUnit.id) {
+            const conversionFactor = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
+            newAverageCost = item.unitPrice / conversionFactor;
+          }
+          
+          await prisma.material.update({
+            where: { id: item.materialId },
+            data: { 
+              currentStock: totalStock,
+              lastPurchasePrice: item.unitPrice, // Update last purchase price (purchase unit)
+              averageCost: newAverageCost // Update average cost (consumption unit)
+            }
+          });
+        }
+      }
+    }
+
+    // Update recipe costs for affected materials (only for PURCHASE invoices)
+    if (result.type === 'PURCHASE' && body.items && body.items.length > 0) {
+      try {
+        const { RecipeCostUpdater } = await import('@/lib/services/recipe-cost-updater');
+        const affectedMaterialIds = body.items.map((item: any) => item.materialId);
+        let totalUpdatedRecipes = 0;
+        let totalUpdatedIngredients = 0;
+
+        for (const materialId of affectedMaterialIds) {
+          const result = await RecipeCostUpdater.updateRecipeCostsForMaterial(materialId);
+          totalUpdatedRecipes += result.updatedRecipes;
+          totalUpdatedIngredients += result.updatedIngredients;
+        }
+
+        console.log(`Recipe costs updated after invoice edit: ${totalUpdatedRecipes} recipes, ${totalUpdatedIngredients} ingredients`);
+      } catch (error) {
+        console.error('Error updating recipe costs after invoice edit:', error);
+        // Don't fail the invoice update if recipe cost update fails
       }
     }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -65,10 +65,46 @@ const mockInvoiceDetail = {
 };
 
 export default function InvoiceDetailPage() {
-  const searchParams = useSearchParams();
-  const invoiceId = searchParams.get('id');
+  const params = useParams();
+  const invoiceId = params.id as string;
   const [invoice, setInvoice] = useState(mockInvoiceDetail);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load real invoice data
+  useEffect(() => {
+    const fetchInvoice = async () => {
+      if (!invoiceId) return;
+      
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/invoices/${invoiceId}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch invoice');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Convert date strings to Date objects
+          const invoiceWithDates = {
+            ...data.data,
+            date: new Date(data.data.date),
+            dueDate: data.data.dueDate ? new Date(data.data.dueDate) : null
+          };
+          setInvoice(invoiceWithDates);
+        } else {
+          console.error('Error fetching invoice:', data.error);
+        }
+      } catch (error) {
+        console.error('Error loading invoice:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInvoice();
+  }, [invoiceId]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -92,6 +128,32 @@ export default function InvoiceDetailPage() {
   const statusBadge = getStatusBadge(invoice.status);
   const typeBadge = getTypeBadge(invoice.type);
   const StatusIcon = statusBadge.icon;
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <h3 className="text-lg font-medium mb-2">Fatura yükleniyor...</h3>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!invoiceId) {
+    return (
+      <div className="p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center py-12">
+            <h3 className="text-lg font-medium mb-2">Fatura ID bulunamadı</h3>
+            <p className="text-muted-foreground">Lütfen geçerli bir fatura ID'si ile tekrar deneyin.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -251,12 +313,23 @@ export default function InvoiceDetailPage() {
               <CardContent className="space-y-3">
                 <div>
                   <h4 className="font-medium">{invoice.supplierName}</h4>
-                  <p className="text-sm text-muted-foreground">{invoice.supplierInfo.contactName}</p>
+                  {invoice.supplierInfo?.contactName && (
+                    <p className="text-sm text-muted-foreground">{invoice.supplierInfo.contactName}</p>
+                  )}
                 </div>
                 <div className="space-y-2 text-sm">
-                  <div>Tel: {invoice.supplierInfo.phone}</div>
-                  <div>E-posta: {invoice.supplierInfo.email}</div>
-                  <div>Vergi No: {invoice.supplierInfo.taxNumber}</div>
+                  {invoice.supplierInfo?.phone && (
+                    <div>Tel: {invoice.supplierInfo.phone}</div>
+                  )}
+                  {invoice.supplierInfo?.email && (
+                    <div>E-posta: {invoice.supplierInfo.email}</div>
+                  )}
+                  {invoice.supplierInfo?.taxNumber && (
+                    <div>Vergi No: {invoice.supplierInfo.taxNumber}</div>
+                  )}
+                  {invoice.supplierInfo?.address && (
+                    <div>Adres: {invoice.supplierInfo.address}</div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -272,12 +345,16 @@ export default function InvoiceDetailPage() {
               <CardContent className="space-y-3">
                 <div>
                   <span className="text-sm text-muted-foreground">Fatura Tarihi:</span>
-                  <div className="font-medium">{invoice.date.toLocaleDateString('tr-TR')}</div>
+                  <div className="font-medium">
+                    {invoice.date instanceof Date ? invoice.date.toLocaleDateString('tr-TR') : 'Belirtilmemiş'}
+                  </div>
                 </div>
                 {invoice.dueDate && (
                   <div>
                     <span className="text-sm text-muted-foreground">Vade Tarihi:</span>
-                    <div className="font-medium">{invoice.dueDate.toLocaleDateString('tr-TR')}</div>
+                    <div className="font-medium">
+                      {invoice.dueDate instanceof Date ? invoice.dueDate.toLocaleDateString('tr-TR') : 'Belirtilmemiş'}
+                    </div>
                   </div>
                 )}
                 {invoice.notes && (

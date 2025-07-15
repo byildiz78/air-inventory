@@ -384,13 +384,22 @@ export async function POST(request: NextRequest) {
         
         await updateMaterialStock(item.materialId, item.warehouseId, currentStock, consumptionUnitCost);
         
-        // Update Material.currentStock and lastPurchasePrice with total across all warehouses
+        // Update Material.currentStock, lastPurchasePrice and averageCost with total across all warehouses
         const totalStock = await calculateTotalStockFromMovements(item.materialId);
+        
+        // Convert lastPurchasePrice to consumption unit for averageCost
+        let newAverageCost = item.unitPrice; // item.unitPrice is in purchase unit
+        if (material && material.purchaseUnit && material.consumptionUnit && material.purchaseUnit.id !== material.consumptionUnit.id) {
+          const conversionFactor = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
+          newAverageCost = item.unitPrice / conversionFactor;
+        }
+        
         await prisma.material.update({
           where: { id: item.materialId },
           data: { 
             currentStock: totalStock,
-            lastPurchasePrice: item.unitPrice // Update last purchase price
+            lastPurchasePrice: item.unitPrice, // Update last purchase price (purchase unit)
+            averageCost: newAverageCost // Update average cost (consumption unit)
           }
         });
       }
@@ -398,7 +407,7 @@ export async function POST(request: NextRequest) {
 
     // Update recipe costs for affected materials
     try {
-      const affectedMaterialIds = invoice.items.map(item => item.materialId);
+      const affectedMaterialIds = body.items ? body.items.map(item => item.materialId) : [];
       let totalUpdatedRecipes = 0;
       let totalUpdatedIngredients = 0;
 

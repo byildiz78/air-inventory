@@ -5,14 +5,11 @@ import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get all materials with their last purchase price
+    // Get all materials with their last purchase price and units
     const materials = await prisma.material.findMany({
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        averageCost: true,
-        lastPurchasePrice: true
+      include: {
+        purchaseUnit: true,
+        consumptionUnit: true
       }
     });
 
@@ -20,14 +17,33 @@ export async function POST(request: NextRequest) {
 
     for (const material of materials) {
       const oldCost = material.averageCost || 0;
-      // Use last purchase price as the new average cost
-      const newCost = material.lastPurchasePrice || oldCost;
+      
+      // Get last purchase price (in purchase unit)
+      let newCostInPurchaseUnit = material.lastPurchasePrice || oldCost;
+      
+      // Convert to consumption unit for consistent storage
+      let newCostInConsumptionUnit = newCostInPurchaseUnit;
+      
+      if (material.purchaseUnit && material.consumptionUnit && 
+          material.purchaseUnitId !== material.consumptionUnitId) {
+        
+        // Convert from purchase unit to consumption unit
+        // Example: 10 TL/kg → 0.01 TL/gram
+        // conversionFactor = purchaseUnit.conversionFactor / consumptionUnit.conversionFactor
+        // purchaseUnit (kg) = 1, consumptionUnit (gram) = 0.001
+        // conversionFactor = 1 / 0.001 = 1000
+        // newCostInConsumptionUnit = 10 / 1000 = 0.01 TL/gram
+        const conversionFactor = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
+        newCostInConsumptionUnit = newCostInPurchaseUnit / conversionFactor;
+        
+        console.log(`Material ${material.name}: ${newCostInPurchaseUnit} TL/${material.purchaseUnit.abbreviation} → ${newCostInConsumptionUnit} TL/${material.consumptionUnit.abbreviation}`);
+      }
 
-      // Update the material with the new average cost based on last purchase price
-      if (newCost !== oldCost && newCost > 0) {
+      // Update the material with the new average cost in consumption unit
+      if (newCostInConsumptionUnit !== oldCost && newCostInConsumptionUnit > 0) {
         await prisma.material.update({
           where: { id: material.id },
-          data: { averageCost: newCost }
+          data: { averageCost: newCostInConsumptionUnit }
         });
       }
 
@@ -36,9 +52,13 @@ export async function POST(request: NextRequest) {
         materialName: material.name,
         materialCode: material.code,
         oldCost: oldCost,
-        newCost: newCost,
+        newCost: newCostInConsumptionUnit,
+        purchaseUnitCost: newCostInPurchaseUnit,
+        consumptionUnitCost: newCostInConsumptionUnit,
+        purchaseUnit: material.purchaseUnit?.abbreviation,
+        consumptionUnit: material.consumptionUnit?.abbreviation,
         source: 'lastPurchasePrice',
-        updated: newCost !== oldCost && newCost > 0
+        updated: newCostInConsumptionUnit !== oldCost && newCostInConsumptionUnit > 0
       });
     }
 

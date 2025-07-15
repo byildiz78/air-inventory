@@ -63,9 +63,58 @@ export default function RecipesPage() {
         unitsRes.json(),
       ]);
 
-      setRecipes(recipesData.data || []);
-      setMaterials(materialsData.data || []);
-      setUnits(unitsData.data || []);
+      const materials = materialsData.data || [];
+      const units = unitsData.data || [];
+      const recipes = recipesData.data || [];
+      
+      // Reçetelerin maliyetlerini dönüşüm katsayısını hesaba katarak güncelle
+      const updatedRecipes = recipes.map((recipe: RecipeWithRelations) => {
+        // Her bir reçete için maliyeti yeniden hesapla
+        const totalCost = recipe.ingredients.reduce((total: number, ingredient: any) => {
+          const material = materials.find((m: any) => m.id === ingredient.materialId);
+          if (material && material.averageCost && ingredient.quantity > 0) {
+            // Satın alma birimi ile tüketim birimi arasındaki dönüşümü hesapla
+            const purchaseUnit = units.find((u: any) => u.id === material.purchaseUnitId);
+            const consumptionUnit = units.find((u: any) => u.id === material.consumptionUnitId);
+            
+            if (purchaseUnit && consumptionUnit) {
+              let conversionRate = 1;
+              
+              // Aynı birim tipi ve aynı temel birime sahiplerse (kg ve g gibi)
+              if (purchaseUnit.type === consumptionUnit.type) {
+                // Her iki birim de kendi temel birimine göre dönüşüm faktörüne sahip
+                conversionRate = purchaseUnit.conversionFactor / consumptionUnit.conversionFactor;
+              }
+              
+              // Satın alma birimindeki maliyeti tüketim birimine dönüştür
+              const costInConsumptionUnit = material.averageCost / conversionRate;
+              return total + (costInConsumptionUnit * ingredient.quantity);
+            }
+            
+            // Birim bilgisi eksikse, dönüşüm yapmadan devam et
+            return total + (material.averageCost * ingredient.quantity);
+          }
+          return total;
+        }, 0);
+        
+        // Porsiyon başı maliyet (porsiyon sayısı her zaman 1)
+        const costPerServing = totalCost;
+        
+        // Önerilen fiyat ve kar marjını güncelle
+        const suggestedPrice = costPerServing * 1.4; // %40 kar marjı
+        const profitMargin = ((suggestedPrice - costPerServing) / costPerServing) * 100;
+        
+        return {
+          ...recipe,
+          costPerServing,
+          suggestedPrice,
+          profitMargin
+        };
+      });
+      
+      setRecipes(updatedRecipes);
+      setMaterials(materials);
+      setUnits(units);
     } catch (error) {
       console.error('Recipe data loading error:', error);
     } finally {
@@ -104,6 +153,26 @@ export default function RecipesPage() {
     return recipeForm.ingredients.reduce((total, ingredient) => {
       const material = getMaterialById(ingredient.materialId);
       if (material && material.averageCost && ingredient.quantity > 0) {
+        // Satın alma birimi ile tüketim birimi arasındaki dönüşümü hesapla
+        const purchaseUnit = units.find(u => u.id === material.purchaseUnitId);
+        const consumptionUnit = units.find(u => u.id === material.consumptionUnitId);
+        
+        if (purchaseUnit && consumptionUnit) {
+          let conversionRate = 1;
+          
+          // Aynı birim tipi ve aynı temel birime sahiplerse (kg ve g gibi)
+          if (purchaseUnit.type === consumptionUnit.type) {
+            // Her iki birim de kendi temel birimine göre dönüşüm faktörüne sahip
+            // Örneğin: 1 kg = 1000 g ise, kg için conversionFactor=1000, g için conversionFactor=1
+            conversionRate = purchaseUnit.conversionFactor / consumptionUnit.conversionFactor;
+          }
+          
+          // Satın alma birimindeki maliyeti tüketim birimine dönüştür
+          const costInConsumptionUnit = material.averageCost / conversionRate;
+          return total + (costInConsumptionUnit * ingredient.quantity);
+        }
+        
+        // Birim bilgisi eksikse, dönüşüm yapmadan devam et
         return total + (material.averageCost * ingredient.quantity);
       }
       return total;

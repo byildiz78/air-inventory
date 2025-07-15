@@ -152,7 +152,8 @@ export default function RecipesPage() {
     try {
       const recipeData = {
         ...recipeForm,
-        suggestedPrice: (calculateFormCost() / recipeForm.servingSize) * 1.4,
+        servingSize: 1, // Always set serving size to 1
+        suggestedPrice: calculateFormCost() * 1.4,
         profitMargin: 40
       };
 

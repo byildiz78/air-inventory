@@ -32,21 +32,31 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { 
-  recipeService, 
-  materialService 
-} from '@/lib/data-service';
-import { 
-  MockRecipe, 
-  MockRecipeIngredient, 
-  MockMaterial 
-} from '@/lib/mock-data';
+// Remove mock imports - using real API
+
+interface RecipeReportData {
+  id: string;
+  name: string;
+  category: string;
+  servingSize: number;
+  totalCost: number;
+  costPerServing: number;
+  suggestedPrice: number;
+  profitMargin: number;
+  ingredients: Array<{
+    id: string;
+    materialId: string;
+    materialName: string;
+    quantity: number;
+    unitName: string;
+    cost: number;
+  }>;
+}
 
 export default function RecipeReportsPage() {
-  const [recipes, setRecipes] = useState<MockRecipe[]>([]);
-  const [recipeIngredients, setRecipeIngredients] = useState<MockRecipeIngredient[]>([]);
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
+  const [recipes, setRecipes] = useState<RecipeReportData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -60,24 +70,45 @@ export default function RecipeReportsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [recipesData, materialsData] = await Promise.all([
-        recipeService.getAll(),
-        materialService.getAll(),
-      ]);
-
-      setRecipes(recipesData);
-      setMaterials(materialsData);
-
-      // Load recipe ingredients for all recipes
-      const allIngredients: MockRecipeIngredient[] = [];
-      for (const recipe of recipesData) {
-        const ingredients = await recipeService.getIngredients(recipe.id);
-        allIngredients.push(...ingredients);
+      setError(null);
+      
+      const response = await fetch('/api/recipes?includeIngredients=true');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      setRecipeIngredients(allIngredients);
-
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Transform data to match our interface
+        const transformedRecipes: RecipeReportData[] = data.data.map((recipe: any) => ({
+          id: recipe.id,
+          name: recipe.name,
+          category: recipe.category || 'Diğer',
+          servingSize: recipe.servingSize || 1,
+          totalCost: recipe.totalCost || 0,
+          costPerServing: recipe.costPerServing || 0,
+          suggestedPrice: recipe.suggestedPrice || 0,
+          profitMargin: recipe.profitMargin || 0,
+          ingredients: recipe.ingredients?.map((ing: any) => ({
+            id: ing.id,
+            materialId: ing.materialId,
+            materialName: ing.material?.name || 'Bilinmeyen',
+            quantity: ing.quantity || 0,
+            unitName: ing.unit?.name || 'Bilinmeyen',
+            cost: ing.cost || 0
+          })) || []
+        }));
+        
+        setRecipes(transformedRecipes);
+      } else {
+        throw new Error(data.error || 'Failed to load recipe data');
+      }
+      
     } catch (error) {
       console.error('Recipe report data loading error:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
@@ -100,12 +131,6 @@ export default function RecipeReportsPage() {
     return matchesSearch && matchesCategory && matchesProfitability;
   });
 
-  const getRecipeIngredients = (recipeId: string) => 
-    recipeIngredients.filter(ing => ing.recipeId === recipeId);
-
-  const getMaterialById = (id: string) => 
-    materials.find(m => m.id === id);
-
   // Get unique categories
   const categories = [...new Set(recipes.map(r => r.category).filter(Boolean))];
 
@@ -118,21 +143,20 @@ export default function RecipeReportsPage() {
   ];
 
   // Calculate most used ingredients
-  const ingredientUsage = recipeIngredients.reduce((acc, ingredient) => {
-    const material = getMaterialById(ingredient.materialId);
-    if (!material) return acc;
-    
-    if (!acc[ingredient.materialId]) {
-      acc[ingredient.materialId] = {
-        id: ingredient.materialId,
-        name: material.name,
-        count: 0,
-        totalQuantity: 0
-      };
-    }
-    
-    acc[ingredient.materialId].count += 1;
-    acc[ingredient.materialId].totalQuantity += ingredient.quantity;
+  const ingredientUsage = recipes.reduce((acc, recipe) => {
+    recipe.ingredients.forEach(ingredient => {
+      if (!acc[ingredient.materialId]) {
+        acc[ingredient.materialId] = {
+          id: ingredient.materialId,
+          name: ingredient.materialName,
+          count: 0,
+          totalQuantity: 0
+        };
+      }
+      
+      acc[ingredient.materialId].count += 1;
+      acc[ingredient.materialId].totalQuantity += ingredient.quantity;
+    });
     
     return acc;
   }, {} as Record<string, { id: string, name: string, count: number, totalQuantity: number }>);
@@ -145,6 +169,41 @@ export default function RecipeReportsPage() {
       count: item.count,
       quantity: item.totalQuantity
     }));
+
+  // Export to Excel function
+  const exportToExcel = () => {
+    const exportData = filteredRecipes.map(recipe => ({
+      'Reçete Adı': recipe.name,
+      'Kategori': recipe.category || 'Diğer',
+      'Porsiyon Sayısı': recipe.servingSize,
+      'Toplam Maliyet (₺)': recipe.totalCost.toFixed(2),
+      'Porsiyon Maliyeti (₺)': recipe.costPerServing.toFixed(2),
+      'Önerilen Fiyat (₺)': recipe.suggestedPrice ? recipe.suggestedPrice.toFixed(2) : '-',
+      'Kâr Marjı (%)': (recipe.profitMargin || 0).toFixed(1),
+      'Malzeme Sayısı': recipe.ingredients.length,
+      'Malzemeler': recipe.ingredients.map(ing => `${ing.materialName} (${ing.quantity} ${ing.unitName})`).join(', ')
+    }));
+
+    // Create CSV content
+    const headers = Object.keys(exportData[0] || {});
+    const csvContent = [
+      headers.join(','),
+      ...exportData.map(row => 
+        headers.map(header => `"${row[header]}"`).join(',')
+      )
+    ].join('\n');
+
+    // Download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `recete_raporu_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Calculate average cost by category
   const costByCategory = categories.map(category => {
@@ -174,6 +233,21 @@ export default function RecipeReportsPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">
+            <p className="text-lg font-medium">Hata: {error}</p>
+          </div>
+          <Button onClick={loadData} variant="outline">
+            Yeniden Dene
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -193,7 +267,7 @@ export default function RecipeReportsPage() {
             </div>
           </div>
           
-          <Button variant="outline">
+          <Button variant="outline" onClick={exportToExcel}>
             <Download className="w-4 h-4 mr-2" />
             Excel'e Aktar
           </Button>
@@ -483,8 +557,6 @@ export default function RecipeReportsPage() {
                 </thead>
                 <tbody>
                   {filteredRecipes.map((recipe) => {
-                    const ingredients = getRecipeIngredients(recipe.id);
-                    
                     return (
                       <tr key={recipe.id} className="border-b hover:bg-gray-50">
                         <td className="p-2">
@@ -509,7 +581,7 @@ export default function RecipeReportsPage() {
                             %{(recipe.profitMargin || 0).toFixed(1)}
                           </span>
                         </td>
-                        <td className="p-2 text-center">{ingredients.length}</td>
+                        <td className="p-2 text-center">{recipe.ingredients.length}</td>
                       </tr>
                     );
                   })}

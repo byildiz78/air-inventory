@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const category = searchParams.get('category');
     const search = searchParams.get('search');
+    const includeIngredients = searchParams.get('includeIngredients') === 'true';
 
     let recipes;
 
@@ -16,6 +17,20 @@ export async function GET(request: NextRequest) {
       recipes = await recipeService.getByCategory(category);
     } else {
       recipes = await recipeService.getAll();
+    }
+
+    // If includeIngredients is true, fetch ingredients for each recipe
+    if (includeIngredients) {
+      const recipesWithIngredients = await Promise.all(
+        recipes.map(async (recipe: any) => {
+          const ingredients = await recipeService.getIngredients(recipe.id);
+          return {
+            ...recipe,
+            ingredients
+          };
+        })
+      );
+      recipes = recipesWithIngredients;
     }
 
     return NextResponse.json({
