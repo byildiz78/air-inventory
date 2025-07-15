@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -39,6 +40,10 @@ async function main() {
 
   // 1. Create Users
   console.log('👥 Creating users...');
+  
+  // Hash password for all users
+  const hashedPassword = await bcrypt.hash('password123', 10);
+  
   const users = await prisma.user.createMany({
     data: [
       {
@@ -46,7 +51,7 @@ async function main() {
         email: 'admin@restaurant.com',
         name: 'Admin User',
         role: 'ADMIN',
-        password: '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj3TgNUJCiCe', // hashed "password"
+        password: hashedPassword,
         isSuperAdmin: true,
         isActive: true,
         createdAt: new Date('2024-01-01'),
@@ -57,7 +62,7 @@ async function main() {
         email: 'manager@restaurant.com',
         name: 'Restaurant Manager',
         role: 'MANAGER',
-        password: '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj3TgNUJCiCe', // hashed "password"
+        password: hashedPassword,
         isSuperAdmin: false,
         isActive: true,
         createdAt: new Date('2024-01-02'),
@@ -68,7 +73,7 @@ async function main() {
         email: 'staff@restaurant.com',
         name: 'Kitchen Staff',
         role: 'STAFF',
-        password: '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj3TgNUJCiCe', // hashed "password"
+        password: hashedPassword,
         isSuperAdmin: false,
         isActive: true,
         createdAt: new Date('2024-01-03'),
@@ -728,6 +733,7 @@ async function main() {
         materialId: '1',
         unitId: '2', // gram
         userId: '1',
+        warehouseId: '2', // Soğuk Hava
         type: 'IN',
         quantity: 10000, // 10 kg
         reason: 'Alış Faturası #001 - Tedarikçi girişi',
@@ -743,6 +749,7 @@ async function main() {
         materialId: '1',
         unitId: '2', // gram
         userId: '2',
+        warehouseId: '5', // Mutfak
         type: 'OUT',
         quantity: -2000, // -2 kg
         reason: 'Kuşbaşılı Pilav Üretimi',
@@ -756,6 +763,7 @@ async function main() {
         materialId: '1',
         unitId: '2', // gram
         userId: '2',
+        warehouseId: '5', // Mutfak
         type: 'OUT',
         quantity: -1500, // -1.5 kg
         reason: 'Tavuklu Salata Üretimi',
@@ -772,6 +780,7 @@ async function main() {
         materialId: '2',
         unitId: '2', // gram
         userId: '1',
+        warehouseId: '2', // Soğuk Hava
         type: 'IN',
         quantity: 5000, // 5 kg
         reason: 'Alış Faturası #002 - Tavuk tedarikçisi',
@@ -788,6 +797,7 @@ async function main() {
         materialId: '2',
         unitId: '2', // gram
         userId: '3',
+        warehouseId: '2', // Soğuk Hava
         type: 'WASTE',
         quantity: -800, // -0.8 kg
         reason: 'Son kullanma tarihi geçti',
@@ -804,6 +814,7 @@ async function main() {
         materialId: '3',
         unitId: '2', // gram
         userId: '3',
+        warehouseId: '1', // Ana Depo
         type: 'WASTE',
         quantity: -1200, // -1.2 kg
         reason: 'Bozulma nedeniyle fire',
@@ -818,6 +829,7 @@ async function main() {
         materialId: '3',
         unitId: '2', // gram
         userId: '1',
+        warehouseId: '1', // Ana Depo
         type: 'IN',
         quantity: 5000, // 5 kg
         reason: 'Alış Faturası #003 - Sebze tedarikçisi',
@@ -836,6 +848,7 @@ async function main() {
         materialId: '4',
         unitId: '2', // gram
         userId: '1',
+        warehouseId: '1', // Ana Depo
         type: 'ADJUSTMENT',
         quantity: 500, // +0.5 kg
         reason: 'Sayım düzeltmesi - eksik sayılmış',
@@ -850,6 +863,7 @@ async function main() {
         materialId: '4',
         unitId: '2', // gram
         userId: '2',
+        warehouseId: '5', // Mutfak
         type: 'OUT',
         quantity: -1000, // -1 kg
         reason: 'Sebze kavurma üretimi',
@@ -866,6 +880,7 @@ async function main() {
         materialId: '5',
         unitId: '3', // litre
         userId: '1',
+        warehouseId: '1', // Ana Depo
         type: 'IN',
         quantity: 10, // 10 litre
         reason: 'Alış Faturası #004 - Zeytinyağı tedarikçisi',
@@ -882,6 +897,7 @@ async function main() {
         materialId: '5',
         unitId: '3', // litre
         userId: '2',
+        warehouseId: '5', // Mutfak
         type: 'OUT',
         quantity: -2.5, // -2.5 litre
         reason: 'Salata sosları için kullanım',
@@ -898,6 +914,7 @@ async function main() {
         materialId: '5',
         unitId: '3', // litre
         userId: '1',
+        warehouseId: '1', // Ana Depo
         type: 'ADJUSTMENT',
         quantity: 1, // 1 litre
         reason: 'Sayım düzeltmesi - eksik sayılmış',
@@ -912,6 +929,7 @@ async function main() {
         materialId: '5',
         unitId: '3', // litre
         userId: '2',
+        warehouseId: '5', // Mutfak
         type: 'OUT',
         quantity: -1.5, // -1.5 litre
         reason: 'Salata sosları için kullanım',
@@ -928,6 +946,7 @@ async function main() {
         materialId: '1',
         unitId: '2', // gram
         userId: '1',
+        warehouseId: '2', // Soğuk Hava
         type: 'IN',
         quantity: 8000, // 8 kg
         reason: 'Alış Faturası #005 - Et tedarikçisi',
@@ -944,6 +963,7 @@ async function main() {
         materialId: '2',
         unitId: '2', // gram
         userId: '1',
+        warehouseId: '2', // Soğuk Hava
         type: 'IN',
         quantity: 6000, // 6 kg
         reason: 'Alış Faturası #006 - Tavuk tedarikçisi',

@@ -99,12 +99,10 @@ export async function PUT(
     const salesItem = await prisma.salesItem.findUnique({
       where: { id: body.salesItemId },
       include: {
-        mappings: {
-          where: { isActive: true },
+        recipeMapping: {
           include: {
             recipe: true
-          },
-          orderBy: { priority: 'asc' }
+          }
         }
       }
     });
@@ -119,8 +117,8 @@ export async function PUT(
       );
     }
 
-    // Calculate total price
-    const totalPrice = body.quantity * body.unitPrice;
+    // Calculate total amount
+    const totalAmount = body.quantity * body.unitPrice;
 
     // Get recipe ID if available
     let recipeId = null;
@@ -128,17 +126,15 @@ export async function PUT(
     let grossProfit = 0;
     let profitMargin = 0;
 
-    // Use the first active mapping if available
-    if (salesItem.mappings && salesItem.mappings.length > 0) {
-      const activeMapping = salesItem.mappings[0];
-      recipeId = activeMapping.recipeId;
+    if (salesItem.recipeMapping && salesItem.recipeMapping.recipeId) {
+      recipeId = salesItem.recipeMapping.recipeId;
       
       // Calculate cost and profit if recipe exists
-      const recipe = activeMapping.recipe;
+      const recipe = salesItem.recipeMapping.recipe;
       if (recipe && recipe.totalCost) {
         totalCost = recipe.totalCost * body.quantity;
-        grossProfit = totalPrice - totalCost;
-        profitMargin = totalPrice > 0 ? (grossProfit / totalPrice) * 100 : 0;
+        grossProfit = totalAmount - totalCost;
+        profitMargin = totalAmount > 0 ? (grossProfit / totalAmount) * 100 : 0;
       }
     }
 
@@ -151,7 +147,7 @@ export async function PUT(
         salesItemId: body.salesItemId,
         quantity: body.quantity,
         unitPrice: body.unitPrice,
-        totalPrice,
+        totalAmount,
         customerName: body.customerName || null,
         notes: body.notes || null,
         userId: body.userId,
@@ -178,13 +174,13 @@ export async function PUT(
           itemName: existingSale.itemName,
           quantity: existingSale.quantity,
           unitPrice: existingSale.unitPrice,
-          totalPrice: existingSale.totalPrice
+          totalAmount: existingSale.totalAmount
         },
         after: {
           itemName: updatedSale.itemName,
           quantity: updatedSale.quantity,
           unitPrice: updatedSale.unitPrice,
-          totalPrice: updatedSale.totalPrice
+          totalAmount: updatedSale.totalAmount
         }
       },
       request
@@ -192,10 +188,11 @@ export async function PUT(
 
     // Update stock movements if recipe changed or quantity changed
     if (recipeId && (recipeId !== existingSale.recipeId || body.quantity !== existingSale.quantity)) {
-      // Delete existing stock movements related to this sale
+      // Delete existing stock movements
       await prisma.stockMovement.deleteMany({
         where: {
-          reason: { contains: `Satış ID: ${id}` }
+          referenceId: id,
+          referenceType: 'SALE'
         }
       });
 
@@ -210,24 +207,19 @@ export async function PUT(
 
       // Create new stock movements for each ingredient
       for (const ingredient of recipeIngredients) {
-        if (ingredient.material) {
-          const warehouseId = ingredient.material.defaultWarehouseId;
-          
-          // Skip if no default warehouse is set
-          if (!warehouseId) continue;
-          
+        if (ingredient.material && ingredient.material.trackInventory) {
           await prisma.stockMovement.create({
             data: {
               date: new Date(body.date),
               materialId: ingredient.materialId,
               quantity: -(ingredient.quantity * body.quantity), // Negative for consumption
               unitId: ingredient.unitId,
-              warehouseId: warehouseId,
-              type: 'OUT',
-              reason: `Satış: ${salesItem.name} (ID: ${id}) (Güncelleme)`,
-              userId: body.userId,
-              stockBefore: 0, // These will be calculated separately
-              stockAfter: 0
+              warehouseId: ingredient.material.defaultWarehouseId || null,
+              type: 'SALE',
+              referenceId: id,
+              referenceType: 'SALE',
+              notes: `Satış: ${salesItem.name} (Güncelleme)`,
+              userId: body.userId
             }
           });
         }
@@ -275,7 +267,8 @@ export async function DELETE(
     // Delete related stock movements
     await prisma.stockMovement.deleteMany({
       where: {
-        reason: { contains: `Satış ID: ${id}` }
+        referenceId: id,
+        referenceType: 'SALE'
       }
     });
 
@@ -294,7 +287,7 @@ export async function DELETE(
         itemName: existingSale.itemName,
         quantity: existingSale.quantity,
         unitPrice: existingSale.unitPrice,
-        totalPrice: existingSale.totalPrice
+        totalAmount: existingSale.totalAmount
       },
       request
     );

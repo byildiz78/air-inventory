@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       return {
         materialId: material.id,
         materialName: material.name,
-        // materialCode removed as it doesn't exist in the Material model
+        materialCode: material.code,
         systemStock: systemStock,
         totalStock: totalWarehouseStock,
         difference: difference,
@@ -166,8 +166,8 @@ export async function POST(request: NextRequest) {
         materialId,
         {
           before: { currentStock: material.currentStock },
-          after: { currentStock: totalWarehouseStock }
-          // Removed operation property as it's not in the expected type
+          after: { currentStock: totalWarehouseStock },
+          operation: 'fix_stock_consistency'
         },
         request
       );

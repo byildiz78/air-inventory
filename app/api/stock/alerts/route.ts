@@ -48,13 +48,13 @@ export async function GET(request: NextRequest) {
         alerts.push({
           materialId: material.id,
           materialName: material.name,
-          // materialCode removed as it doesn't exist in the Material model
+          materialCode: material.code,
           currentStock: totalStock,
           minStockLevel: minStockLevel,
           difference: totalStock - minStockLevel,
           urgency: urgency,
           alertType: alertType,
-          unit: material.consumptionUnitId, // Using the unit ID instead of the unit object
+          unit: material.consumptionUnit || 'Adet',
           warehouses: material.materialStocks.map(stock => ({
             warehouseId: stock.warehouseId,
             warehouseName: stock.warehouse.name,

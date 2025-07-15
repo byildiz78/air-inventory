@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       results.push({
         materialId: material.id,
         materialName: material.name,
-        // materialCode removed as it doesn't exist in the Material model
+        materialCode: material.code,
         oldCost: oldCost,
         newCost: newCost,
         movementCount: material.stockMovements.length,

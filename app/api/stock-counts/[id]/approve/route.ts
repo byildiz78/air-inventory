@@ -83,15 +83,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           });
           adjustments.push(adjustment);
 
-          // 3. Get material information and update material stock
-          const material = await prisma.material.findUnique({
-            where: { id: item.materialId }
-          });
-          
-          if (!material) {
-            throw new Error(`Material with ID ${item.materialId} not found`);
-          }
-          
+          // 3. Update material stock
           const materialStock = await prisma.materialStock.findFirst({
             where: {
               materialId: item.materialId,
@@ -104,8 +96,7 @@ export async function POST(request: NextRequest, { params }: Params) {
             await prisma.materialStock.update({
               where: { id: materialStock.id },
               data: {
-                currentStock: item.countedStock,
-                lastUpdated: new Date(),
+                quantity: item.countedStock,
                 updatedAt: new Date()
               }
             });
@@ -115,8 +106,7 @@ export async function POST(request: NextRequest, { params }: Params) {
               data: {
                 materialId: item.materialId,
                 warehouseId: stockCount.warehouseId,
-                currentStock: item.countedStock,
-                lastUpdated: new Date()
+                quantity: item.countedStock
               }
             });
           }
@@ -126,14 +116,11 @@ export async function POST(request: NextRequest, { params }: Params) {
             data: {
               materialId: item.materialId,
               warehouseId: stockCount.warehouseId,
-              type: 'ADJUSTMENT',
+              movementType: adjustmentType === 'INCREASE' ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT',
               quantity,
-              reason: `Stok sayımı: ${stockCount.countNumber}`,
+              reference: `Stok sayımı: ${stockCount.countNumber}`,
               userId: body.approvedBy,
-              date: new Date(),
-              unitId: material.consumptionUnitId, // Using the fetched material's unit ID
-              stockBefore: item.systemStock,
-              stockAfter: item.countedStock
+              date: new Date()
             }
           });
         }
