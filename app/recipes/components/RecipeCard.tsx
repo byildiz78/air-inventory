@@ -11,7 +11,7 @@ interface RecipeCardProps {
   onEdit: (recipe: RecipeWithRelations) => void;
   onCopy: (recipe: RecipeWithRelations) => void;
   onDelete?: (recipe: RecipeWithRelations) => void;
-  getProfitabilityBadge: (profitMargin?: number) => { 
+  getProfitabilityBadge: (profitMargin?: number | null) => { 
     variant: 'default' | 'secondary' | 'destructive' | 'outline';
     text: string;
     color: string;

@@ -100,7 +100,6 @@ export async function GET(request: NextRequest) {
       return {
         materialId: material.id,
         materialName: material.name,
-        materialCode: material.code,
         systemStock: material.currentStock || 0,
         materialStockTotal: materialStockTotal,
         actualStock: actualTotalStock,
@@ -261,9 +260,11 @@ export async function POST(request: NextRequest) {
         'stock_operation',
         materialId,
         {
-          before: { currentStock: material.currentStock },
-          after: { currentStock: actualTotalStock },
-          operation: 'fix_stock_consistency_based_on_movements'
+          before: { 
+            currentStock: material.currentStock,
+            operation: 'fix_stock_consistency_based_on_movements'
+          },
+          after: { currentStock: actualTotalStock }
         },
         request
       );

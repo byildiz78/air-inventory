@@ -18,18 +18,13 @@ import {
   recipeService, 
   materialService 
 } from '@/lib/data-service';
-import { 
-  MockRecipe, 
-  MockRecipeIngredient, 
-  MockMaterial 
-} from '@/lib/mock-data';
 import { CostAnalysis } from '@/components/recipes/CostAnalysis';
 
 export default function CostAnalysisPage() {
-  const [recipes, setRecipes] = useState<MockRecipe[]>([]);
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
-  const [recipeIngredients, setRecipeIngredients] = useState<MockRecipeIngredient[]>([]);
-  const [selectedRecipe, setSelectedRecipe] = useState<MockRecipe | null>(null);
+  const [recipes, setRecipes] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [recipeIngredients, setRecipeIngredients] = useState<any[]>([]);
+  const [selectedRecipe, setSelectedRecipe] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -49,7 +44,7 @@ export default function CostAnalysisPage() {
       setMaterials(materialsData);
 
       // Load recipe ingredients for all recipes
-      const allIngredients: MockRecipeIngredient[] = [];
+      const allIngredients: any[] = [];
       for (const recipe of recipesData) {
         const ingredients = await recipeService.getIngredients(recipe.id);
         allIngredients.push(...ingredients);

@@ -23,20 +23,16 @@ import {
 import { 
   materialService 
 } from '@/lib/data-service';
-import { 
-  MockSupplier, 
-  MockMaterial 
-} from '@/lib/mock-data';
 
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<MockSupplier[]>([]);
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
   // Modal states
   const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<MockSupplier | null>(null);
+  const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -157,7 +153,7 @@ export default function SuppliersPage() {
     }
   };
 
-  const openEditDialog = (supplier: MockSupplier) => {
+  const openEditDialog = (supplier: any) => {
     setEditingSupplier(supplier);
     setFormData({
       name: supplier.name,

@@ -6,7 +6,8 @@
       "Bash(npx prisma generate:*)",
       "Bash(mkdir:*)",
       "Bash(npm install:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

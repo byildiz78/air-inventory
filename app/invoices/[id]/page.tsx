@@ -327,9 +327,6 @@ export default function InvoiceDetailPage() {
                   {invoice.supplierInfo?.taxNumber && (
                     <div>Vergi No: {invoice.supplierInfo.taxNumber}</div>
                   )}
-                  {invoice.supplierInfo?.address && (
-                    <div>Adres: {invoice.supplierInfo.address}</div>
-                  )}
                 </div>
               </CardContent>
             </Card>

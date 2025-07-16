@@ -93,7 +93,7 @@ export default function RecipesPage() {
   const getMaterialById = (id: string) => materials.find(m => m.id === id);
   const getUnitById = (id: string) => units.find(u => u.id === id);
 
-  const getProfitabilityBadge = (profitMargin?: number) => {
+  const getProfitabilityBadge = (profitMargin?: number | null) => {
     if (!profitMargin) return { variant: 'outline' as const, text: 'Bilinmiyor', color: 'text-gray-500' };
     if (profitMargin >= 40) return { variant: 'default' as const, text: 'Yüksek', color: 'text-green-600' };
     if (profitMargin >= 20) return { variant: 'secondary' as const, text: 'Orta', color: 'text-yellow-600' };
@@ -110,7 +110,7 @@ export default function RecipesPage() {
     }, 0);
   };
 
-  const categories = [...new Set(recipes.map(r => r.category).filter(Boolean))];
+  const categories = [...new Set(recipes.map(r => r.category).filter(Boolean))] as string[];
 
   const openEditModal = (recipe: RecipeWithRelations) => {
     setSelectedRecipe(recipe);
@@ -118,8 +118,8 @@ export default function RecipesPage() {
       name: recipe.name,
       description: recipe.description || '',
       category: recipe.category || '',
-      servingSize: recipe.servingSize,
-      preparationTime: recipe.preparationTime,
+      servingSize: recipe.servingSize || 0,
+      preparationTime: recipe.preparationTime || 0,
       ingredients: recipe.ingredients?.map(ing => ({
         materialId: ing.materialId,
         unitId: ing.unitId,
@@ -193,8 +193,8 @@ export default function RecipesPage() {
       name: `${recipe.name} - Kopya`,
       description: recipe.description || '',
       category: recipe.category || '',
-      servingSize: recipe.servingSize,
-      preparationTime: recipe.preparationTime,
+      servingSize: recipe.servingSize || 0,
+      preparationTime: recipe.preparationTime || 0,
       ingredients: recipe.ingredients?.map(ing => ({
         materialId: ing.materialId,
         unitId: ing.unitId,

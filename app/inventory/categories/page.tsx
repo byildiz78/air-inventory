@@ -19,19 +19,15 @@ import {
 import { 
   materialService 
 } from '@/lib/data-service';
-import { 
-  MockCategory, 
-  MockMaterial 
-} from '@/lib/mock-data';
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<MockCategory[]>([]);
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Modal states
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<MockCategory | null>(null);
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -55,12 +51,12 @@ export default function CategoriesPage() {
       ]);
 
       if (categoriesResponse.ok) {
-        const categoriesResult = await categoriesResponse.json();
+        const categoriesResult = 'json' in categoriesResponse ? await categoriesResponse.json() : categoriesResponse;
         setCategories(categoriesResult.data || []);
       }
 
       if (materialsResponse.ok) {
-        const materialsResult = await materialsResponse.json();
+        const materialsResult = 'json' in materialsResponse ? await materialsResponse.json() : materialsResponse;
         setMaterials(materialsResult.data || []);
       } else {
         // Fallback to mock data for materials if API not ready
@@ -152,7 +148,7 @@ export default function CategoriesPage() {
     }
   };
 
-  const openEditDialog = (category: MockCategory) => {
+  const openEditDialog = (category: any) => {
     setEditingCategory(category);
     setFormData({
       name: category.name,

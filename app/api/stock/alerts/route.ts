@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
               }
             }
           }
-        }
+        },
+        consumptionUnit: true
       }
     });
 
@@ -48,13 +49,12 @@ export async function GET(request: NextRequest) {
         alerts.push({
           materialId: material.id,
           materialName: material.name,
-          materialCode: material.code,
           currentStock: totalStock,
           minStockLevel: minStockLevel,
           difference: totalStock - minStockLevel,
           urgency: urgency,
           alertType: alertType,
-          unit: material.consumptionUnit || 'Adet',
+          unit: material.consumptionUnit?.abbreviation || 'Adet',
           warehouses: material.materialStocks.map(stock => ({
             warehouseId: stock.warehouseId,
             warehouseName: stock.warehouse.name,

@@ -28,10 +28,6 @@ import {
   Percent
 } from 'lucide-react';
 import Link from 'next/link';
-import { 
-  mockWarehouses,
-  MockWarehouse
-} from '@/lib/mock-data';
 
 interface InvoiceItem {
   id: string;
@@ -101,7 +97,7 @@ export default function EditInvoicePage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [taxes, setTaxes] = useState<Tax[]>([]);
-  const [warehouses, setWarehouses] = useState<MockWarehouse[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form state - will be loaded from API
@@ -121,19 +117,21 @@ export default function EditInvoicePage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [materialsRes, suppliersRes, unitsRes, taxesRes, invoiceRes] = await Promise.all([
+      const [materialsRes, suppliersRes, unitsRes, taxesRes, warehousesRes, invoiceRes] = await Promise.all([
         fetch('/api/materials'),
         fetch('/api/suppliers'),
         fetch('/api/units'),
         fetch('/api/taxes?activeOnly=true'),
+        fetch('/api/warehouses'),
         fetch(`/api/invoices/${invoiceId}`)
       ]);
 
-      const [materialsData, suppliersData, unitsData, taxesData, invoiceData] = await Promise.all([
+      const [materialsData, suppliersData, unitsData, taxesData, warehousesData, invoiceData] = await Promise.all([
         materialsRes.json(),
         suppliersRes.json(),
         unitsRes.json(),
         taxesRes.json(),
+        warehousesRes.json(),
         invoiceRes.json()
       ]);
 
@@ -141,7 +139,7 @@ export default function EditInvoicePage() {
       setSuppliers(suppliersData.data || []);
       setUnits(unitsData.data || []);
       setTaxes(taxesData.data || []);
-      setWarehouses(mockWarehouses);
+      setWarehouses(warehousesData.data || []);
       
       if (invoiceData.success) {
         setInvoiceForm(invoiceData.data);

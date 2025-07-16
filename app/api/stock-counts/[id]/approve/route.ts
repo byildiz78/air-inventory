@@ -26,7 +26,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     const stockCount = await prisma.stockCount.findUnique({
       where: { id },
       include: {
-        items: true,
+        items: {
+          include: {
+            material: {
+              include: {
+                consumptionUnit: true,
+                purchaseUnit: true
+              }
+            }
+          }
+        },
         warehouse: true
       }
     });
@@ -96,7 +105,7 @@ export async function POST(request: NextRequest, { params }: Params) {
             await prisma.materialStock.update({
               where: { id: materialStock.id },
               data: {
-                quantity: item.countedStock,
+                currentStock: item.countedStock,
                 updatedAt: new Date()
               }
             });
@@ -106,21 +115,28 @@ export async function POST(request: NextRequest, { params }: Params) {
               data: {
                 materialId: item.materialId,
                 warehouseId: stockCount.warehouseId,
-                quantity: item.countedStock
+                currentStock: item.countedStock
               }
             });
           }
 
           // 4. Create stock movement record
+          const currentStock = materialStock?.currentStock || 0;
+          const newStock = item.countedStock;
+          const movementQuantity = adjustmentType === 'INCREASE' ? quantity : -quantity;
+          
           await prisma.stockMovement.create({
             data: {
               materialId: item.materialId,
               warehouseId: stockCount.warehouseId,
-              movementType: adjustmentType === 'INCREASE' ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT',
-              quantity,
-              reference: `Stok sayımı: ${stockCount.countNumber}`,
+              type: 'ADJUSTMENT',
+              quantity: movementQuantity,
+              reason: `Stok sayımı: ${stockCount.countNumber}`,
               userId: body.approvedBy,
-              date: new Date()
+              date: new Date(),
+              stockBefore: currentStock,
+              stockAfter: newStock,
+              unitId: item.material?.consumptionUnitId || item.material?.purchaseUnitId
             }
           });
         }

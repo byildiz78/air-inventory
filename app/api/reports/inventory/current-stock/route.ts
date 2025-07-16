@@ -83,7 +83,7 @@ export async function GET() {
       return {
         id: material.id,
         name: material.name,
-        code: material.code,
+
         categoryId: material.categoryId,
         categoryName: material.category?.name,
         categoryColor: material.category?.color,
@@ -118,7 +118,7 @@ export async function GET() {
       lowStockItems: stockData.filter(item => item.stockStatus === 'low' || item.stockStatus === 'critical').length,
       criticalStockItems: stockData.filter(item => item.stockStatus === 'critical').length,
       normalStockItems: stockData.filter(item => item.stockStatus === 'normal').length,
-      warehouseCount: [...new Set(stockData.flatMap(item => item.warehouseStocks.map(ws => ws.warehouseId)))].length
+      warehouseCount: Array.from(new Set(stockData.flatMap(item => item.warehouseStocks.map(ws => ws.warehouseId)))).length
     };
 
     return NextResponse.json({

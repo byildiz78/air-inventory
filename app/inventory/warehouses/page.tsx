@@ -25,32 +25,26 @@ import {
   TrendingUp,
   XCircle
 } from 'lucide-react';
-import { 
-  mockMaterials,
-  mockUnits,
-  mockUsers,
-  MockWarehouse,
-  MockMaterialStock,
-  MockWarehouseTransfer
-} from '@/lib/mock-data';
 
 export default function WarehousesPage() {
-  const [warehouses, setWarehouses] = useState<MockWarehouse[]>([]);
-  const [materialStocks, setMaterialStocks] = useState<MockMaterialStock[]>([]);
-  const [transfers, setTransfers] = useState<MockWarehouseTransfer[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [materialStocks, setMaterialStocks] = useState<any[]>([]);
+  const [transfers, setTransfers] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Modal states
   const [isAddWarehouseOpen, setIsAddWarehouseOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
-  const [editingWarehouse, setEditingWarehouse] = useState<MockWarehouse | null>(null);
+  const [editingWarehouse, setEditingWarehouse] = useState<any | null>(null);
   
   // Form states
   const [warehouseForm, setWarehouseForm] = useState({
     name: '',
     description: '',
     location: '',
-    type: 'GENERAL' as MockWarehouse['type'],
+    type: 'GENERAL' as any,
     capacity: '',
     minTemperature: '',
     maxTemperature: ''
@@ -83,10 +77,12 @@ export default function WarehousesPage() {
     try {
       setLoading(true);
       
-      // Fetch warehouses from API
-      const [warehousesResponse, transfersResponse] = await Promise.all([
+      // Fetch data from API
+      const [warehousesResponse, transfersResponse, materialsResponse, usersResponse] = await Promise.all([
         fetch('/api/warehouses'),
         fetch('/api/warehouses/transfers'),
+        fetch('/api/materials'),
+        fetch('/api/users'),
       ]);
       
       if (warehousesResponse.ok) {
@@ -97,6 +93,16 @@ export default function WarehousesPage() {
       if (transfersResponse.ok) {
         const transfersResult = await transfersResponse.json();
         setTransfers(transfersResult.data || []);
+      }
+      
+      if (materialsResponse.ok) {
+        const materialsResult = await materialsResponse.json();
+        setMaterials(materialsResult.data || []);
+      }
+      
+      if (usersResponse.ok) {
+        const usersResult = await usersResponse.json();
+        setUsers(usersResult.data || []);
       }
       
       // Material stocks will be included in warehouse data
@@ -191,7 +197,7 @@ export default function WarehousesPage() {
     }
   };
 
-  const getWarehouseTypeText = (type: MockWarehouse['type']) => {
+  const getWarehouseTypeText = (type: any) => {
     switch (type) {
       case 'GENERAL': return 'Genel Depo';
       case 'COLD': return 'Soğuk Hava Deposu';
@@ -202,7 +208,7 @@ export default function WarehousesPage() {
     }
   };
 
-  const getWarehouseTypeColor = (type: MockWarehouse['type']) => {
+  const getWarehouseTypeColor = (type: any) => {
     switch (type) {
       case 'GENERAL': return 'bg-blue-500';
       case 'COLD': return 'bg-cyan-500';
@@ -213,7 +219,7 @@ export default function WarehousesPage() {
     }
   };
 
-  const getTransferStatusBadge = (status: MockWarehouseTransfer['status']) => {
+  const getTransferStatusBadge = (status: any) => {
     switch (status) {
       case 'PENDING': return { variant: 'secondary' as const, text: 'Beklemede', icon: Clock };
       case 'APPROVED': return { variant: 'default' as const, text: 'Onaylandı', icon: CheckCircle };
@@ -233,16 +239,16 @@ export default function WarehousesPage() {
     return stocks.reduce((total, stock) => total + (stock.currentStock * stock.averageCost), 0);
   };
 
-  const getWarehouseUtilization = (warehouse: MockWarehouse) => {
+  const getWarehouseUtilization = (warehouse: any) => {
     if (!warehouse.capacity) return 0;
     const stocks = getWarehouseStocks(warehouse.id);
     const totalStock = stocks.reduce((total, stock) => total + stock.currentStock, 0);
     return (totalStock / (warehouse.capacity * 1000)) * 100; // Convert kg to grams
   };
 
-  const getMaterialById = (id: string) => mockMaterials.find(m => m.id === id);
+  const getMaterialById = (id: string) => materials.find(m => m.id === id);
   const getWarehouseById = (id: string) => warehouses.find(w => w.id === id);
-  const getUserById = (id: string) => mockUsers.find(u => u.id === id);
+  const getUserById = (id: string) => users.find(u => u.id === id);
 
   const handleAddWarehouse = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,7 +350,7 @@ export default function WarehousesPage() {
     }
   };
 
-  const startEditWarehouse = (warehouse: MockWarehouse) => {
+  const startEditWarehouse = (warehouse: any) => {
     setEditingWarehouse(warehouse);
     setWarehouseForm({
       name: warehouse.name,
@@ -541,7 +547,7 @@ export default function WarehousesPage() {
                         <SelectValue placeholder="Malzeme seçin" />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockMaterials.map(material => (
+                        {materials.map(material => (
                           <SelectItem key={material.id} value={material.id}>
                             <div className="flex items-center gap-2">
                               <Package className="w-4 h-4 text-blue-600" />
@@ -685,7 +691,7 @@ export default function WarehousesPage() {
                   
                   <div>
                     <Label>Depo Tipi</Label>
-                    <Select value={warehouseForm.type} onValueChange={(value: MockWarehouse['type']) => setWarehouseForm(prev => ({ ...prev, type: value }))}>
+                    <Select value={warehouseForm.type} onValueChange={(value: any) => setWarehouseForm(prev => ({ ...prev, type: value }))}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -1071,7 +1077,7 @@ export default function WarehousesPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockMaterials.map(material => {
+                  {materials.map(material => {
                     const materialStocksForMaterial = materialStocks.filter(s => s.materialId === material.id);
                     
                     return (

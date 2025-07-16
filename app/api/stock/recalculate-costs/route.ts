@@ -50,7 +50,6 @@ export async function POST(request: NextRequest) {
       results.push({
         materialId: material.id,
         materialName: material.name,
-        materialCode: material.code,
         oldCost: oldCost,
         newCost: newCostInConsumptionUnit,
         purchaseUnitCost: newCostInPurchaseUnit,

@@ -165,7 +165,11 @@ export async function POST(request: NextRequest) {
         }
       },
       include: {
-        material: true
+        material: {
+          include: {
+            consumptionUnit: true
+          }
+        }
       }
     });
 
@@ -183,7 +187,11 @@ export async function POST(request: NextRequest) {
               isCompleted: false
             },
             include: {
-              material: true
+              material: {
+                include: {
+                  consumptionUnit: true
+                }
+              }
             }
           });
           
@@ -193,14 +201,13 @@ export async function POST(request: NextRequest) {
             stockCountId: item.stockCountId,
             materialId: item.materialId,
             materialName: item.material.name,
-            materialCode: item.material.code,
             systemStock: item.systemStock,
             countedStock: item.countedStock,
             difference: item.difference,
             reason: item.reason,
             countedAt: item.countedAt,
             isCompleted: item.isCompleted,
-            unit: item.material.consumptionUnit || 'Adet',
+            unit: item.material.consumptionUnit?.abbreviation || 'Adet',
             expectedStock: item.systemStock // Expected stock is the same as system stock
           };
         })

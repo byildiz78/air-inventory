@@ -30,18 +30,12 @@ import {
   supplierService, 
   unitService 
 } from '@/lib/data-service';
-import { 
-  MockMaterial, 
-  MockCategory, 
-  MockSupplier, 
-  MockUnit 
-} from '@/lib/mock-data';
 
 export default function InventoryPage() {
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
-  const [categories, setCategories] = useState<MockCategory[]>([]);
-  const [suppliers, setSuppliers] = useState<MockSupplier[]>([]);
-  const [units, setUnits] = useState<MockUnit[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
@@ -100,7 +94,7 @@ export default function InventoryPage() {
   const getSupplierById = (id: string) => suppliers.find(sup => sup.id === id);
   const getUnitById = (id: string) => units.find(unit => unit.id === id);
 
-  const getStockStatus = (material: MockMaterial) => {
+  const getStockStatus = (material: any) => {
     if (material.currentStock <= material.minStockLevel * 0.2) return { status: 'critical', color: 'bg-red-500' };
     if (material.currentStock <= material.minStockLevel * 0.5) return { status: 'low', color: 'bg-orange-500' };
     if (material.currentStock <= material.minStockLevel) return { status: 'warning', color: 'bg-yellow-500' };

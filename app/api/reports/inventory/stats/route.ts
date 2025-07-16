@@ -42,7 +42,7 @@ export async function GET() {
       const stock = allStocks.find(s => s.materialId === material.id);
       if (stock) {
         totalCurrentStock += stock.currentStock;
-        totalMaxStock += material.maxStockLevel;
+        totalMaxStock += material.maxStockLevel || 0;
         
         if (stock.currentStock <= material.minStockLevel) {
           lowStockCount++;

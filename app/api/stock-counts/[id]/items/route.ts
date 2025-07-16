@@ -30,7 +30,11 @@ export async function GET(request: NextRequest, { params }: Params) {
     const items = await prisma.stockCountItem.findMany({
       where: { stockCountId: id },
       include: {
-        material: true
+        material: {
+          include: {
+            consumptionUnit: true
+          }
+        }
       },
       orderBy: {
         material: {
@@ -45,14 +49,13 @@ export async function GET(request: NextRequest, { params }: Params) {
       stockCountId: item.stockCountId,
       materialId: item.materialId,
       materialName: item.material.name,
-      materialCode: item.material.code,
       systemStock: item.systemStock,
       countedStock: item.countedStock,
       difference: item.difference,
       reason: item.reason,
       countedAt: item.countedAt,
       isCompleted: item.isCompleted,
-      unit: item.material.consumptionUnit || 'Adet',
+      unit: item.material.consumptionUnit?.abbreviation || 'Adet',
       expectedStock: item.systemStock, // Expected stock is the same as system stock
       createdAt: item.createdAt,
       updatedAt: item.updatedAt
@@ -135,7 +138,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       }
     });
 
-    const currentStock = materialStock ? materialStock.quantity : 0;
+    const currentStock = materialStock ? materialStock.currentStock : 0;
 
     // Create stock count item
     const stockCountItem = await prisma.stockCountItem.create({

@@ -16,23 +16,19 @@ import {
   ArrowRightLeft,
   Calculator
 } from 'lucide-react';
-import { 
-  MockUnit 
-} from '@/lib/mock-data';
-
 export default function UnitsPage() {
-  const [units, setUnits] = useState<MockUnit[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Modal states
   const [isAddUnitOpen, setIsAddUnitOpen] = useState(false);
-  const [editingUnit, setEditingUnit] = useState<MockUnit | null>(null);
+  const [editingUnit, setEditingUnit] = useState<any | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     abbreviation: '',
-    type: 'WEIGHT' as MockUnit['type'],
+    type: 'WEIGHT' as any,
     isBaseUnit: false,
     baseUnitId: '',
     conversionFactor: 1
@@ -146,7 +142,7 @@ export default function UnitsPage() {
     }
   };
 
-  const openEditDialog = (unit: MockUnit) => {
+  const openEditDialog = (unit: any) => {
     setEditingUnit(unit);
     setFormData({
       name: unit.name,
@@ -164,12 +160,12 @@ export default function UnitsPage() {
   };
 
   const getBaseUnits = () => units.filter(u => u.isBaseUnit);
-  const getBaseUnitsForType = (type: MockUnit['type']) => 
+  const getBaseUnitsForType = (type: any) => 
     units.filter(u => u.isBaseUnit && u.type === type);
   const getDerivedUnits = (baseUnitId: string) => 
     units.filter(u => u.baseUnitId === baseUnitId);
 
-  const getUnitTypeText = (type: MockUnit['type']) => {
+  const getUnitTypeText = (type: any) => {
     switch (type) {
       case 'WEIGHT': return 'Ağırlık';
       case 'VOLUME': return 'Hacim';
@@ -179,7 +175,7 @@ export default function UnitsPage() {
     }
   };
 
-  const getUnitTypeColor = (type: MockUnit['type']) => {
+  const getUnitTypeColor = (type: any) => {
     switch (type) {
       case 'WEIGHT': return 'bg-blue-500';
       case 'VOLUME': return 'bg-green-500';
@@ -251,7 +247,7 @@ export default function UnitsPage() {
                 
                 <div>
                   <Label htmlFor="type">Birim Tipi *</Label>
-                  <Select value={formData.type} onValueChange={(value: MockUnit['type']) => setFormData(prev => ({ ...prev, type: value }))}>
+                  <Select value={formData.type} onValueChange={(value: any) => setFormData(prev => ({ ...prev, type: value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Birim tipi seçin" />
                     </SelectTrigger>
@@ -373,7 +369,7 @@ export default function UnitsPage() {
 
         {/* Units by Type */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {(['WEIGHT', 'VOLUME', 'PIECE', 'LENGTH'] as MockUnit['type'][]).map(type => {
+          {(['WEIGHT', 'VOLUME', 'PIECE', 'LENGTH'] as any[]).map(type => {
             const typeUnits = units.filter(u => u.type === type);
             const baseUnits = typeUnits.filter(u => u.isBaseUnit);
             

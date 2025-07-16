@@ -64,7 +64,7 @@ export async function GET() {
         warehouseType: warehouse.type,
         totalValue,
         materialCount: stocks.length,
-        capacity: warehouse.capacity,
+        capacity: warehouse.capacity || undefined,
         utilizationPercentage,
         topMaterials
       });

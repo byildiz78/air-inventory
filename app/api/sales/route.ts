@@ -197,19 +197,34 @@ export async function POST(request: NextRequest) {
 
       // Create stock movements for each ingredient
       for (const ingredient of recipeIngredients) {
-        if (ingredient.material && ingredient.material.trackInventory) {
+        if (ingredient.material && ingredient.material.defaultWarehouseId) {
+          const consumedQuantity = ingredient.quantity * body.quantity;
+          
+          // Get current stock for this material and warehouse
+          const materialStock = await prisma.materialStock.findUnique({
+            where: {
+              materialId_warehouseId: {
+                materialId: ingredient.materialId,
+                warehouseId: ingredient.material.defaultWarehouseId
+              }
+            }
+          });
+          
+          const currentStock = materialStock?.currentStock || 0;
+          const newStock = currentStock - consumedQuantity;
+          
           await prisma.stockMovement.create({
             data: {
               date: new Date(body.date),
               materialId: ingredient.materialId,
-              quantity: -(ingredient.quantity * body.quantity), // Negative for consumption
+              quantity: -consumedQuantity, // Negative for consumption
               unitId: ingredient.unitId,
-              warehouseId: ingredient.material.defaultWarehouseId || null,
-              type: 'SALE',
-              referenceId: sale.id,
-              referenceType: 'SALE',
-              notes: `Satış: ${salesItem.name}`,
-              userId: body.userId
+              warehouseId: ingredient.material.defaultWarehouseId,
+              type: 'OUT',
+              reason: `Satış: ${salesItem.name} - Satış ID: ${sale.id}`,
+              userId: body.userId,
+              stockBefore: currentStock,
+              stockAfter: newStock
             }
           });
         }

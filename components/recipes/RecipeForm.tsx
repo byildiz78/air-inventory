@@ -22,7 +22,6 @@ import {
   Building2,
   Scale
 } from 'lucide-react';
-import { MockMaterial, MockUnit } from '@/lib/mock-data';
 
 interface RecipeIngredient {
   materialId: string;
@@ -32,8 +31,8 @@ interface RecipeIngredient {
 }
 
 interface RecipeFormProps {
-  materials: MockMaterial[];
-  units: MockUnit[];
+  materials: any[];
+  units: any[];
   onSubmit: (data: any) => void;
   onCancel: () => void;
   initialData?: any;

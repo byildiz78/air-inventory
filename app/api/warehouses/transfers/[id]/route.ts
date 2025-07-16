@@ -115,9 +115,11 @@ export async function PATCH(
       'warehouse_transfer',
       params.id,
       {
-        before: { status: currentTransfer.status },
-        after: { status: status },
-        operation: 'update_transfer_status'
+        before: { 
+          status: currentTransfer.status,
+          operation: 'update_transfer_status'
+        },
+        after: { status: status }
       },
       request
     );

@@ -88,6 +88,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get existing permissions before updating
+    const existingPermissions = await prisma.userPermission.findMany({
+      where: { userId: data.userId },
+      select: { permissionId: true }
+    });
+    const existingPermissionIds = existingPermissions.map(p => p.permissionId);
+
     // Delete existing permissions for this user
     await prisma.userPermission.deleteMany({
       where: { userId: data.userId },
@@ -111,8 +118,11 @@ export async function POST(request: NextRequest) {
       'user_permissions',
       data.userId,
       {
-        action: 'update_permissions',
-        permissionIds: data.permissionIds,
+        before: { 
+          permissionIds: existingPermissionIds,
+          action: 'update_permissions'
+        },
+        after: { permissionIds: data.permissionIds }
       },
       request
     );

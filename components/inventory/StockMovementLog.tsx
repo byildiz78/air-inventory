@@ -15,23 +15,21 @@ import {
   Calendar,
   Package
 } from 'lucide-react';
-import { MockStockMovement, MockMaterial, MockUnit } from '@/lib/mock-data';
-
 interface StockMovementLogProps {
   materialId?: string;
-  materials: MockMaterial[];
-  units: MockUnit[];
+  materials: any[];
+  units: any[];
 }
 
 export function StockMovementLog({ materialId, materials, units }: StockMovementLogProps) {
-  const [movements, setMovements] = useState<MockStockMovement[]>([]);
-  const [filteredMovements, setFilteredMovements] = useState<MockStockMovement[]>([]);
+  const [movements, setMovements] = useState<any[]>([]);
+  const [filteredMovements, setFilteredMovements] = useState<any[]>([]);
   const [filterType, setFilterType] = useState<string>('all');
   const [filterMaterial, setFilterMaterial] = useState<string>(materialId || 'all');
 
   // Mock stock movements data
   useEffect(() => {
-    const mockMovements: MockStockMovement[] = [
+    const mockMovements: any[] = [
       {
         id: '1',
         materialId: '1',
@@ -127,7 +125,7 @@ export function StockMovementLog({ materialId, materials, units }: StockMovement
   const getMaterialById = (id: string) => materials.find(m => m.id === id);
   const getUnitById = (id: string) => units.find(u => u.id === id);
 
-  const getMovementIcon = (type: MockStockMovement['type']) => {
+  const getMovementIcon = (type: any) => {
     switch (type) {
       case 'IN': return <TrendingUp className="w-4 h-4 text-green-600" />;
       case 'OUT': return <TrendingDown className="w-4 h-4 text-red-600" />;
@@ -138,7 +136,7 @@ export function StockMovementLog({ materialId, materials, units }: StockMovement
     }
   };
 
-  const getMovementBadgeVariant = (type: MockStockMovement['type']) => {
+  const getMovementBadgeVariant = (type: any) => {
     switch (type) {
       case 'IN': return 'default';
       case 'OUT': return 'destructive';
@@ -149,7 +147,7 @@ export function StockMovementLog({ materialId, materials, units }: StockMovement
     }
   };
 
-  const getMovementTypeText = (type: MockStockMovement['type']) => {
+  const getMovementTypeText = (type: any) => {
     switch (type) {
       case 'IN': return 'Giriş';
       case 'OUT': return 'Çıkış';

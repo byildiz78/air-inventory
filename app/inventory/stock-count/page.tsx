@@ -114,7 +114,7 @@ export default function StockCountPage() {
       console.error('Data loading error:', error);
       toast({
         title: "Veri yükleme hatası",
-        description: `Stok sayım verileri yüklenirken bir hata oluştu: ${error.message}`,
+        description: `Stok sayım verileri yüklenirken bir hata oluştu: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
         variant: "destructive"
       });
     } finally {
@@ -187,6 +187,8 @@ export default function StockCountPage() {
   };
 
   const handleUpdateCountItem = async (itemId: string, countedStock: number, reason?: string) => {
+    if (!selectedCount) return;
+    
     try {
       await stockCountService.updateItem(selectedCount.id, itemId, {
         countedStock,

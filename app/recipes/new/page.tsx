@@ -20,15 +20,11 @@ import {
   materialService, 
   unitService
 } from '@/lib/data-service';
-import { 
-  MockMaterial, 
-  MockUnit 
-} from '@/lib/mock-data';
 
 export default function NewRecipePage() {
   const router = useRouter();
-  const [materials, setMaterials] = useState<MockMaterial[]>([]);
-  const [units, setUnits] = useState<MockUnit[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Recipe form state

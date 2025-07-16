@@ -43,7 +43,7 @@ export async function GET() {
             materialName: material.name,
             currentStock: stock.currentStock,
             minStockLevel: material.minStockLevel,
-            maxStockLevel: material.maxStockLevel,
+            maxStockLevel: material.maxStockLevel || 0,
             stockPercentage: Math.max(0, stockPercentage),
             urgency,
             categoryName: material.category.name,

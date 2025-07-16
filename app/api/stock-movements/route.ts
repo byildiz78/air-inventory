@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stockMovementService } from '@/lib/services/stock-movement-service';
 import { StockMovementType } from '@prisma/client';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -116,6 +117,12 @@ export async function POST(request: NextRequest) {
       date: body.date ? new Date(body.date) : undefined,
     });
 
+    // Get material name for logging
+    const material = await prisma.material.findUnique({
+      where: { id: body.materialId },
+      select: { name: true }
+    });
+
     // Log the activity
     const userId = body.userId;
     await ActivityLogger.logCreate(
@@ -123,7 +130,7 @@ export async function POST(request: NextRequest) {
       'stock_movement',
       movement.id,
       {
-        materialName: movement.material?.name,
+        materialName: material?.name || 'Unknown Material',
         type: movement.type,
         quantity: movement.quantity,
         reason: movement.reason,

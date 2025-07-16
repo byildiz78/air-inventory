@@ -14,12 +14,10 @@ import {
   CheckCircle,
   BarChart3
 } from 'lucide-react';
-import { MockRecipe, MockRecipeIngredient, MockMaterial } from '@/lib/mock-data';
-
 interface CostAnalysisProps {
-  recipe: MockRecipe;
-  ingredients: MockRecipeIngredient[];
-  materials: MockMaterial[];
+  recipe: any;
+  ingredients: any[];
+  materials: any[];
 }
 
 export function CostAnalysis({ recipe, ingredients, materials }: CostAnalysisProps) {
