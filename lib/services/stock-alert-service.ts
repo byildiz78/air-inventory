@@ -13,7 +13,7 @@ export interface StockAlert {
   materialName: string;
   currentStock: number;
   minStockLevel: number;
-  alertType: 'LOW' | 'CRITICAL' | 'OUT_OF_STOCK';
+  alertType: 'LOW_STOCK' | 'OUT_OF_STOCK' | 'OVERSTOCK';
   urgency: 'low' | 'medium' | 'high' | 'critical';
 }
 
@@ -41,13 +41,13 @@ export const stockAlertService = {
           alertType = 'OUT_OF_STOCK';
           urgency = 'critical';
         } else if (totalStock <= minLevel * 0.2) {
-          alertType = 'CRITICAL';
+          alertType = 'LOW_STOCK';
           urgency = 'critical';
         } else if (totalStock <= minLevel * 0.5) {
-          alertType = 'CRITICAL';
+          alertType = 'LOW_STOCK';
           urgency = 'high';
         } else if (totalStock <= minLevel) {
-          alertType = 'LOW';
+          alertType = 'LOW_STOCK';
           urgency = 'medium';
         } else {
           return null; // Stok yeterli

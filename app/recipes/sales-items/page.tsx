@@ -24,6 +24,11 @@ import {
   Check,
   X
 } from 'lucide-react';
+import { 
+  salesItemCategoryService, 
+  salesItemGroupService 
+} from '@/lib/services/sales-item-service';
+
 type SalesItemType = {
   id: string;
   name: string;

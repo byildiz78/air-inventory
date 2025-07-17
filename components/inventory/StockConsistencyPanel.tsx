@@ -190,16 +190,8 @@ export function StockConsistencyPanel() {
                   <div>
                     <h4 className="font-medium">{item.materialName}</h4>
                     <p className="text-sm text-muted-foreground">
-                      Sistem: {item.systemStock?.toFixed(2)} | Hareket Toplamı: {item.actualStock?.toFixed(2) || item.totalStock.toFixed(2)} | Fark: {item.difference.toFixed(2)}
+                      Sistem: {item.systemStock?.toFixed(2)} | Hareket Toplamı: {item.totalStock.toFixed(2)} | Fark: {item.difference.toFixed(2)}
                     </p>
-                    {item.materialStockTotal !== undefined && (
-                      <p className="text-xs text-gray-500">
-                        Depo Toplamı: {item.materialStockTotal.toFixed(2)} | Depo Farkı: {item.materialStockDifference?.toFixed(2)}
-                      </p>
-                    )}
-                    {item.materialCode && (
-                      <p className="text-xs text-gray-500">Kod: {item.materialCode}</p>
-                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="destructive">

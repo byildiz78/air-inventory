@@ -4,6 +4,7 @@ import { Bell, Search, User, HelpCircle, Settings, Menu as MenuIcon, AlertTriang
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useUser } from '@/contexts/UserContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
+  const { user, loading } = useUser();
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-lg">
       <div className="flex items-center justify-between">
@@ -114,12 +116,16 @@ export function Header({ title, subtitle }: HeaderProps) {
                 <Avatar className="w-8 h-8 border border-gray-200">
                   <AvatarImage src="/avatar.png" />
                   <AvatarFallback className="bg-gradient-to-br from-orange-400 to-orange-600 text-white animate-pulse">
-                    A
+                    {loading ? 'L' : (user?.name ? user.name.charAt(0).toUpperCase() : 'A')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-gray-800">Admin</p>
-                  <p className="text-xs text-orange-500">Yönetici</p>
+                  <p className="text-sm font-medium text-gray-800">
+                    {loading ? 'Yükleniyor...' : user?.name || 'Admin'}
+                  </p>
+                  <p className="text-xs text-orange-500">
+                    {loading ? '...' : user?.role || 'Yönetici'}
+                  </p>
                 </div>
               </Button>
             </DropdownMenuTrigger>
@@ -128,12 +134,16 @@ export function Header({ title, subtitle }: HeaderProps) {
                 <Avatar className="w-10 h-10">
                   <AvatarImage src="/avatar.png" />
                   <AvatarFallback className="bg-gradient-to-br from-orange-400 to-orange-600 text-white">
-                    A
+                    {loading ? 'L' : (user?.name ? user.name.charAt(0).toUpperCase() : 'A')}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-medium">Admin User</p>
-                  <p className="text-xs text-orange-500">admin@robotpos.com</p>
+                  <p className="font-medium">
+                    {loading ? 'Yükleniyor...' : user?.name || 'Admin User'}
+                  </p>
+                  <p className="text-xs text-orange-500">
+                    {loading ? '...' : user?.email || 'admin@robotpos.com'}
+                  </p>
                 </div>
               </div>
               <DropdownMenuSeparator />

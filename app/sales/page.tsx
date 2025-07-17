@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { SalesItem, User, Sale } from '@prisma/client';
 import { toast } from 'react-hot-toast';
+import { salesService } from '@/lib/services/sales-service';
 
 export default function SalesPage() {
   // Toaster bileşeni
@@ -282,6 +283,7 @@ export default function SalesPage() {
 
   const getSalesItemById = (id: string) => salesItems.find(item => item.id === id);
   const getUserById = (id: string) => users.find(user => user.id === id);
+  const getRecipeById = (id: string | null) => id ? { name: 'Reçete' } : null;
 
   // Calculate stats
   const stats = {

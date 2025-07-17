@@ -211,7 +211,7 @@ export default function TaxesPage() {
     resetForm();
   };
 
-  const getTaxTypeText = (type: MockTax['type']) => {
+  const getTaxTypeText = (type: any) => {
     switch (type) {
       case 'VAT': return 'KDV';
       case 'EXCISE': return 'ÖTV';
@@ -220,7 +220,7 @@ export default function TaxesPage() {
     }
   };
 
-  const getTaxTypeColor = (type: MockTax['type']) => {
+  const getTaxTypeColor = (type: any) => {
     switch (type) {
       case 'VAT': return 'bg-blue-500';
       case 'EXCISE': return 'bg-orange-500';
@@ -297,7 +297,7 @@ export default function TaxesPage() {
                 
                 <div>
                   <Label htmlFor="type">Vergi Tipi *</Label>
-                  <Select value={formData.type} onValueChange={(value: MockTax['type']) => setFormData(prev => ({ ...prev, type: value }))}>
+                  <Select value={formData.type} onValueChange={(value: any) => setFormData(prev => ({ ...prev, type: value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Vergi tipi seçin" />
                     </SelectTrigger>
@@ -644,7 +644,7 @@ export default function TaxesPage() {
               
               <div>
                 <Label htmlFor="edit-type">Vergi Tipi *</Label>
-                <Select value={formData.type} onValueChange={(value: MockTax['type']) => setFormData(prev => ({ ...prev, type: value }))}>
+                <Select value={formData.type} onValueChange={(value: any) => setFormData(prev => ({ ...prev, type: value }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Vergi tipi seçin" />
                   </SelectTrigger>

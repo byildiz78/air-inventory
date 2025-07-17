@@ -28,7 +28,7 @@ export function CostAnalysis({ recipe, ingredients, materials }: CostAnalysisPro
       name: string;
       cost: number;
       percentage: number;
-      material: MockMaterial;
+      material: any;
     }>,
     profitAnalysis: {
       currentMargin: 0,

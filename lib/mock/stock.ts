@@ -107,5 +107,38 @@ export const mockStockAdjustments = [
   },
 ];
 
-// Mock stock movements data - initially empty as this data will be generated based on other operations
-export const mockStockMovements = [];
+// Mock stock movements data
+export const mockStockMovements = [
+  {
+    id: '1',
+    materialId: '1',
+    unitId: '1',
+    userId: '1',
+    warehouseId: '1',
+    type: 'IN',
+    quantity: 1000,
+    reason: 'Satın alma',
+    unitCost: 45.0,
+    totalCost: 45000,
+    stockBefore: 0,
+    stockAfter: 1000,
+    date: new Date('2024-01-01'),
+    createdAt: new Date('2024-01-01'),
+  },
+  {
+    id: '2',
+    materialId: '2',
+    unitId: '1',
+    userId: '1',
+    warehouseId: '1',
+    type: 'IN',
+    quantity: 500,
+    reason: 'Satın alma',
+    unitCost: 32.0,
+    totalCost: 16000,
+    stockBefore: 0,
+    stockAfter: 500,
+    date: new Date('2024-01-02'),
+    createdAt: new Date('2024-01-02'),
+  },
+];

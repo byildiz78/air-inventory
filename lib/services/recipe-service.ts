@@ -210,6 +210,15 @@ export const recipeService = {
       ...data,
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date(),
+      description: data.description || '',
+      category: data.category || '',
+      servingSize: data.servingSize || 1,
+      preparationTime: data.preparationTime || 0,
+      suggestedPrice: data.suggestedPrice || 0,
+      profitMargin: data.profitMargin || 0,
+      totalCost: 0,
+      costPerServing: 0,
+      isActive: true,
     };
     mockRecipes.push(newRecipe);
     return newRecipe;
@@ -473,9 +482,9 @@ export const recipeService = {
           AND: [
             {
               OR: [
-                { name: { contains: searchTerm, mode: 'insensitive' } },
-                { description: { contains: searchTerm, mode: 'insensitive' } },
-                { category: { contains: searchTerm, mode: 'insensitive' } },
+                { name: { contains: searchTerm } },
+                { description: { contains: searchTerm } },
+                { category: { contains: searchTerm } },
               ],
             },
             { isActive: true },

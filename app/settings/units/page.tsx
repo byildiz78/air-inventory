@@ -494,7 +494,7 @@ export default function UnitsPage() {
               
               <div>
                 <Label htmlFor="edit-type">Birim Tipi *</Label>
-                <Select value={formData.type} onValueChange={(value: MockUnit['type']) => setFormData(prev => ({ ...prev, type: value }))}>
+                <Select value={formData.type} onValueChange={(value: any) => setFormData(prev => ({ ...prev, type: value }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Birim tipi seçin" />
                   </SelectTrigger>

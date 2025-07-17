@@ -1,93 +1,49 @@
-import {
-  mockUsers,
-  getMockDataById,
-  getMockDataByField,
-  updateMockData,
-  deleteMockData,
-  addMockData,
-} from '../mock/index';
 import { prisma } from '../prisma';
-
-// Flag to switch between mock data and API
-const USE_API = true; // Use API for all operations
 
 export const userService = {
   async getAll() {
-    if (USE_API) {
-      try {
-        const response = await fetch('/api/users');
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Kullanıcılar alınırken bir hata oluştu');
-        }
-        
-        const result = await response.json();
-        return result.data;
-      } catch (error: any) {
-        console.error('Error fetching users:', error);
-        throw error;
+    try {
+      const response = await fetch('/api/users');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Kullanıcılar alınırken bir hata oluştu');
       }
+      
+      const result = await response.json();
+      return result.data;
+    } catch (error: any) {
+      console.error('Error fetching users:', error);
+      throw error;
     }
-    return mockUsers;
   },
 
   async getById(id: string) {
-    if (USE_PRISMA) {
-      // TODO: Replace with Prisma query
-      // return await prisma.user.findUnique({ where: { id } });
-      throw new Error('Prisma not implemented yet');
-    }
-    return getMockDataById(mockUsers, id) || null;
+    // TODO: Replace with Prisma query
+    // return await prisma.user.findUnique({ where: { id } });
+    throw new Error('Prisma not implemented yet');
   },
 
   async getByEmail(email: string) {
-    if (USE_PRISMA) {
-      // TODO: Replace with Prisma query
-      // return await prisma.user.findUnique({ where: { email } });
-      throw new Error('Prisma not implemented yet');
-    }
-    return mockUsers.find(user => user.email === email) || null;
+    // TODO: Replace with Prisma query
+    // return await prisma.user.findUnique({ where: { email } });
+    throw new Error('Prisma not implemented yet');
   },
 
   async create(data: Omit<any, 'id' | 'createdAt'>) {
-    if (USE_PRISMA) {
-      // TODO: Replace with Prisma query
-      // return await prisma.user.create({ data });
-      throw new Error('Prisma not implemented yet');
-    }
-    const newUser = {
-      ...data,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: new Date(),
-    };
-    mockUsers.push(newUser);
-    return newUser;
+    // TODO: Replace with Prisma query
+    // return await prisma.user.create({ data });
+    throw new Error('Prisma not implemented yet');
   },
 
   async update(id: string, data: Partial<any>) {
-    if (USE_PRISMA) {
-      // TODO: Replace with Prisma query
-      // return await prisma.user.update({ where: { id }, data });
-      throw new Error('Prisma not implemented yet');
-    }
-    const userIndex = mockUsers.findIndex(user => user.id === id);
-    if (userIndex === -1) return null;
-    
-    mockUsers[userIndex] = { ...mockUsers[userIndex], ...data };
-    return mockUsers[userIndex];
+    // TODO: Replace with Prisma query
+    // return await prisma.user.update({ where: { id }, data });
+    throw new Error('Prisma not implemented yet');
   },
 
   async delete(id: string) {
-    if (USE_PRISMA) {
-      // TODO: Replace with Prisma query
-      // await prisma.user.delete({ where: { id } });
-      throw new Error('Prisma not implemented yet');
-    }
-    const initialLength = mockUsers.length;
-    const index = mockUsers.findIndex(user => user.id === id);
-    if (index !== -1) {
-      mockUsers.splice(index, 1);
-    }
-    return mockUsers.length < initialLength;
+    // TODO: Replace with Prisma query
+    // await prisma.user.delete({ where: { id } });
+    throw new Error('Prisma not implemented yet');
   },
 };

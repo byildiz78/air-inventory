@@ -1,7 +1,7 @@
 // Re-export all stock related services from the modular structure
 // This file is kept for backward compatibility
 export * from './services/stock-service';
-export { StockSummary, StockAlert } from './types/stock';
+export type { StockSummary, StockAlert } from './types/stock';
 
 // Import the main stock service for direct access
 import { stockService as mainStockService } from './services/stock-service';

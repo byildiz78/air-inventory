@@ -58,48 +58,51 @@ export const categoryService = {
   },
 
   async create(data: CategoryCreateData) {
-    if (USE_PRISMA) {
-      return await prisma.category.create({
-        data: {
-          ...data,
-          color: data.color || '#3B82F6', // Default blue color
-        },
-        include: {
-          parent: true,
-          subcategories: true,
-        },
-      });
-    }
-    const newCategory = {
-      ...data,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    const created = await prisma.category.create({
+      data: {
+        ...data,
+        color: data.color || '#3B82F6', // Default blue color
+      },
+      include: {
+        parent: true,
+        subcategories: true,
+      },
+    });
+    
+    // Transform to match expected return type
+    return {
+      id: created.id,
+      name: created.name,
+      description: created.description || '',
+      color: created.color,
+      createdAt: created.createdAt,
+      ...(created.parentId ? { parentId: created.parentId } : {}),
+      parent: created.parent,
+      subcategories: created.subcategories,
     };
-    mockCategories.push(newCategory);
-    return newCategory;
   },
 
   async update(id: string, data: CategoryUpdateData) {
-    if (USE_PRISMA) {
-      return await prisma.category.update({
-        where: { id },
-        data,
-        include: {
-          parent: true,
-          subcategories: true,
-        },
-      });
-    }
-    const categoryIndex = mockCategories.findIndex(cat => cat.id === id);
-    if (categoryIndex === -1) return null;
+    const updated = await prisma.category.update({
+      where: { id },
+      data,
+      include: {
+        parent: true,
+        subcategories: true,
+      },
+    });
     
-    mockCategories[categoryIndex] = { 
-      ...mockCategories[categoryIndex], 
-      ...data,
-      updatedAt: new Date(),
+    // Transform to match expected return type
+    return {
+      id: updated.id,
+      name: updated.name,
+      description: updated.description || '',
+      color: updated.color,
+      createdAt: updated.createdAt,
+      ...(updated.parentId ? { parentId: updated.parentId } : {}),
+      parent: updated.parent,
+      subcategories: updated.subcategories,
     };
-    return mockCategories[categoryIndex];
   },
 
   async delete(id: string) {

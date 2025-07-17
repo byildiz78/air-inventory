@@ -331,7 +331,7 @@ export default function ProfitReportPage() {
                     <XAxis dataKey="name" />
                     <YAxis yAxisId="left" orientation="left" />
                     <YAxis yAxisId="right" orientation="right" />
-                    <Tooltip formatter={(value: number, name) => {
+                    <Tooltip formatter={(value: number, name: string) => {
                       if (name === 'margin') return [`%${value.toFixed(1)}`, 'Kâr Marjı'];
                       return [`₺${value.toLocaleString()}`, name === 'profit' ? 'Kâr' : 'Gelir'];
                     }} />

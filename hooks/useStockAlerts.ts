@@ -7,6 +7,9 @@ interface UseStockAlertsReturn {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  getUrgencyColor: (urgency: StockAlert['urgency']) => string;
+  getUrgencyBadgeVariant: (urgency: StockAlert['urgency']) => 'destructive' | 'secondary' | 'outline';
+  getUrgencyText: (urgency: StockAlert['urgency']) => string;
 }
 
 export function useStockAlerts(): UseStockAlertsReturn {

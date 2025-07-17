@@ -155,9 +155,13 @@ export const warehouseService = {
       ...data,
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date(),
-      updatedAt: new Date(),
+      description: data.description || '',
+      location: data.location || '',
+      capacity: data.capacity || 0,
+      minTemperature: data.minTemperature || undefined,
+      maxTemperature: data.maxTemperature || undefined,
     };
-    mockWarehouses.push(newWarehouse);
+    mockWarehouses.push(newWarehouse as any);
     return newWarehouse;
   },
 
@@ -184,11 +188,15 @@ export const warehouseService = {
     const warehouseIndex = mockWarehouses.findIndex(wh => wh.id === id);
     if (warehouseIndex === -1) return null;
     
-    mockWarehouses[warehouseIndex] = { 
+    const updatedWarehouse = { 
       ...mockWarehouses[warehouseIndex], 
       ...data,
-      updatedAt: new Date(),
+      description: data.description || mockWarehouses[warehouseIndex].description || '',
+      location: data.location || mockWarehouses[warehouseIndex].location || '',
+      capacity: data.capacity || mockWarehouses[warehouseIndex].capacity || 0,
     };
+    
+    mockWarehouses[warehouseIndex] = updatedWarehouse as any;
     return mockWarehouses[warehouseIndex];
   },
 

@@ -114,7 +114,7 @@ export class RecipeCostUpdater {
     }
 
     // Etkilenen reçetelerin toplam maliyetlerini yeniden hesapla
-    for (const recipeId of updatedRecipeIds) {
+    for (const recipeId of Array.from(updatedRecipeIds)) {
       await this.recalculateRecipeTotalCost(recipeId);
     }
 

@@ -118,6 +118,8 @@ export const taxService = {
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date(),
       updatedAt: new Date(),
+      description: data.description || '',
+      type: data.type || 'SALES',
     };
     mockTaxes.push(newTax);
     return newTax;
@@ -150,7 +152,12 @@ export const taxService = {
     const taxIndex = mockTaxes.findIndex(tax => tax.id === id);
     if (taxIndex === -1) return null;
     
-    mockTaxes[taxIndex] = { ...mockTaxes[taxIndex], ...data };
+    mockTaxes[taxIndex] = { 
+      ...mockTaxes[taxIndex], 
+      ...data,
+      description: data.description || mockTaxes[taxIndex].description || '',
+      type: data.type || mockTaxes[taxIndex].type || 'SALES',
+    };
     return mockTaxes[taxIndex];
   },
 

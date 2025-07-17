@@ -229,6 +229,9 @@ export const mockRecipeMappings = [
     portionRatio: 1.0, // 1 porsiyon
     priority: 1,
     isActive: true,
+    overrideCost: null,
+    validFrom: null,
+    validTo: null,
     createdAt: new Date('2024-01-01'),
   },
   {
@@ -238,6 +241,9 @@ export const mockRecipeMappings = [
     portionRatio: 1.0, // 1 porsiyon
     priority: 1,
     isActive: true,
+    overrideCost: null,
+    validFrom: null,
+    validTo: null,
     createdAt: new Date('2024-01-01'),
   },
 ];

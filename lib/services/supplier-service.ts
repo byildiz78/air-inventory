@@ -101,6 +101,11 @@ export const supplierService = {
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date(),
       updatedAt: new Date(),
+      contactName: data.contactName || '',
+      phone: data.phone || '',
+      email: data.email || '',
+      address: data.address || '',
+      taxNumber: data.taxNumber || '',
     };
     mockSuppliers.push(newSupplier);
     return newSupplier;
@@ -128,7 +133,11 @@ export const supplierService = {
     mockSuppliers[supplierIndex] = { 
       ...mockSuppliers[supplierIndex], 
       ...data,
-      updatedAt: new Date(),
+      contactName: data.contactName || mockSuppliers[supplierIndex].contactName || '',
+      phone: data.phone || mockSuppliers[supplierIndex].phone || '',
+      email: data.email || mockSuppliers[supplierIndex].email || '',
+      address: data.address || mockSuppliers[supplierIndex].address || '',
+      taxNumber: data.taxNumber || mockSuppliers[supplierIndex].taxNumber || '',
     };
     return mockSuppliers[supplierIndex];
   },
@@ -178,10 +187,10 @@ export const supplierService = {
       return await prisma.supplier.findMany({
         where: {
           OR: [
-            { name: { contains: query, mode: 'insensitive' } },
-            { contactName: { contains: query, mode: 'insensitive' } },
-            { email: { contains: query, mode: 'insensitive' } },
-            { phone: { contains: query, mode: 'insensitive' } },
+            { name: { contains: query } },
+            { contactName: { contains: query } },
+            { email: { contains: query } },
+            { phone: { contains: query } },
           ],
         },
         include: {

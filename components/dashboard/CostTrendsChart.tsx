@@ -78,7 +78,7 @@ export function CostTrendsChart({
               <YAxis />
               <Tooltip 
                 formatter={(value: number) => [`₺${value.toLocaleString()}`, undefined]}
-                labelFormatter={(label) => `Tarih: ${label}`}
+                labelFormatter={(label: string) => `Tarih: ${label}`}
               />
               <Legend />
               <Line 

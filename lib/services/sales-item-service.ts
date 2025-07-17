@@ -10,6 +10,7 @@ import {
   addMockData,
 } from '../mock/index';
 import { prisma } from '../prisma';
+import { recipeService } from './recipe-service';
 
 // Flag to switch between mock data and Prisma
 const USE_PRISMA = false; // Will be set to true when we migrate
@@ -40,6 +41,11 @@ export const salesItemCategoryService = {
       ...data,
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date(),
+      name: data.name || '',
+      description: data.description || '',
+      color: data.color || '#000000',
+      sortOrder: data.sortOrder || 0,
+      isActive: data.isActive !== undefined ? data.isActive : true,
     };
     mockSalesItemCategories.push(newCategory);
     return newCategory;
@@ -105,6 +111,12 @@ export const salesItemGroupService = {
       ...data,
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date(),
+      name: data.name || '',
+      categoryId: data.categoryId || '',
+      description: data.description || '',
+      color: data.color || '#000000',
+      sortOrder: data.sortOrder || 0,
+      isActive: data.isActive !== undefined ? data.isActive : true,
     };
     mockSalesItemGroups.push(newGroup);
     return newGroup;
@@ -178,6 +190,15 @@ export const salesItemService = {
       ...data,
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date(),
+      name: data.name || '',
+      categoryId: data.categoryId || '',
+      groupId: data.groupId || '',
+      description: data.description || '',
+      basePrice: data.basePrice || 0,
+      menuCode: data.menuCode || '',
+      sortOrder: data.sortOrder || 0,
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      isAvailable: data.isAvailable !== undefined ? data.isAvailable : true,
     };
     mockSalesItems.push(newItem);
     return newItem;
@@ -251,6 +272,14 @@ export const recipeMappingService = {
       ...data,
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date(),
+      salesItemId: data.salesItemId || '',
+      recipeId: data.recipeId || '',
+      portionRatio: data.portionRatio || 1,
+      priority: data.priority || 1,
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      overrideCost: data.overrideCost || null,
+      validFrom: data.validFrom || null,
+      validTo: data.validTo || null,
     };
     mockRecipeMappings.push(newMapping);
     return newMapping;

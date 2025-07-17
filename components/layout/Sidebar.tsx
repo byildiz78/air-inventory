@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useUser } from '@/contexts/UserContext';
 import { 
   LayoutDashboard,
   Package,
@@ -136,6 +137,7 @@ export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const { user, loading } = useUser();
 
   const toggleExpanded = (href: string) => {
     setExpandedItems(prev => 
@@ -206,8 +208,12 @@ export function Sidebar({ className }: SidebarProps) {
                 <Users className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-800">Admin User</p>
-                <p className="text-xs text-gray-500">Yönetici</p>
+                <p className="text-sm font-medium text-gray-800">
+                  {loading ? 'Yükleniyor...' : user?.name || 'Admin User'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {loading ? '...' : user?.role || 'Yönetici'}
+                </p>
               </div>
               <div className="ml-auto">
                 <Bell className="w-5 h-5 text-orange-500 hover:text-orange-600 cursor-pointer transition-colors" />
@@ -286,23 +292,28 @@ export function Sidebar({ className }: SidebarProps) {
             <p className="text-xs text-gray-500 uppercase tracking-wider px-3 py-2 mb-1">Sistem</p>
             {bottomNavigation.map((item) => (
               <div key={item.name} className="mb-1">
-                <div
-                  onClick={() => {
-                    if (item.children) {
-                      toggleExpanded(item.href);
-                    } else {
-                      setIsMobileOpen(false);
-                    }
-                  }}
-                  className={cn(
-                    "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
-                    isActive(item.href) && !item.children
-                      ? "bg-gradient-to-r from-orange-400 to-orange-500 text-white shadow-md"
-                      : isExpanded(item.href) && item.children
-                      ? "bg-orange-100 text-orange-700"
-                      : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
-                  )}
-                >
+                {item.children ? (
+                  <div
+                    onClick={() => toggleExpanded(item.href)}
+                    className={cn(
+                      "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
+                      isExpanded(item.href) && item.children
+                        ? "bg-orange-100 text-orange-700"
+                        : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
+                    )}
+                  >
+                ) : (
+                  <Link
+                    href={item.href}
+                    onClick={() => setIsMobileOpen(false)}
+                    className={cn(
+                      "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
+                      isActive(item.href)
+                        ? "bg-gradient-to-r from-orange-400 to-orange-500 text-white shadow-md"
+                        : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
+                    )}
+                  >
+                )}
                   <div className="flex items-center gap-3">
                     <item.icon className={cn(
                       "w-5 h-5 transition-colors",
@@ -322,7 +333,11 @@ export function Sidebar({ className }: SidebarProps) {
                         <ChevronRight className="w-4 h-4 text-orange-500" />
                     )}
                   </div>
-                </div>
+                {item.children ? (
+                  </div>
+                ) : (
+                  </Link>
+                )}
 
                 {/* Submenu */}
                 {item.children && isExpanded(item.href) && (

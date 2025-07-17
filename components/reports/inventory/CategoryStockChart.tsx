@@ -78,7 +78,7 @@ export function CategoryStockChart({ categories, loading = false }: CategoryStoc
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="totalValue"
-                  label={({ categoryName, percentage }) => 
+                  label={({ categoryName, percentage }: {categoryName: string, percentage: number}) => 
                     `${categoryName}: %${percentage.toFixed(0)}`
                   }
                 >

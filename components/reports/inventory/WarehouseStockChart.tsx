@@ -80,7 +80,7 @@ export function WarehouseStockChart({ warehouses, loading = false }: WarehouseSt
                   }
                   return [`%${value.toFixed(1)}`, name];
                 }}
-                labelFormatter={(label) => `Depo: ${label}`}
+                labelFormatter={(label: string) => `Depo: ${label}`}
               />
               <Legend />
               <Bar 

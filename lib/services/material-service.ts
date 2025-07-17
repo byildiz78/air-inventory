@@ -196,72 +196,49 @@ export const materialService = {
   },
 
   async create(data: MaterialCreateData) {
-    if (USE_API) {
-      try {
-        const response = await fetch('/api/materials', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data),
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Malzeme oluşturulurken bir hata oluştu');
-        }
-        
-        const result = await response.json();
-        return result.data;
-      } catch (error: any) {
-        console.error('Error creating material:', error);
-        throw error;
+    try {
+      const response = await fetch('/api/materials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Malzeme oluşturulurken bir hata oluştu');
       }
+      
+      const result = await response.json();
+      return result.data;
+    } catch (error: any) {
+      console.error('Error creating material:', error);
+      throw error;
     }
-    
-    const newMaterial = {
-      ...data,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    mockMaterials.push(newMaterial);
-    return newMaterial;
   },
 
   async update(id: string, data: MaterialUpdateData) {
-    if (USE_API) {
-      try {
-        const response = await fetch(`/api/materials/${id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data),
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Malzeme güncellenirken bir hata oluştu');
-        }
-        
-        const result = await response.json();
-        return result.data;
-      } catch (error: any) {
-        console.error(`Error updating material ${id}:`, error);
-        throw error;
+    try {
+      const response = await fetch(`/api/materials/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Malzeme güncellenirken bir hata oluştu');
       }
+      
+      const result = await response.json();
+      return result.data;
+    } catch (error: any) {
+      console.error(`Error updating material ${id}:`, error);
+      throw error;
     }
-    
-    const materialIndex = mockMaterials.findIndex(mat => mat.id === id);
-    if (materialIndex === -1) return null;
-    
-    mockMaterials[materialIndex] = { 
-      ...mockMaterials[materialIndex], 
-      ...data,
-      updatedAt: new Date(),
-    };
-    return mockMaterials[materialIndex];
   },
 
   async delete(id: string) {
@@ -293,155 +270,23 @@ export const materialService = {
 
   // Rest of the methods will use the old Prisma implementation for now
   async getByBarcode(barcode: string) {
-    if (USE_PRISMA) {
-      return await prisma.material.findFirst({
-        where: { barcode },
-        include: {
-          category: {
-            select: {
-              id: true,
-              name: true,
-              abbreviation: true,
-              type: true,
-            },
-          },
-          consumptionUnit: {
-            select: {
-              id: true,
-              name: true,
-              abbreviation: true,
-              type: true,
-            },
-          },
-          supplier: {
-            select: {
-              id: true,
-              name: true,
-              contactName: true,
-            },
-          },
-          defaultTax: {
-            select: {
-              id: true,
-              name: true,
-              rate: true,
-              type: true,
-            },
-          },
-          defaultWarehouse: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
-          materialStocks: {
-            include: {
-              warehouse: {
-                select: {
-                  id: true,
-                  name: true,
-                  type: true,
-                },
-              },
-            },
-            where: {
-              currentStock: { gt: 0 },
-            },
-          },
-        },
-        orderBy: {
-          name: 'asc',
-        },
-      });
+    try {
+      const response = await fetch(`/api/materials/barcode/${barcode}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Malzeme barkod ile alınırken bir hata oluştu');
+      }
+      
+      const result = await response.json();
+      return result.data;
+    } catch (error: any) {
+      console.error(`Error fetching material by barcode ${barcode}:`, error);
+      throw error;
     }
-    return mockMaterials;
   },
 
-  async getById(id: string): Promise<MaterialWithRelations | null> {
-    if (USE_PRISMA) {
-      return await prisma.material.findUnique({
-        where: { id },
-        include: {
-          category: true,
-          purchaseUnit: true,
-          consumptionUnit: true,
-          supplier: true,
-          defaultTax: true,
-          defaultWarehouse: true,
-          materialStocks: {
-            include: {
-              warehouse: true,
-            },
-            orderBy: {
-              currentStock: 'desc',
-            },
-          },
-          _count: {
-            select: {
-              recipeIngredients: true,
-              invoiceItems: true,
-              stockMovements: true,
-              stockCountItems: true,
-              materialTransfers: true,
-            },
-          },
-        },
-      });
-    }
-    return getMockDataById(mockMaterials, id) || null;
-  },
 
-  async getByCategory(categoryId: string) {
-    if (USE_PRISMA) {
-      return await prisma.material.findMany({
-        where: { 
-          categoryId,
-          isActive: true,
-        },
-        include: {
-          category: {
-            select: {
-              id: true,
-              name: true,
-              color: true,
-            },
-          },
-          purchaseUnit: {
-            select: {
-              id: true,
-              name: true,
-              abbreviation: true,
-            },
-          },
-          consumptionUnit: {
-            select: {
-              id: true,
-              name: true,
-              abbreviation: true,
-            },
-          },
-          materialStocks: {
-            where: {
-              currentStock: { gt: 0 },
-            },
-            include: {
-              warehouse: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          name: 'asc',
-        },
-      });
-    }
-    return getMockDataByField(mockMaterials, 'categoryId', categoryId);
-  },
+
 
   async getLowStock() {
     if (USE_PRISMA) {
@@ -493,11 +338,11 @@ export const materialService = {
             { isActive: true },
             {
               OR: [
-                { name: { contains: query, mode: 'insensitive' } },
-                { description: { contains: query, mode: 'insensitive' } },
+                { name: { contains: query } },
+                { description: { contains: query } },
                 {
                   category: {
-                    name: { contains: query, mode: 'insensitive' },
+                    name: { contains: query },
                   },
                 },
               ],
@@ -542,61 +387,7 @@ export const materialService = {
     );
   },
 
-  async create(data: MaterialCreateData) {
-    if (USE_PRISMA) {
-      return await prisma.material.create({
-        data: {
-          ...data,
-          isActive: data.isActive !== undefined ? data.isActive : true,
-          currentStock: 0, // New materials start with 0 stock
-          averageCost: data.averageCost || 0,
-        },
-        include: {
-          category: true,
-          purchaseUnit: true,
-          consumptionUnit: true,
-          supplier: true,
-          defaultTax: true,
-          defaultWarehouse: true,
-        },
-      });
-    }
-    const newMaterial = {
-      ...data,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    mockMaterials.push(newMaterial);
-    return newMaterial;
-  },
 
-  async update(id: string, data: MaterialUpdateData) {
-    if (USE_PRISMA) {
-      return await prisma.material.update({
-        where: { id },
-        data,
-        include: {
-          category: true,
-          purchaseUnit: true,
-          consumptionUnit: true,
-          supplier: true,
-          defaultTax: true,
-          defaultWarehouse: true,
-          materialStocks: {
-            include: {
-              warehouse: true,
-            },
-          },
-        },
-      });
-    }
-    const materialIndex = mockMaterials.findIndex(mat => mat.id === id);
-    if (materialIndex === -1) return null;
-    
-    mockMaterials[materialIndex] = { ...mockMaterials[materialIndex], ...data };
-    return mockMaterials[materialIndex];
-  },
 
   async updateStockLevels(id: string, minStockLevel?: number, maxStockLevel?: number) {
     if (USE_PRISMA) {
@@ -664,65 +455,6 @@ export const materialService = {
     };
   },
 
-  async delete(id: string) {
-    if (USE_PRISMA) {
-      try {
-        // Check if material is being used in recipes, invoices, etc.
-        const materialWithRelations = await prisma.material.findUnique({
-          where: { id },
-          include: {
-            _count: {
-              select: {
-                recipeIngredients: true,
-                invoiceItems: true,
-                stockMovements: true,
-                stockCountItems: true,
-                materialTransfers: true,
-              },
-            },
-          },
-        });
-
-        if (!materialWithRelations) {
-          return false;
-        }
-
-        const { _count } = materialWithRelations;
-        if (
-          _count.recipeIngredients > 0 ||
-          _count.invoiceItems > 0 ||
-          _count.stockMovements > 0 ||
-          _count.stockCountItems > 0 ||
-          _count.materialTransfers > 0
-        ) {
-          throw new Error('Bu malzeme kullanımda olduğu için silinemez');
-        }
-
-        // First delete related material stocks
-        await prisma.materialStock.deleteMany({
-          where: { materialId: id },
-        });
-
-        // Then delete the material
-        await prisma.material.delete({
-          where: { id },
-        });
-        
-        return true;
-      } catch (error: any) {
-        if (error.code === 'P2003') {
-          throw new Error('Bu malzeme kullanımda olduğu için silinemez');
-        }
-        throw error;
-      }
-    }
-    const initialLength = mockMaterials.length;
-    const index = mockMaterials.findIndex(mat => mat.id === id);
-    if (index !== -1) {
-      mockMaterials.splice(index, 1);
-    }
-    return mockMaterials.length < initialLength;
-  },
 
   async toggleActive(id: string) {
     if (USE_PRISMA) {

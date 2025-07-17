@@ -88,21 +88,21 @@ export function RecipeForm({
   const removeIngredient = (index: number) => {
     setFormData(prev => ({
       ...prev,
-      ingredients: prev.ingredients.filter((_, i) => i !== index)
+      ingredients: prev.ingredients.filter((_: any, i: number) => i !== index)
     }));
   };
 
   const updateIngredient = (index: number, field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
-      ingredients: prev.ingredients.map((ing, i) => 
+      ingredients: prev.ingredients.map((ing: any, i: number) => 
         i === index ? { ...ing, [field]: value } : ing
       )
     }));
   };
 
   const calculateTotalCost = () => {
-    return formData.ingredients.reduce((total, ingredient) => {
+    return formData.ingredients.reduce((total: number, ingredient: any) => {
       const material = materials.find(m => m.id === ingredient.materialId);
       if (material && ingredient.quantity > 0) {
         return total + (material.averageCost * ingredient.quantity);
@@ -125,7 +125,7 @@ export function RecipeForm({
   // Malzeme arama filtresi
   const filteredMaterials = materials.filter(material => 
     material.name.toLowerCase().includes(materialSearch.toLowerCase()) &&
-    !formData.ingredients.some(ing => ing.materialId === material.id)
+    !formData.ingredients.some((ing: any) => ing.materialId === material.id)
   );
 
   const recipeCategories = [
@@ -337,7 +337,7 @@ export function RecipeForm({
                   <p className="text-sm">Yukarıdaki "Malzeme Ekle" butonunu kullanın</p>
                 </div>
               ) : (
-                formData.ingredients.map((ingredient, index) => {
+                formData.ingredients.map((ingredient: any, index: number) => {
                   const material = getMaterialById(ingredient.materialId);
                   const unit = getUnitById(ingredient.unitId);
                   const cost = material && ingredient.quantity > 0 ? material.averageCost * ingredient.quantity : 0;

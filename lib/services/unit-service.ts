@@ -134,11 +134,17 @@ export const unitService = {
     const unitIndex = mockUnits.findIndex(unit => unit.id === id);
     if (unitIndex === -1) return null;
     
-    mockUnits[unitIndex] = { 
+    const updatedUnit = { 
       ...mockUnits[unitIndex], 
       ...data,
-      updatedAt: new Date(),
     };
+    
+    // Handle baseUnitId for type safety
+    if (updatedUnit.isBaseUnit) {
+      delete updatedUnit.baseUnitId;
+    }
+    
+    mockUnits[unitIndex] = updatedUnit as any;
     return mockUnits[unitIndex];
   },
 
