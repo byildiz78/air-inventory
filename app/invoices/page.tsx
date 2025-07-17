@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   FileText, 
@@ -19,7 +20,10 @@ import {
   Calendar,
   DollarSign,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Settings,
+  Check,
+  X
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -46,6 +50,9 @@ export default function InvoicesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Fetch invoices from API
   useEffect(() => {
@@ -95,6 +102,58 @@ export default function InvoicesPage() {
       case 'SALE': return { variant: 'outline' as const, text: 'Satış', color: 'text-green-600' };
       case 'RETURN': return { variant: 'outline' as const, text: 'İade', color: 'text-red-600' };
       default: return { variant: 'outline' as const, text: type, color: 'text-gray-600' };
+    }
+  };
+
+  const getStatusOptions = (currentStatus: string) => {
+    const allStatuses = [
+      { value: 'PENDING', label: 'Beklemede', color: 'text-yellow-600' },
+      { value: 'APPROVED', label: 'Onaylandı', color: 'text-blue-600' },
+      { value: 'PAID', label: 'Ödendi', color: 'text-green-600' },
+      { value: 'CANCELLED', label: 'İptal', color: 'text-red-600' }
+    ];
+    
+    return allStatuses.filter(status => status.value !== currentStatus);
+  };
+
+  const handleStatusChange = async (invoiceId: string, newStatus: string) => {
+    try {
+      setUpdatingStatus(true);
+      
+      const response = await fetch(`/api/invoices/${invoiceId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          userId: '1' // Current user ID
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          // Update the invoice in the list
+          setInvoices(prev => prev.map(invoice => 
+            invoice.id === invoiceId 
+              ? { ...invoice, status: newStatus as Invoice['status'] }
+              : invoice
+          ));
+          setIsStatusModalOpen(false);
+          setSelectedInvoice(null);
+        } else {
+          alert(result.error || 'Durum güncellenirken hata oluştu');
+        }
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Durum güncellenirken hata oluştu');
+      }
+    } catch (error) {
+      console.error('Status update error:', error);
+      alert('Durum güncellenirken hata oluştu');
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -241,13 +300,16 @@ export default function InvoicesPage() {
         {/* Invoices List */}
         <Card>
           <CardHeader>
-            <CardTitle>Fatura Listesi</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              Fatura Listesi
+            </CardTitle>
             <CardDescription>
               {filteredInvoices.length} fatura gösteriliyor
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {loading ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
@@ -270,80 +332,172 @@ export default function InvoicesPage() {
                   </Link>
                 </div>
               ) : (
-                filteredInvoices.map((invoice: Invoice) => {
-                  const statusBadge = getStatusBadge(invoice.status);
-                  const typeBadge = getTypeBadge(invoice.type);
-                  
-                  return (
-                    <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <FileText className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium">{invoice.invoiceNumber}</h4>
-                            <Badge variant={typeBadge.variant}>
-                              {typeBadge.text}
-                            </Badge>
-                            <Badge variant={statusBadge.variant}>
-                              {statusBadge.text}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {invoice.supplierName} • {invoice.itemCount} kalem
-                          </p>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {invoice.date.toLocaleDateString('tr-TR')}
-                            </span>
-                            {invoice.dueDate && (
-                              <span>Vade: {invoice.dueDate.toLocaleDateString('tr-TR')}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className="font-bold text-lg">₺{invoice.totalAmount.toLocaleString()}</div>
-                          <div className="text-sm text-muted-foreground">
-                            KDV Hariç: ₺{invoice.subtotalAmount.toLocaleString()}
-                          </div>
-                          {invoice.totalDiscountAmount > 0 && (
-                            <div className="text-xs text-green-600">
-                              İndirim: ₺{invoice.totalDiscountAmount.toLocaleString()}
+                <div className="grid grid-cols-1 gap-4">
+                  {filteredInvoices.map((invoice: Invoice) => {
+                    const statusBadge = getStatusBadge(invoice.status);
+                    const typeBadge = getTypeBadge(invoice.type);
+                    
+                    return (
+                      <Card key={invoice.id} className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
+                        <CardContent className="p-0">
+                          <div className="flex items-center justify-between p-6">
+                            <div className="flex items-center gap-4">
+                              <div className={`w-16 h-16 ${typeBadge.color === 'text-blue-600' ? 'bg-blue-100' : typeBadge.color === 'text-green-600' ? 'bg-green-100' : 'bg-red-100'} rounded-xl flex items-center justify-center shadow-sm`}>
+                                <FileText className={`w-8 h-8 ${typeBadge.color}`} />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-3 mb-2">
+                                  <h4 className="font-bold text-lg text-gray-900">{invoice.invoiceNumber}</h4>
+                                  <Badge variant={typeBadge.variant} className={`${typeBadge.color} font-medium`}>
+                                    {typeBadge.text}
+                                  </Badge>
+                                  <Badge variant={statusBadge.variant} className={`${statusBadge.color} font-medium`}>
+                                    {statusBadge.text}
+                                  </Badge>
+                                </div>
+                                <p className="text-gray-600 font-medium mb-2">
+                                  {invoice.supplierName}
+                                </p>
+                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                  <span className="flex items-center gap-2">
+                                    <Calendar className="w-4 h-4" />
+                                    {invoice.date.toLocaleDateString('tr-TR')}
+                                  </span>
+                                  {invoice.dueDate && (
+                                    <span className="flex items-center gap-2">
+                                      <AlertTriangle className="w-4 h-4" />
+                                      Vade: {invoice.dueDate.toLocaleDateString('tr-TR')}
+                                    </span>
+                                  )}
+                                  <span className="flex items-center gap-2">
+                                    <FileText className="w-4 h-4" />
+                                    {invoice.itemCount} kalem
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          )}
-                        </div>
+                            
+                            <div className="flex items-center gap-6">
+                              <div className="text-right">
+                                <div className="font-bold text-2xl text-gray-900 mb-1">₺{invoice.totalAmount.toLocaleString()}</div>
+                                <div className="text-sm text-gray-500 mb-1">
+                                  KDV Hariç: ₺{invoice.subtotalAmount.toLocaleString()}
+                                </div>
+                                {invoice.totalDiscountAmount > 0 && (
+                                  <div className="text-sm text-green-600 font-medium">
+                                    İndirim: ₺{invoice.totalDiscountAmount.toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
 
-                        <div className="flex gap-2">
-                          <Link href={`/invoices/${invoice.id}`}>
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                          </Link>
-                          <Link href={`/invoices/edit?id=${invoice.id}`}>
-                            <Button variant="outline" size="sm">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          </Link>
-                          <Button variant="outline" size="sm">
-                            <Download className="w-4 h-4" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+                              <div className="flex flex-col gap-2">
+                                <div className="flex gap-2">
+                                  <Link href={`/invoices/${invoice.id}`}>
+                                    <Button variant="outline" size="sm" className="hover:bg-blue-50 hover:border-blue-300">
+                                      <Eye className="w-4 h-4 mr-1" />
+                                      Görüntüle
+                                    </Button>
+                                  </Link>
+                                  <Link href={`/invoices/edit?id=${invoice.id}`}>
+                                    <Button variant="outline" size="sm" className="hover:bg-orange-50 hover:border-orange-300">
+                                      <Edit className="w-4 h-4 mr-1" />
+                                      Düzenle
+                                    </Button>
+                                  </Link>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="hover:bg-purple-50 hover:border-purple-300"
+                                    onClick={() => {
+                                      setSelectedInvoice(invoice);
+                                      setIsStatusModalOpen(true);
+                                    }}
+                                  >
+                                    <Settings className="w-4 h-4 mr-1" />
+                                    Durum
+                                  </Button>
+                                  <Button variant="outline" size="sm" className="hover:bg-green-50 hover:border-green-300">
+                                    <Download className="w-4 h-4 mr-1" />
+                                    İndir
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Status Change Modal */}
+        <Dialog open={isStatusModalOpen} onOpenChange={setIsStatusModalOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Fatura Durumunu Değiştir</DialogTitle>
+              <DialogDescription>
+                {selectedInvoice?.invoiceNumber} numaralı faturanın durumunu değiştirin.
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedInvoice && (
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium">Mevcut Durum:</span>
+                    <Badge variant={getStatusBadge(selectedInvoice.status).variant} className={getStatusBadge(selectedInvoice.status).color}>
+                      {getStatusBadge(selectedInvoice.status).text}
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {selectedInvoice.supplierName} • ₺{selectedInvoice.totalAmount.toLocaleString()}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium mb-3">Yeni Durum Seçin:</h4>
+                  <div className="grid grid-cols-1 gap-2">
+                    {getStatusOptions(selectedInvoice.status).map((status) => (
+                      <Button
+                        key={status.value}
+                        variant="outline"
+                        className="justify-start h-auto p-4 hover:bg-gray-50"
+                        onClick={() => handleStatusChange(selectedInvoice.id, status.value)}
+                        disabled={updatingStatus}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full ${
+                            status.value === 'PENDING' ? 'bg-yellow-500' :
+                            status.value === 'APPROVED' ? 'bg-blue-500' :
+                            status.value === 'PAID' ? 'bg-green-500' :
+                            'bg-red-500'
+                          }`} />
+                          <span className={`font-medium ${status.color}`}>{status.label}</span>
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsStatusModalOpen(false)}
+                    disabled={updatingStatus}
+                  >
+                    İptal
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

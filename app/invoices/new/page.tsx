@@ -132,6 +132,18 @@ export default function NewInvoicePage() {
   // Add item modal
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
   const [materialSearch, setMaterialSearch] = useState('');
+  
+  // Add supplier modal
+  const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
+  const [addingSupplier, setAddingSupplier] = useState(false);
+  const [newSupplier, setNewSupplier] = useState({
+    name: '',
+    contactName: '',
+    phone: '',
+    email: '',
+    address: '',
+    taxNumber: ''
+  });
 
   useEffect(() => {
     loadData();
@@ -197,6 +209,105 @@ export default function NewInvoicePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper validation functions
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
+  
+  const isValidPhone = (phone: string): boolean => {
+    const phoneRegex = /^[\d\s\-\(\)\+]{10,}$/;
+    return phoneRegex.test(phone.trim());
+  };
+
+  const handleAddSupplier = async () => {
+    // Form validation
+    if (!newSupplier.name.trim()) {
+      alert('Tedarikçi adı zorunludur!');
+      return;
+    }
+    
+    if (newSupplier.name.trim().length < 2) {
+      alert('Tedarikçi adı en az 2 karakter olmalıdır!');
+      return;
+    }
+    
+    if (newSupplier.email && !isValidEmail(newSupplier.email)) {
+      alert('Geçerli bir e-posta adresi giriniz!');
+      return;
+    }
+    
+    if (newSupplier.phone && !isValidPhone(newSupplier.phone)) {
+      alert('Geçerli bir telefon numarası giriniz!');
+      return;
+    }
+
+    try {
+      setAddingSupplier(true);
+      
+      const response = await fetch('/api/suppliers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newSupplier.name.trim(),
+          contactName: newSupplier.contactName.trim() || null,
+          phone: newSupplier.phone.trim() || null,
+          email: newSupplier.email.trim() || null,
+          address: newSupplier.address.trim() || null,
+          taxNumber: newSupplier.taxNumber.trim() || null,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          // Yeni tedarikçiyi liste başına ekle
+          setSuppliers(prev => [result.data, ...prev]);
+          
+          // Yeni tedarikçiyi otomatik seç
+          setInvoiceForm(prev => ({ ...prev, supplierId: result.data.id }));
+          
+          // Form temizle ve modal kapat
+          setNewSupplier({
+            name: '',
+            contactName: '',
+            phone: '',
+            email: '',
+            address: '',
+            taxNumber: ''
+          });
+          setIsAddSupplierOpen(false);
+          
+          alert('Tedarikçi başarıyla eklendi!');
+        } else {
+          alert(result.error || 'Tedarikçi eklenirken bir hata oluştu');
+        }
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Tedarikçi eklenirken bir hata oluştu');
+      }
+    } catch (error) {
+      console.error('Tedarikçi ekleme hatası:', error);
+      alert('Tedarikçi eklenirken bir hata oluştu');
+    } finally {
+      setAddingSupplier(false);
+    }
+  };
+
+  const resetSupplierForm = () => {
+    setNewSupplier({
+      name: '',
+      contactName: '',
+      phone: '',
+      email: '',
+      address: '',
+      taxNumber: ''
+    });
+    setIsAddSupplierOpen(false);
   };
 
   const addItem = (materialId: string) => {
@@ -522,24 +633,36 @@ export default function NewInvoicePage() {
                     <Label htmlFor="supplier">
                       {invoiceForm.type === 'PURCHASE' ? 'Tedarikçi' : 'Müşteri'} *
                     </Label>
-                    <Select 
-                      value={invoiceForm.supplierId} 
-                      onValueChange={(value) => setInvoiceForm(prev => ({ ...prev, supplierId: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={invoiceForm.type === 'PURCHASE' ? 'Tedarikçi seçin' : 'Müşteri seçin'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {suppliers.map(supplier => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            <div className="flex items-center gap-2">
-                              <Building2 className="w-4 h-4" />
-                              {supplier.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select 
+                        value={invoiceForm.supplierId} 
+                        onValueChange={(value) => setInvoiceForm(prev => ({ ...prev, supplierId: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={invoiceForm.type === 'PURCHASE' ? 'Tedarikçi seçin' : 'Müşteri seçin'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {suppliers.map(supplier => (
+                            <SelectItem key={supplier.id} value={supplier.id}>
+                              <div className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4" />
+                                {supplier.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setIsAddSupplierOpen(true)}
+                        className="shrink-0"
+                        title={invoiceForm.type === 'PURCHASE' ? 'Yeni tedarikçi ekle' : 'Yeni müşteri ekle'}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                   
                   <div>
@@ -930,6 +1053,133 @@ export default function NewInvoicePage() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Add Supplier Modal */}
+      <Dialog open={isAddSupplierOpen} onOpenChange={setIsAddSupplierOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              {invoiceForm.type === 'PURCHASE' ? 'Yeni Tedarikçi Ekle' : 'Yeni Müşteri Ekle'}
+            </DialogTitle>
+            <DialogDescription>
+              {invoiceForm.type === 'PURCHASE' 
+                ? 'Yeni tedarikçi bilgilerini girin. Eklendikten sonra otomatik olarak seçilecektir.'
+                : 'Yeni müşteri bilgilerini girin. Eklendikten sonra otomatik olarak seçilecektir.'
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="supplierName">
+                  {invoiceForm.type === 'PURCHASE' ? 'Tedarikçi Adı' : 'Müşteri Adı'} *
+                </Label>
+                <Input
+                  id="supplierName"
+                  value={newSupplier.name}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, name: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !addingSupplier && newSupplier.name.trim()) {
+                      handleAddSupplier();
+                    }
+                  }}
+                  placeholder={invoiceForm.type === 'PURCHASE' ? 'Tedarikçi adı' : 'Müşteri adı'}
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="contactName">İletişim Kişisi</Label>
+                <Input
+                  id="contactName"
+                  value={newSupplier.contactName}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, contactName: e.target.value }))}
+                  placeholder="İletişim kişisi"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="phone">Telefon</Label>
+                <Input
+                  id="phone"
+                  value={newSupplier.phone}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Telefon numarası"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="email">E-posta</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newSupplier.email}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="E-posta adresi"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="address">Adres</Label>
+              <Textarea
+                id="address"
+                value={newSupplier.address}
+                onChange={(e) => setNewSupplier(prev => ({ ...prev, address: e.target.value }))}
+                placeholder="Adres bilgisi"
+                className="mt-1"
+                rows={2}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="taxNumber">Vergi Numarası</Label>
+              <Input
+                id="taxNumber"
+                value={newSupplier.taxNumber}
+                onChange={(e) => setNewSupplier(prev => ({ ...prev, taxNumber: e.target.value }))}
+                placeholder="Vergi numarası"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={resetSupplierForm}
+              disabled={addingSupplier}
+            >
+              İptal
+            </Button>
+            <Button
+              type="button"
+              onClick={handleAddSupplier}
+              disabled={addingSupplier || !newSupplier.name.trim()}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {addingSupplier ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Ekleniyor...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  {invoiceForm.type === 'PURCHASE' ? 'Tedarikçi Ekle' : 'Müşteri Ekle'}
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
