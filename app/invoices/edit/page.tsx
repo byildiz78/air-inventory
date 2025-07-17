@@ -255,7 +255,7 @@ export default function EditInvoicePage() {
         alert('Fatura başarıyla güncellendi!');
         
         // Optionally redirect or refresh
-        window.location.href = `/invoices/detail?id=${invoiceId}`;
+        window.location.href = `/invoices/${invoiceId}`;
       } else {
         const error = await response.json();
         console.error('Failed to update invoice:', error);
@@ -333,7 +333,7 @@ export default function EditInvoicePage() {
         <div className="bg-white border rounded-lg p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <Link href={`/invoices/detail?id=${invoiceId}`}>
+              <Link href={`/invoices/${invoiceId}`}>
                 <Button variant="outline" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Geri

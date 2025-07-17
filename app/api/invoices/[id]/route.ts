@@ -1,6 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { warehouseService } from '@/lib/services/warehouse-service';
+
+// Helper function to update MaterialStock table with logging
+async function updateMaterialStock(materialId: string, warehouseId: string | undefined, newStock: number, averageCost?: number): Promise<void> {
+  if (!warehouseId) {
+    console.log('⚠️ MaterialStock Update Skipped: No warehouseId provided', { materialId });
+    return;
+  }
+  
+  console.log('🔄 Updating MaterialStock (Invoice Update):', { 
+    materialId, 
+    warehouseId, 
+    newStock, 
+    averageCost 
+  });
+  
+  try {
+    const result = await warehouseService.updateMaterialStock(warehouseId, materialId, {
+      currentStock: newStock,
+      availableStock: newStock,
+      averageCost: averageCost
+    });
+    
+    console.log('✅ MaterialStock Updated Successfully (Invoice Update):', result?.id);
+  } catch (error) {
+    console.error('❌ MaterialStock Update Failed (Invoice Update):', error);
+    throw error;
+  }
+}
 
 // Helper function to calculate current stock for a material and warehouse
 async function calculateCurrentStock(materialId: string, warehouseId: string | undefined): Promise<number> {
@@ -363,33 +392,38 @@ export async function PUT(
       for (const item of body.items) {
         await recalculateStockAfterDate(item.materialId, item.warehouseId, new Date(body.date || result.date));
         
-        // Update Material.currentStock, lastPurchasePrice and averageCost (only for PURCHASE invoices)
-        if (result.type === 'PURCHASE') {
-          const currentStock = await calculateCurrentStock(item.materialId, item.warehouseId);
-          const totalStock = await calculateTotalStockFromMovements(item.materialId);
-          
-          // Get material with units for conversion
-          const material = await prisma.material.findUnique({
-            where: { id: item.materialId },
-            include: {
-              purchaseUnit: true,
-              consumptionUnit: true
-            }
-          });
-          
-          // Convert lastPurchasePrice to consumption unit for averageCost
-          let newAverageCost = item.unitPrice; // item.unitPrice is in purchase unit
-          if (material && material.purchaseUnit && material.consumptionUnit && material.purchaseUnit.id !== material.consumptionUnit.id) {
-            const conversionFactor = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
-            newAverageCost = item.unitPrice / conversionFactor;
+        // Update MaterialStock table and Material.currentStock, lastPurchasePrice and averageCost
+        const currentStock = await calculateCurrentStock(item.materialId, item.warehouseId);
+        
+        // Get material with units for conversion
+        const material = await prisma.material.findUnique({
+          where: { id: item.materialId },
+          include: {
+            purchaseUnit: true,
+            consumptionUnit: true
           }
+        });
+        
+        // Convert lastPurchasePrice to consumption unit for averageCost
+        let consumptionUnitCost = item.unitPrice; // item.unitPrice is in purchase unit
+        if (material && material.purchaseUnit && material.consumptionUnit && material.purchaseUnit.id !== material.consumptionUnit.id) {
+          const conversionFactor = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
+          consumptionUnitCost = item.unitPrice / conversionFactor;
+        }
+        
+        // Update MaterialStock table - use the updateMaterialStock helper with logging
+        await updateMaterialStock(item.materialId, item.warehouseId, currentStock, consumptionUnitCost);
+        
+        // Update Material table (only for PURCHASE invoices)
+        if (result.type === 'PURCHASE') {
+          const totalStock = await calculateTotalStockFromMovements(item.materialId);
           
           await prisma.material.update({
             where: { id: item.materialId },
             data: { 
               currentStock: totalStock,
               lastPurchasePrice: item.unitPrice, // Update last purchase price (purchase unit)
-              averageCost: newAverageCost // Update average cost (consumption unit)
+              averageCost: consumptionUnitCost // Update average cost (consumption unit)
             }
           });
         }

@@ -275,6 +275,22 @@ export default function StockCountPage() {
     }
   };
 
+  const handleOpenApprovalDialog = async (count: StockCount) => {
+    try {
+      setSelectedCount(count);
+      const items = await stockCountService.getItems(count.id);
+      setCountItems(items);
+      setIsApprovalOpen(true);
+    } catch (error) {
+      console.error('Error loading count items for approval:', error);
+      toast({
+        title: "Onay verisi yüklenemedi",
+        description: "Sayım kalemleri yüklenirken bir hata oluştu.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleRejectCount = async () => {
     if (!selectedCount) return;
     
@@ -448,6 +464,7 @@ export default function StockCountPage() {
         getStatusBadge={getStatusBadge}
         getWarehouseById={getWarehouseById}
         getUserById={getUserById}
+        onApproveCount={handleOpenApprovalDialog}
       />
 
       {/* Count Detail Dialog */}

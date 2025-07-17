@@ -102,13 +102,30 @@ async function calculateCurrentStock(materialId: string, warehouseId: string | u
 
 // Helper function to update MaterialStock table
 async function updateMaterialStock(materialId: string, warehouseId: string | undefined, newStock: number, averageCost?: number): Promise<void> {
-  if (!warehouseId) return;
+  if (!warehouseId) {
+    console.log('⚠️ MaterialStock Update Skipped: No warehouseId provided', { materialId });
+    return;
+  }
   
-  await warehouseService.updateMaterialStock(warehouseId, materialId, {
-    currentStock: newStock,
-    availableStock: newStock,
-    averageCost: averageCost
+  console.log('🔄 Updating MaterialStock:', { 
+    materialId, 
+    warehouseId, 
+    newStock, 
+    averageCost 
   });
+  
+  try {
+    const result = await warehouseService.updateMaterialStock(warehouseId, materialId, {
+      currentStock: newStock,
+      availableStock: newStock,
+      averageCost: averageCost
+    });
+    
+    console.log('✅ MaterialStock Updated Successfully:', result?.id);
+  } catch (error) {
+    console.error('❌ MaterialStock Update Failed:', error);
+    throw error;
+  }
 }
 
 export async function GET(request: NextRequest) {

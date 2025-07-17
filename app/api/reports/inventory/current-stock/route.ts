@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
+    console.log('🔍 Current Stock API: Starting data fetch...');
+    
     // Get all materials with their related data
     const materials = await prisma.material.findMany({
       where: { isActive: true },
@@ -24,14 +26,16 @@ export async function GET() {
           select: {
             id: true,
             name: true,
-            abbreviation: true
+            abbreviation: true,
+            conversionFactor: true
           }
         },
         purchaseUnit: {
           select: {
             id: true,
             name: true,
-            abbreviation: true
+            abbreviation: true,
+            conversionFactor: true
           }
         },
         materialStocks: {
@@ -50,8 +54,37 @@ export async function GET() {
       }
     });
 
+    console.log(`📊 Found ${materials.length} materials`);
+    
+    // Log a sample material's materialStocks for debugging
+    if (materials.length > 0) {
+      const sampleMaterial = materials[0];
+      console.log(`🔬 Sample material: ${sampleMaterial.name}`);
+      console.log(`📦 MaterialStocks count: ${sampleMaterial.materialStocks.length}`);
+      if (sampleMaterial.materialStocks.length > 0) {
+        console.log('📋 Sample stock:', {
+          warehouseId: sampleMaterial.materialStocks[0].warehouseId,
+          currentStock: sampleMaterial.materialStocks[0].currentStock,
+          availableStock: sampleMaterial.materialStocks[0].availableStock,
+          averageCost: sampleMaterial.materialStocks[0].averageCost
+        });
+      }
+    }
+
     // Transform the data to include stock information
     const stockData = materials.map(material => {
+      // Log each material's stock calculation for debugging
+      if (material.materialStocks.length > 0) {
+        console.log(`📦 Processing ${material.name}:`, {
+          stockCount: material.materialStocks.length,
+          stocks: material.materialStocks.map(s => ({
+            warehouseId: s.warehouseId,
+            currentStock: s.currentStock,
+            availableStock: s.availableStock
+          }))
+        });
+      }
+      
       // Calculate total stock across all warehouses
       const totalStock = material.materialStocks.reduce(
         (sum, stock) => sum + (stock.currentStock || 0),
@@ -99,17 +132,43 @@ export async function GET() {
         urgency: urgency,
         consumptionUnit: material.consumptionUnit,
         purchaseUnit: material.purchaseUnit,
-        warehouseStocks: material.materialStocks.map(stock => ({
-          warehouseId: stock.warehouseId,
-          warehouseName: stock.warehouse.name,
-          currentStock: stock.currentStock || 0,
-          availableStock: stock.availableStock || 0,
-          reservedStock: stock.reservedStock || 0,
-          averageCost: stock.averageCost || 0,
-          location: stock.location
-        }))
+        // Calculate unit conversion factor for display
+        unitConversion: (() => {
+          if (material.purchaseUnit && material.consumptionUnit) {
+            const conversion = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
+            console.log(`📐 Unit conversion for ${material.name}: ${material.purchaseUnit.name} (${material.purchaseUnit.conversionFactor}) / ${material.consumptionUnit.name} (${material.consumptionUnit.conversionFactor}) = ${conversion}`);
+            return conversion;
+          } else {
+            console.log(`⚠️ Missing unit data for ${material.name}, using default 1000`);
+            return 1000;
+          }
+        })(),
+        warehouseStocks: material.materialStocks.map(stock => {
+          const warehouseStock = {
+            warehouseId: stock.warehouseId,
+            warehouseName: stock.warehouse.name,
+            currentStock: stock.currentStock || 0,
+            availableStock: stock.availableStock || 0,
+            reservedStock: stock.reservedStock || 0,
+            averageCost: stock.averageCost || 0,
+            location: stock.location
+          };
+          
+          // Log individual warehouse stock transformation
+          console.log(`🏢 Warehouse stock for ${material.name} in ${stock.warehouse.name}:`, warehouseStock);
+          
+          return warehouseStock;
+        })
       };
     });
+
+    console.log(`📈 Total stockData items created: ${stockData.length}`);
+    
+    // Log summary of data transformation
+    const itemsWithStocks = stockData.filter(item => item.warehouseStocks.length > 0);
+    const itemsWithoutStocks = stockData.filter(item => item.warehouseStocks.length === 0);
+    console.log(`✅ Items with warehouse stocks: ${itemsWithStocks.length}`);
+    console.log(`⚠️ Items without warehouse stocks: ${itemsWithoutStocks.length}`);
 
     // Calculate summary statistics
     const summary = {

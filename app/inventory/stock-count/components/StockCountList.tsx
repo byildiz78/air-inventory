@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ClipboardList, Eye, Pause, Play, Plus, Search, XCircle } from 'lucide-react';
+import { ClipboardList, Eye, Pause, Play, Plus, Search, XCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 interface StockCountListProps {
@@ -19,6 +19,7 @@ interface StockCountListProps {
   getStatusBadge: (status: string) => any;
   getWarehouseById: (id: string) => any;
   getUserById: (id: string) => any;
+  onApproveCount?: (count: any) => void;
 }
 
 export function StockCountList({
@@ -30,7 +31,8 @@ export function StockCountList({
   onNewCount,
   getStatusBadge,
   getWarehouseById,
-  getUserById
+  getUserById,
+  onApproveCount
 }: StockCountListProps) {
   const [filters, setFilters] = useState({
     search: '',
@@ -232,6 +234,29 @@ export function StockCountList({
                         <XCircle className="w-4 h-4 mr-1" />
                         İptal
                       </Button>
+                    )}
+                    
+                    {count.status === 'PENDING_APPROVAL' && onApproveCount && (
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="text-green-600 border-green-200 hover:bg-green-50"
+                          onClick={() => onApproveCount(count)}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Onayla
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => onStatusChange(count.id, 'CANCELLED')}
+                        >
+                          <AlertTriangle className="w-4 h-4 mr-1" />
+                          Reddet
+                        </Button>
+                      </>
                     )}
                     
                     <Button 
