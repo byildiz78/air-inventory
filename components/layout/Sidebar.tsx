@@ -293,15 +293,56 @@ export function Sidebar({ className }: SidebarProps) {
             {bottomNavigation.map((item) => (
               <div key={item.name} className="mb-1">
                 {item.children ? (
-                  <div
-                    onClick={() => toggleExpanded(item.href)}
-                    className={cn(
-                      "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
-                      isExpanded(item.href) && item.children
-                        ? "bg-orange-100 text-orange-700"
-                        : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
+                  <div>
+                    <div
+                      onClick={() => toggleExpanded(item.href)}
+                      className={cn(
+                        "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
+                        isExpanded(item.href) && item.children
+                          ? "bg-orange-100 text-orange-700"
+                          : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <item.icon className={cn(
+                          "w-5 h-5 transition-colors",
+                          "text-orange-500 group-hover:text-orange-600"
+                        )} />
+                        <span>{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {item.badge && (
+                          <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
+                            {item.badge}
+                          </Badge>
+                        )}
+                        {isExpanded(item.href) ? 
+                          <ChevronDown className="w-4 h-4 text-orange-500" /> : 
+                          <ChevronRight className="w-4 h-4 text-orange-500" />
+                        }
+                      </div>
+                    </div>
+                    {/* Submenu */}
+                    {isExpanded(item.href) && (
+                      <div className="mt-1 ml-4 pl-4 border-l border-orange-200 space-y-1">
+                        {item.children.map((child) => (
+                          <Link
+                            key={child.name}
+                            href={child.href}
+                            onClick={() => setIsMobileOpen(false)}
+                            className={cn(
+                              "block px-3 py-2 text-sm rounded-md transition-colors",
+                              pathname === child.href
+                                ? "bg-orange-100 text-orange-600 font-medium"
+                                : "text-gray-600 hover:bg-orange-50 hover:text-orange-600"
+                            )}
+                          >
+                            {child.name}
+                          </Link>
+                        ))}
+                      </div>
                     )}
-                  >
+                  </div>
                 ) : (
                   <Link
                     href={item.href}
@@ -313,51 +354,21 @@ export function Sidebar({ className }: SidebarProps) {
                         : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
                     )}
                   >
-                )}
-                  <div className="flex items-center gap-3">
-                    <item.icon className={cn(
-                      "w-5 h-5 transition-colors",
-                      isActive(item.href) ? "text-white" : "text-orange-500 group-hover:text-orange-600"
-                    )} />
-                    <span>{item.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {item.badge && (
-                      <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
-                        {item.badge}
-                      </Badge>
-                    )}
-                    {item.children && (
-                      isExpanded(item.href) ? 
-                        <ChevronDown className="w-4 h-4 text-orange-500" /> : 
-                        <ChevronRight className="w-4 h-4 text-orange-500" />
-                    )}
-                  </div>
-                {item.children ? (
-                  </div>
-                ) : (
+                    <div className="flex items-center gap-3">
+                      <item.icon className={cn(
+                        "w-5 h-5 transition-colors",
+                        isActive(item.href) ? "text-white" : "text-orange-500 group-hover:text-orange-600"
+                      )} />
+                      <span>{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {item.badge && (
+                        <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </div>
                   </Link>
-                )}
-
-                {/* Submenu */}
-                {item.children && isExpanded(item.href) && (
-                  <div className="mt-1 ml-4 pl-4 border-l border-orange-200 space-y-1">
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.name}
-                        href={child.href}
-                        onClick={() => setIsMobileOpen(false)}
-                        className={cn(
-                          "block px-3 py-2 text-sm rounded-md transition-colors",
-                          pathname === child.href
-                            ? "bg-orange-100 text-orange-600 font-medium"
-                            : "text-gray-600 hover:bg-orange-50 hover:text-orange-600"
-                        )}
-                      >
-                        {child.name}
-                      </Link>
-                    ))}
-                  </div>
                 )}
               </div>
             ))}
