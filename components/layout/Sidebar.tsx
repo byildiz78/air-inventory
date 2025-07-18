@@ -22,7 +22,9 @@ import {
   Bell,
   Rocket,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Building2,
+  CreditCard
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -77,6 +79,17 @@ const navigation = [
       { name: 'Alış Faturaları', href: '/invoices/purchases' },
       { name: 'Satış Faturaları', href: '/invoices/sales' },
       { name: 'Fatura Oluştur', href: '/invoices/new' },
+    ],
+  },
+  {
+    name: 'Cari Yönetimi',
+    href: '/current-accounts',
+    icon: Building2,
+    current: false,
+    badge: null,
+    children: [
+      { name: 'Cari Hesaplar', href: '/current-accounts' },
+      { name: 'Ödemeler', href: '/payments' },
     ],
   },
   {

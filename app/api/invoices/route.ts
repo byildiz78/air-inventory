@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { warehouseService } from '@/lib/services/warehouse-service';
 import { RecipeCostUpdater } from '@/lib/services/recipe-cost-updater';
+import { CurrentAccountBalanceUpdater } from '@/lib/services/current-account-balance-updater';
 
 // Helper function to calculate stock at a specific date and warehouse
 async function calculateStockAtDate(materialId: string, warehouseId: string | undefined, date: Date): Promise<number> {
@@ -371,6 +372,80 @@ export async function POST(request: NextRequest) {
             return stockMovement;
           }));
         }
+      }
+
+      // Auto-create current account transaction for purchase invoices
+      if (body.type === 'PURCHASE' && body.supplierId) {
+        // Find or create current account for supplier
+        let currentAccount = await tx.currentAccount.findFirst({
+          where: { supplierId: body.supplierId }
+        });
+
+        if (!currentAccount) {
+          // Get supplier info
+          const supplier = await tx.supplier.findUnique({
+            where: { id: body.supplierId }
+          });
+
+          if (supplier) {
+            // Auto-generate current account code
+            const count = await tx.currentAccount.count();
+            const code = `CAR${(count + 1).toString().padStart(3, '0')}`;
+
+            // Create current account for supplier
+            currentAccount = await tx.currentAccount.create({
+              data: {
+                code: code,
+                name: supplier.name,
+                type: 'SUPPLIER',
+                supplierId: body.supplierId,
+                contactName: supplier.contactName,
+                phone: supplier.phone,
+                email: supplier.email,
+                address: supplier.address,
+                taxNumber: supplier.taxNumber,
+                openingBalance: 0,
+                currentBalance: 0,
+                creditLimit: 0,
+                isActive: true,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              }
+            });
+          }
+        }
+
+        if (currentAccount) {
+          // Create debt transaction for the invoice
+          const currentBalance = currentAccount.currentBalance;
+          const newBalance = currentBalance + (body.totalAmount || 0);
+
+          await tx.currentAccountTransaction.create({
+            data: {
+              currentAccountId: currentAccount.id,
+              invoiceId: invoice.id,
+              type: 'DEBT',
+              amount: body.totalAmount || 0,
+              balanceBefore: currentBalance,
+              balanceAfter: newBalance,
+              description: `Alış Faturası: ${body.invoiceNumber}`,
+              referenceNumber: body.invoiceNumber,
+              transactionDate: new Date(body.date),
+              userId: body.userId
+            }
+          });
+
+          // Update current account balance
+          await tx.currentAccount.update({
+            where: { id: currentAccount.id },
+            data: { currentBalance: newBalance }
+          });
+        }
+      }
+
+      // Recalculate current account balances if this is a purchase invoice
+      if (body.type === 'PURCHASE' && body.supplierId) {
+        await CurrentAccountBalanceUpdater.recalculateForInvoiceUpdate(invoice.id, tx);
       }
 
       return invoice;

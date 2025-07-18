@@ -151,6 +151,76 @@ export const invoiceService = {
           }
         }
 
+        // Auto-create current account transaction for purchase invoices
+        if (data.type === 'PURCHASE' && data.supplierId) {
+          // Find or create current account for supplier
+          let currentAccount = await tx.currentAccount.findFirst({
+            where: { supplierId: data.supplierId }
+          });
+
+          if (!currentAccount) {
+            // Get supplier info
+            const supplier = await tx.supplier.findUnique({
+              where: { id: data.supplierId }
+            });
+
+            if (supplier) {
+              // Auto-generate current account code
+              const count = await tx.currentAccount.count();
+              const code = `CAR${(count + 1).toString().padStart(3, '0')}`;
+
+              // Create current account for supplier
+              currentAccount = await tx.currentAccount.create({
+                data: {
+                  code: code,
+                  name: supplier.name,
+                  type: 'SUPPLIER',
+                  supplierId: data.supplierId,
+                  contactName: supplier.contactName,
+                  phone: supplier.phone,
+                  email: supplier.email,
+                  address: supplier.address,
+                  taxNumber: supplier.taxNumber,
+                  openingBalance: 0,
+                  currentBalance: 0,
+                  creditLimit: 0,
+                  isActive: true,
+                  createdAt: new Date(),
+                  updatedAt: new Date()
+                }
+              });
+            }
+          }
+
+          if (currentAccount) {
+            // Create debt transaction for the invoice
+            const currentBalance = currentAccount.currentBalance;
+            const newBalance = currentBalance + data.totalAmount;
+
+            await tx.currentAccountTransaction.create({
+              data: {
+                currentAccountId: currentAccount.id,
+                invoiceId: invoice.id,
+                type: 'DEBT',
+                amount: data.totalAmount,
+                balanceBefore: currentBalance,
+                balanceAfter: newBalance,
+                description: `Alış Faturası: ${data.invoiceNumber}`,
+                referenceNumber: data.invoiceNumber,
+                transactionDate: new Date(data.date),
+                createdAt: new Date(),
+                updatedAt: new Date()
+              }
+            });
+
+            // Update current account balance
+            await tx.currentAccount.update({
+              where: { id: currentAccount.id },
+              data: { currentBalance: newBalance }
+            });
+          }
+        }
+
         return invoice;
       });
     }

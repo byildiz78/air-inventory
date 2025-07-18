@@ -36,6 +36,8 @@ model User {
   warehouseTransfers WarehouseTransfer[]
   userPermissions    UserPermission[]
   activityLogs       ActivityLog[]
+  payments           Payment[]
+  currentAccountTransactions CurrentAccountTransaction[]
 
   @@map("users")
 }
@@ -186,6 +188,7 @@ model Supplier {
   // Relations
   materials Material[]
   invoices  Invoice[]
+  currentAccounts CurrentAccount[]
 
   @@map("suppliers")
 }
@@ -597,6 +600,7 @@ model Invoice {
   user           User            @relation(fields: [userId], references: [id])
   items          InvoiceItem[]
   stockMovements StockMovement[]
+  currentAccountTransactions CurrentAccountTransaction[]
 
   @@map("invoices")
 }
@@ -815,4 +819,158 @@ enum TaxType {
   VAT    // KDV
   EXCISE // ÖTV
   OTHER  // Diğer
+}
+
+// ================================
+// CURRENT ACCOUNT MANAGEMENT
+// ================================
+
+model BankAccount {
+  id              String   @id @default(cuid())
+  accountName     String   // "İş Bankası Vadesiz"
+  bankName        String   // "Türkiye İş Bankası"
+  accountNumber   String   // "1234567890"
+  iban            String?  // "TR64 0006 4000 0011 2345 6789 01"
+  currency        String   @default("TRY")
+  
+  // Bakiye
+  currentBalance  Float    @default(0)
+  
+  // Durum
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  payments        Payment[]
+
+  @@map("bank_accounts")
+}
+
+model CurrentAccount {
+  id              String   @id @default(cuid())
+  code            String   @unique // Otomatik: "CAR001", "CAR002"
+  name            String   // Tedarikçi/Müşteri adı
+  type            CurrentAccountType @default(SUPPLIER)
+  supplierId      String?  // Tedarikçi ile ilişki
+  
+  // Bakiye Bilgileri
+  openingBalance  Float    @default(0) // Açılış bakiyesi
+  currentBalance  Float    @default(0) // Güncel bakiye (- borç, + alacak)
+  creditLimit     Float    @default(0) // Kredi limiti
+  
+  // İletişim Bilgileri (Supplier'dan kopyalanabilir)
+  contactName     String?
+  phone           String?
+  email           String?
+  address         String?
+  taxNumber       String?
+  
+  // Durum
+  isActive        Boolean  @default(true)
+  lastActivityDate DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  transactions    CurrentAccountTransaction[]
+  payments        Payment[]
+
+  @@map("current_accounts")
+}
+
+enum CurrentAccountType {
+  SUPPLIER  // Tedarikçi
+  CUSTOMER  // Müşteri
+  BOTH      // Her ikisi
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  paymentNumber     String   @unique // Otomatik: "PAY001"
+  currentAccountId  String
+  
+  // Ödeme Bilgileri
+  paymentDate       DateTime
+  amount            Float
+  paymentMethod     PaymentMethod @default(CASH)
+  currency          String   @default("TRY")
+  
+  // Referans Bilgileri
+  referenceNumber   String?  // Banka referans no, çek no vb.
+  description       String?
+  
+  // Banka Bilgileri
+  bankAccountId     String?
+  
+  // Durum
+  status            PaymentStatus @default(PENDING)
+  
+  // Audit
+  userId            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  currentAccount    CurrentAccount @relation(fields: [currentAccountId], references: [id])
+  bankAccount       BankAccount?   @relation(fields: [bankAccountId], references: [id])
+  user              User           @relation(fields: [userId], references: [id])
+  transactions      CurrentAccountTransaction[]
+
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  CASH           // Nakit
+  BANK_TRANSFER  // Havale/EFT
+  CREDIT_CARD    // Kredi Kartı
+  CHECK          // Çek
+  PROMISSORY_NOTE // Senet
+}
+
+enum PaymentStatus {
+  PENDING    // Beklemede
+  COMPLETED  // Tamamlandı
+  CANCELLED  // İptal
+  FAILED     // Başarısız
+}
+
+model CurrentAccountTransaction {
+  id                String   @id @default(cuid())
+  currentAccountId  String
+  invoiceId         String?  // Fatura ile ilişki
+  paymentId         String?  // Ödeme ile ilişki
+  
+  // Hareket Bilgileri
+  transactionDate   DateTime
+  type              TransactionType
+  amount            Float    // + alacak, - borç
+  description       String
+  referenceNumber   String?  // Fatura no, ödeme no vb.
+  
+  // Bakiye Bilgileri (snapshot)
+  balanceBefore     Float    // Hareket öncesi bakiye
+  balanceAfter      Float    // Hareket sonrası bakiye
+  
+  // Audit
+  userId            String
+  createdAt         DateTime @default(now())
+
+  // Relations
+  currentAccount    CurrentAccount @relation(fields: [currentAccountId], references: [id])
+  invoice           Invoice?       @relation(fields: [invoiceId], references: [id])
+  payment           Payment?       @relation(fields: [paymentId], references: [id])
+  user              User           @relation(fields: [userId], references: [id])
+
+  @@map("current_account_transactions")
+}
+
+enum TransactionType {
+  DEBT       // Borç (Alış faturası)
+  CREDIT     // Alacak (Satış faturası)
+  PAYMENT    // Ödeme
+  ADJUSTMENT // Düzeltme
 }

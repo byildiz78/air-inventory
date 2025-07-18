@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { warehouseService } from '@/lib/services/warehouse-service';
+import { CurrentAccountBalanceUpdater } from '@/lib/services/current-account-balance-updater';
 
 // Helper function to update MaterialStock table with logging
 async function updateMaterialStock(materialId: string, warehouseId: string | undefined, newStock: number, averageCost?: number): Promise<void> {
@@ -384,6 +385,111 @@ export async function PUT(
         }
       }
 
+      // Handle current account transaction updates for purchase invoices
+      if (updatedInvoice.type === 'PURCHASE' && updatedInvoice.supplierId) {
+        // Find existing current account transaction for this invoice
+        const existingTransaction = await tx.currentAccountTransaction.findFirst({
+          where: { invoiceId: params.id }
+        });
+
+        // Find or create current account for supplier
+        let currentAccount = await tx.currentAccount.findFirst({
+          where: { supplierId: updatedInvoice.supplierId }
+        });
+
+        if (!currentAccount) {
+          // Get supplier info
+          const supplier = await tx.supplier.findUnique({
+            where: { id: updatedInvoice.supplierId }
+          });
+
+          if (supplier) {
+            // Auto-generate current account code
+            const count = await tx.currentAccount.count();
+            const code = `CAR${(count + 1).toString().padStart(3, '0')}`;
+
+            // Create current account for supplier
+            currentAccount = await tx.currentAccount.create({
+              data: {
+                code: code,
+                name: supplier.name,
+                type: 'SUPPLIER',
+                supplierId: updatedInvoice.supplierId,
+                contactName: supplier.contactName,
+                phone: supplier.phone,
+                email: supplier.email,
+                address: supplier.address,
+                taxNumber: supplier.taxNumber,
+                openingBalance: 0,
+                currentBalance: 0,
+                creditLimit: 0,
+                isActive: true,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              }
+            });
+          }
+        }
+
+        if (currentAccount) {
+          const newInvoiceAmount = updatedInvoice.totalAmount || 0;
+
+          if (existingTransaction) {
+            // Update existing transaction
+            const oldAmount = existingTransaction.amount;
+            const amountDifference = newInvoiceAmount - oldAmount;
+            const newBalance = currentAccount.currentBalance + amountDifference;
+
+            await tx.currentAccountTransaction.update({
+              where: { id: existingTransaction.id },
+              data: {
+                amount: newInvoiceAmount,
+                balanceAfter: newBalance,
+                description: `Alış Faturası (Güncellendi): ${updatedInvoice.invoiceNumber}`,
+                referenceNumber: updatedInvoice.invoiceNumber,
+                transactionDate: new Date(body.date || updatedInvoice.date)
+              }
+            });
+
+            // Update current account balance
+            await tx.currentAccount.update({
+              where: { id: currentAccount.id },
+              data: { currentBalance: newBalance }
+            });
+          } else {
+            // Create new transaction
+            const currentBalance = currentAccount.currentBalance;
+            const newBalance = currentBalance + newInvoiceAmount;
+
+            await tx.currentAccountTransaction.create({
+              data: {
+                currentAccountId: currentAccount.id,
+                invoiceId: params.id,
+                type: 'DEBT',
+                amount: newInvoiceAmount,
+                balanceBefore: currentBalance,
+                balanceAfter: newBalance,
+                description: `Alış Faturası: ${updatedInvoice.invoiceNumber}`,
+                referenceNumber: updatedInvoice.invoiceNumber,
+                transactionDate: new Date(body.date || updatedInvoice.date),
+                userId: body.userId || '1'
+              }
+            });
+
+            // Update current account balance
+            await tx.currentAccount.update({
+              where: { id: currentAccount.id },
+              data: { currentBalance: newBalance }
+            });
+          }
+        }
+      }
+
+      // Recalculate current account balances if this is a purchase invoice
+      if (updatedInvoice.type === 'PURCHASE' && updatedInvoice.supplierId) {
+        await CurrentAccountBalanceUpdater.recalculateForInvoiceUpdate(params.id, tx);
+      }
+
       return updatedInvoice;
     });
 
@@ -520,6 +626,29 @@ export async function DELETE(
 
     // Delete the invoice and related items in a transaction
     await prisma.$transaction(async (tx: any) => {
+      // Handle current account transaction cleanup
+      const existingCurrentAccountTransaction = await tx.currentAccountTransaction.findFirst({
+        where: { invoiceId: params.id },
+        include: { currentAccount: true }
+      });
+
+      if (existingCurrentAccountTransaction) {
+        const currentAccountId = existingCurrentAccountTransaction.currentAccount.id;
+        const transactionDate = existingCurrentAccountTransaction.transactionDate;
+
+        // Delete the current account transaction first
+        await tx.currentAccountTransaction.delete({
+          where: { id: existingCurrentAccountTransaction.id }
+        });
+
+        // Recalculate balances from the transaction date
+        await CurrentAccountBalanceUpdater.recalculateAccountBalances(
+          currentAccountId,
+          transactionDate,
+          tx
+        );
+      }
+
       // Delete related stock movements if they exist
       if (existingInvoice.stockMovements.length > 0) {
         await tx.stockMovement.deleteMany({
