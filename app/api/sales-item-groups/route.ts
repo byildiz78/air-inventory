@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { AuthMiddleware } from '@/lib/auth-middleware';
 
 /**
  * @swagger
@@ -221,7 +222,7 @@ import { prisma } from '@/lib/prisma';
  *               $ref: '#/components/schemas/Error'
  */
 
-export async function GET(request: NextRequest) {
+export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const url = request.nextUrl;
     const categoryId = url.searchParams.get('categoryId');
@@ -265,9 +266,9 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     
@@ -319,10 +320,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT endpoint to update a group
-export async function PUT(request: NextRequest) {
+export const PUT = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { id, ...updateData } = body;
@@ -389,10 +390,10 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE endpoint to delete a group
-export async function DELETE(request: NextRequest) {
+export const DELETE = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const url = request.nextUrl;
     const id = url.searchParams.get('id');
@@ -456,4 +457,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

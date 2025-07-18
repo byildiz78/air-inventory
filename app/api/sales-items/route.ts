@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { AuthMiddleware } from '@/lib/auth-middleware';
 
 /**
  * @swagger
@@ -250,7 +251,7 @@ import { prisma } from '@/lib/prisma';
  *               $ref: '#/components/schemas/Error'
  */
 
-export async function GET(request: NextRequest) {
+export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     // Get all sales items from the database with their categories
     const salesItems = await prisma.salesItem.findMany({
@@ -293,9 +294,9 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     
@@ -339,4 +340,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

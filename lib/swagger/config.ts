@@ -603,7 +603,7 @@ const options: swaggerJSDoc.Options = {
       },
       {
         name: 'Authentication',
-        description: 'User authentication and authorization'
+        description: 'JWT-based user authentication and authorization'
       }
     ]
   },

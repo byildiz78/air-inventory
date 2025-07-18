@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { materialService } from '@/lib/services/material-service';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { AuthMiddleware } from '@/lib/auth-middleware';
 
 /**
  * @swagger
@@ -149,7 +150,7 @@ import { ActivityLogger } from '@/lib/activity-logger';
  *               $ref: '#/components/schemas/Error'
  */
 
-export async function GET(request: NextRequest) {
+export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const categoryId = searchParams.get('categoryId');
@@ -183,9 +184,9 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     
@@ -267,4 +268,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

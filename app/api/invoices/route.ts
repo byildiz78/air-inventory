@@ -4,6 +4,7 @@ import { ActivityLogger } from '@/lib/activity-logger';
 import { warehouseService } from '@/lib/services/warehouse-service';
 import { RecipeCostUpdater } from '@/lib/services/recipe-cost-updater';
 import { CurrentAccountBalanceUpdater } from '@/lib/services/current-account-balance-updater';
+import { AuthMiddleware } from '@/lib/auth-middleware';
 
 /**
  * @swagger
@@ -467,7 +468,7 @@ async function updateMaterialStock(materialId: string, warehouseId: string | und
   }
 }
 
-export async function GET(request: NextRequest) {
+export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     // Get query parameters
     const searchTerm = request.nextUrl.searchParams.get('search') || '';
@@ -604,9 +605,9 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     
@@ -1001,4 +1002,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

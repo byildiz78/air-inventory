@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
         // Create current account transaction with temporary balance values
         // These will be recalculated properly by CurrentAccountBalanceUpdater below
         console.log('Creating current account transaction for payment:', payment.id);
-        await tx.currentAccountTransaction.create({
+        await prisma.currentAccountTransaction.create({
           data: {
             currentAccountId: body.currentAccountId,
             paymentId: payment.id,
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Update last activity date only
-        await tx.currentAccount.update({
+        await prisma.currentAccount.update({
           where: { id: body.currentAccountId },
           data: {
             lastActivityDate: new Date(body.paymentDate)
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 
       // Recalculate current account balances if payment is completed
       if (payment.status === 'COMPLETED') {
-        await CurrentAccountBalanceUpdater.recalculateForPaymentUpdate(payment.id, tx);
+        await CurrentAccountBalanceUpdater.recalculateForPaymentUpdate(payment.id, prisma);
       }
 
       return payment;

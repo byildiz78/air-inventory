@@ -164,14 +164,16 @@ export async function PUT(
       'payment',
       paymentId,
       {
-        amount: existingPayment.amount,
-        paymentMethod: existingPayment.paymentMethod,
-        status: existingPayment.status
-      },
-      {
-        amount: result.amount,
-        paymentMethod: result.paymentMethod,
-        status: result.status
+        before: {
+          amount: existingPayment.amount,
+          paymentMethod: existingPayment.paymentMethod,
+          status: existingPayment.status
+        },
+        after: {
+          amount: result.amount,
+          paymentMethod: result.paymentMethod,
+          status: result.status
+        }
       },
       request
     );
