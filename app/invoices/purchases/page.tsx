@@ -14,11 +14,17 @@ import {
   Edit,
   Trash2,
   Eye,
-  Download,
   Calendar,
   DollarSign,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Package,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CheckCircle,
+  XCircle,
+  User
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -39,63 +45,163 @@ type Invoice = {
   userName?: string;
 };
 
+interface ApiResponse {
+  success: boolean;
+  data: Invoice[];
+  pagination?: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+  error?: string;
+}
+
 export default function PurchaseInvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState('desc');
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Fetch invoices from API
   useEffect(() => {
-    const fetchInvoices = async () => {
-      setLoading(true);
-      try {
-        // PURCHASE tipindeki faturaları çek
-        const response = await fetch(`/api/invoices?search=${searchTerm}&status=${statusFilter !== 'all' ? statusFilter : ''}&type=PURCHASE`);
-        const data = await response.json();
-        
-        if (data.success) {
-          // Convert date strings to Date objects
-          const formattedInvoices = data.data.map((invoice: any) => ({
-            ...invoice,
-            date: new Date(invoice.date),
-            dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null
-          }));
-          setInvoices(formattedInvoices);
-          console.log('Alış faturaları yüklendi:', formattedInvoices.length);
-        } else {
-          console.error('Error fetching purchase invoices:', data.error);
-        }
-      } catch (error) {
-        console.error('Error fetching purchase invoices:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchInvoices();
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, sortBy, sortOrder, currentPage, pageSize]);
 
-  // No need to filter invoices here as we're filtering on the API side
-  const filteredInvoices = invoices;
+  const fetchInvoices = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('type', 'PURCHASE');
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      params.append('sortBy', sortBy);
+      params.append('sortOrder', sortOrder);
+      params.append('page', currentPage.toString());
+      params.append('limit', pageSize.toString());
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PENDING': return { variant: 'secondary' as const, text: 'Beklemede', color: 'text-yellow-600' };
-      case 'APPROVED': return { variant: 'default' as const, text: 'Onaylandı', color: 'text-blue-600' };
-      case 'PAID': return { variant: 'default' as const, text: 'Ödendi', color: 'text-green-600' };
-      case 'CANCELLED': return { variant: 'destructive' as const, text: 'İptal', color: 'text-red-600' };
-      default: return { variant: 'outline' as const, text: status, color: 'text-gray-600' };
+      const response = await fetch(`/api/invoices?${params}`);
+      const data: ApiResponse = await response.json();
+      
+      if (data.success) {
+        // Convert date strings to Date objects
+        const formattedInvoices = data.data.map((invoice: any) => ({
+          ...invoice,
+          date: new Date(invoice.date),
+          dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null
+        }));
+        setInvoices(formattedInvoices);
+        
+        if (data.pagination) {
+          setTotalPages(data.pagination.totalPages);
+          setTotalCount(data.pagination.totalCount);
+        }
+      } else {
+        console.error('Error fetching purchase invoices:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching purchase invoices:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setSortBy('date');
+    setSortOrder('desc');
+    setCurrentPage(1);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PENDING': 
+        return { 
+          variant: 'secondary' as const, 
+          text: 'Beklemede', 
+          color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+          icon: Clock
+        };
+      case 'APPROVED': 
+        return { 
+          variant: 'default' as const, 
+          text: 'Onaylandı', 
+          color: 'bg-blue-100 text-blue-800 border-blue-200',
+          icon: CheckCircle
+        };
+      case 'PAID': 
+        return { 
+          variant: 'default' as const, 
+          text: 'Ödendi', 
+          color: 'bg-green-100 text-green-800 border-green-200',
+          icon: CheckCircle
+        };
+      case 'CANCELLED': 
+        return { 
+          variant: 'destructive' as const, 
+          text: 'İptal', 
+          color: 'bg-red-100 text-red-800 border-red-200',
+          icon: XCircle
+        };
+      default: 
+        return { 
+          variant: 'outline' as const, 
+          text: status, 
+          color: 'bg-gray-100 text-gray-800 border-gray-200',
+          icon: Clock
+        };
+    }
+  };
+
+  const getSortingOptions = () => [
+    { value: 'date', label: 'Tarih' },
+    { value: 'invoiceNumber', label: 'Fatura No' },
+    { value: 'supplierName', label: 'Tedarikçi' },
+    { value: 'totalAmount', label: 'Tutar' },
+    { value: 'status', label: 'Durum' }
+  ];
+
   // Calculate stats
   const stats = {
-    totalInvoices: filteredInvoices.length,
-    pendingInvoices: filteredInvoices.filter(inv => inv.status === 'PENDING').length,
-    totalAmount: filteredInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0),
-    avgAmount: filteredInvoices.length > 0 ? filteredInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / filteredInvoices.length : 0,
+    totalInvoices: totalCount,
+    pendingInvoices: invoices.filter(inv => inv.status === 'PENDING').length,
+    totalAmount: invoices.reduce((sum, inv) => sum + inv.totalAmount, 0),
+    avgAmount: invoices.length > 0 ? invoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / invoices.length : 0,
   };
+
+  const getDaysUntilDue = (dueDate: Date | null) => {
+    if (!dueDate) return null;
+    const today = new Date();
+    const diffTime = dueDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Alış faturaları yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -118,18 +224,18 @@ export default function PurchaseInvoicesPage() {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
+          <Card className="border-blue-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Toplam Fatura</CardTitle>
               <FileText className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalInvoices}</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.totalInvoices}</div>
               <p className="text-xs text-muted-foreground">Alış faturası sayısı</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-orange-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Bekleyen Faturalar</CardTitle>
               <AlertTriangle className="h-4 w-4 text-orange-600" />
@@ -140,24 +246,24 @@ export default function PurchaseInvoicesPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-green-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Toplam Tutar</CardTitle>
               <DollarSign className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₺{stats.totalAmount.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-green-600">₺{stats.totalAmount.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">Tüm alış faturaları</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-purple-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Ortalama Tutar</CardTitle>
               <TrendingUp className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₺{stats.avgAmount.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-purple-600">₺{stats.avgAmount.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">Fatura başına</p>
             </CardContent>
           </Card>
@@ -166,13 +272,23 @@ export default function PurchaseInvoicesPage() {
         {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="w-5 h-5" />
-              Filtreler
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Filter className="w-5 h-5" />
+                  Filtreler
+                </CardTitle>
+                <CardDescription>
+                  Faturalarınızı filtreleyerek görüntüleyin
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                Temizle
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -196,25 +312,63 @@ export default function PurchaseInvoicesPage() {
                 </SelectContent>
               </Select>
 
-              <Button variant="outline">
-                <Download className="w-4 h-4 mr-2" />
-                Excel'e Aktar
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sıralama" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getSortingOptions().map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="flex items-center gap-2"
+              >
+                <TrendingUp className="h-4 w-4" />
+                {sortOrder === 'asc' ? 'Artan' : 'Azalan'}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Invoices List */}
+        {/* Results Count */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {totalCount} fatura bulundu
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Sayfa başı:</span>
+            <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Enhanced Invoice Table */}
         <Card>
           <CardHeader>
             <CardTitle>Alış Faturası Listesi</CardTitle>
             <CardDescription>
-              {filteredInvoices.length} fatura gösteriliyor
+              Sayfa {currentPage} / {totalPages} - {totalCount} fatura
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {filteredInvoices.length === 0 ? (
+            <div className="space-y-4">
+              {invoices.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                   <h3 className="text-lg font-medium mb-2">Alış faturası bulunamadı</h3>
@@ -231,79 +385,217 @@ export default function PurchaseInvoicesPage() {
                   </Link>
                 </div>
               ) : (
-                filteredInvoices.map((invoice) => {
-                  const statusBadge = getStatusBadge(invoice.status);
-                  
-                  return (
-                    <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <FileText className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium">{invoice.invoiceNumber}</h4>
-                            <Badge variant="outline" className="text-blue-600">
-                              Alış
-                            </Badge>
-                            <Badge variant={statusBadge.variant}>
-                              {statusBadge.text}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {invoice.supplierName} • {invoice.itemCount} kalem
-                          </p>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {invoice.date.toLocaleDateString('tr-TR')}
-                            </span>
-                            {invoice.dueDate && (
-                              <span>Vade: {invoice.dueDate.toLocaleDateString('tr-TR')}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className="font-bold text-lg">₺{invoice.totalAmount.toLocaleString()}</div>
-                          <div className="text-sm text-muted-foreground">
-                            KDV Hariç: ₺{invoice.subtotalAmount.toLocaleString()}
-                          </div>
-                          {invoice.totalDiscountAmount > 0 && (
-                            <div className="text-xs text-green-600">
-                              İndirim: ₺{invoice.totalDiscountAmount.toLocaleString()}
+                <>
+                  {/* Table Header */}
+                  <div className="hidden md:grid grid-cols-12 gap-4 p-4 bg-gray-50 rounded-lg font-medium text-sm text-gray-600">
+                    <div className="col-span-3">Fatura Bilgileri</div>
+                    <div className="col-span-2">Tedarikçi</div>
+                    <div className="col-span-2">Tarih/Vade</div>
+                    <div className="col-span-2">Tutar</div>
+                    <div className="col-span-2">Durum</div>
+                    <div className="col-span-1">İşlemler</div>
+                  </div>
+
+                  {/* Table Rows */}
+                  {invoices.map((invoice) => {
+                    const statusBadge = getStatusBadge(invoice.status);
+                    const StatusIcon = statusBadge.icon;
+                    const daysUntilDue = getDaysUntilDue(invoice.dueDate);
+                    
+                    return (
+                      <div key={invoice.id} className="border rounded-lg hover:shadow-md transition-all duration-200">
+                        {/* Mobile View */}
+                        <div className="md:hidden p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-blue-600" />
+                              </div>
+                              <div>
+                                <h4 className="font-medium">{invoice.invoiceNumber}</h4>
+                                <p className="text-sm text-muted-foreground">{invoice.supplierName}</p>
+                              </div>
                             </div>
-                          )}
+                            <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusBadge.color}`}>
+                              <StatusIcon className="w-3 h-3" />
+                              {statusBadge.text}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {invoice.date.toLocaleDateString('tr-TR')}
+                              </div>
+                              {invoice.dueDate && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <Clock className="w-3 h-3" />
+                                  Vade: {invoice.dueDate.toLocaleDateString('tr-TR')}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-lg">₺{invoice.totalAmount.toLocaleString()}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {invoice.itemCount} kalem
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <Link href={`/invoices/detail?id=${invoice.id}`} className="flex-1">
+                              <Button variant="outline" size="sm" className="w-full">
+                                <Eye className="w-4 h-4 mr-2" />
+                                Görüntüle
+                              </Button>
+                            </Link>
+                            <Link href={`/invoices/edit?id=${invoice.id}`} className="flex-1">
+                              <Button variant="outline" size="sm" className="w-full">
+                                <Edit className="w-4 h-4 mr-2" />
+                                Düzenle
+                              </Button>
+                            </Link>
+                          </div>
                         </div>
 
-                        <div className="flex gap-2">
-                          <Link href={`/invoices/detail?id=${invoice.id}`}>
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                          </Link>
-                          <Link href={`/invoices/edit?id=${invoice.id}`}>
-                            <Button variant="outline" size="sm">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          </Link>
-                          <Button variant="outline" size="sm">
-                            <Download className="w-4 h-4" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                        {/* Desktop View */}
+                        <div className="hidden md:grid grid-cols-12 gap-4 p-4 items-center">
+                          <div className="col-span-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-blue-600" />
+                              </div>
+                              <div>
+                                <h4 className="font-medium">{invoice.invoiceNumber}</h4>
+                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                  <Package className="w-3 h-3" />
+                                  {invoice.itemCount} kalem
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="col-span-2">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-muted-foreground" />
+                              <span className="font-medium">{invoice.supplierName}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="col-span-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1 text-sm">
+                                <Calendar className="w-3 h-3" />
+                                {invoice.date.toLocaleDateString('tr-TR')}
+                              </div>
+                              {invoice.dueDate && (
+                                <div className="flex items-center gap-1 text-sm">
+                                  <Clock className="w-3 h-3" />
+                                  <span className={daysUntilDue !== null && daysUntilDue < 0 ? 'text-red-600' : 'text-muted-foreground'}>
+                                    {invoice.dueDate.toLocaleDateString('tr-TR')}
+                                    {daysUntilDue !== null && daysUntilDue < 0 && ' (Gecikmiş)'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="col-span-2">
+                            <div className="text-right">
+                              <div className="font-bold text-lg">₺{invoice.totalAmount.toLocaleString()}</div>
+                              <div className="text-sm text-muted-foreground">
+                                KDV Hariç: ₺{invoice.subtotalAmount.toLocaleString()}
+                              </div>
+                              {invoice.totalDiscountAmount > 0 && (
+                                <div className="text-xs text-green-600">
+                                  İndirim: ₺{invoice.totalDiscountAmount.toLocaleString()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="col-span-2">
+                            <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusBadge.color}`}>
+                              <StatusIcon className="w-3 h-3" />
+                              {statusBadge.text}
+                            </div>
+                          </div>
+                          
+                          <div className="col-span-1">
+                            <div className="flex gap-1">
+                              <Link href={`/invoices/detail?id=${invoice.id}`}>
+                                <Button variant="outline" size="sm">
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              </Link>
+                              <Link href={`/invoices/edit?id=${invoice.id}`}>
+                                <Button variant="outline" size="sm">
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </>
               )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Sayfa {currentPage} / {totalPages} - Toplam {totalCount} fatura
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Önceki
+                  </Button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(pageNum)}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Sonraki
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

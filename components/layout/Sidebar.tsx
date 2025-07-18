@@ -48,7 +48,6 @@ const navigation = [
     children: [
       { name: 'Malzemeler', href: '/inventory/materials' },
       { name: 'Kategoriler', href: '/inventory/categories' },
-      { name: 'Tedarikçiler', href: '/inventory/suppliers' },
       { name: 'Depolar', href: '/inventory/warehouses' },
       { name: 'Stok Hareketleri', href: '/inventory/movements' },
       { name: 'Stok Tutarlılığı', href: '/inventory/consistency' },
@@ -238,63 +237,84 @@ export function Sidebar({ className }: SidebarProps) {
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto bg-white">
             {navigation.map((item) => (
               <div key={item.name} className="mb-1">
-                <div
-                  onClick={() => {
-                    if (item.children) {
-                      toggleExpanded(item.href);
-                    } else {
-                      setIsMobileOpen(false);
-                    }
-                  }}
-                  className={cn(
-                    "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
-                    isActive(item.href) && !item.children
-                      ? "bg-gradient-to-r from-orange-400 to-orange-500 text-white shadow-md"
-                      : isExpanded(item.href) && item.children
-                      ? "bg-orange-100 text-orange-700"
-                      : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className={cn(
-                      "w-5 h-5 transition-colors",
-                      isActive(item.href) ? "text-white" : "text-orange-500 group-hover:text-orange-600"
-                    )} />
-                    <span>{item.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {item.badge && (
-                      <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
-                        {item.badge}
-                      </Badge>
-                    )}
-                    {item.children && (
-                      isExpanded(item.href) ? 
-                        <ChevronDown className="w-4 h-4 text-orange-500" /> : 
-                        <ChevronRight className="w-4 h-4 text-orange-500" />
-                    )}
-                  </div>
-                </div>
-
-                {/* Submenu */}
-                {item.children && isExpanded(item.href) && (
-                  <div className="mt-1 ml-4 pl-4 border-l border-orange-200 space-y-1">
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.name}
-                        href={child.href}
-                        onClick={() => setIsMobileOpen(false)}
-                        className={cn(
-                          "block px-3 py-2 text-sm rounded-md transition-colors",
-                          pathname === child.href
-                            ? "bg-orange-100 text-orange-600 font-medium"
-                            : "text-gray-600 hover:bg-orange-50 hover:text-orange-600"
+                {item.children ? (
+                  <div>
+                    <div
+                      onClick={() => toggleExpanded(item.href)}
+                      className={cn(
+                        "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
+                        isExpanded(item.href)
+                          ? "bg-orange-100 text-orange-700"
+                          : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <item.icon className={cn(
+                          "w-5 h-5 transition-colors",
+                          isExpanded(item.href) ? "text-orange-600" : "text-orange-500 group-hover:text-orange-600"
+                        )} />
+                        <span>{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {item.badge && (
+                          <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
+                            {item.badge}
+                          </Badge>
                         )}
-                      >
-                        {child.name}
-                      </Link>
-                    ))}
+                        {isExpanded(item.href) ? 
+                          <ChevronDown className="w-4 h-4 text-orange-500" /> : 
+                          <ChevronRight className="w-4 h-4 text-orange-500" />
+                        }
+                      </div>
+                    </div>
+                    
+                    {/* Submenu */}
+                    {isExpanded(item.href) && (
+                      <div className="mt-1 ml-4 pl-4 border-l border-orange-200 space-y-1">
+                        {item.children.map((child) => (
+                          <Link
+                            key={child.name}
+                            href={child.href}
+                            onClick={() => setIsMobileOpen(false)}
+                            className={cn(
+                              "block px-3 py-2 text-sm rounded-md transition-colors",
+                              pathname === child.href
+                                ? "bg-orange-100 text-orange-600 font-medium"
+                                : "text-gray-600 hover:bg-orange-50 hover:text-orange-600"
+                            )}
+                          >
+                            {child.name}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <Link
+                    href={item.href}
+                    onClick={() => setIsMobileOpen(false)}
+                    className={cn(
+                      "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
+                      isActive(item.href)
+                        ? "bg-gradient-to-r from-orange-400 to-orange-500 text-white shadow-md"
+                        : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className={cn(
+                        "w-5 h-5 transition-colors",
+                        isActive(item.href) ? "text-white" : "text-orange-500 group-hover:text-orange-600"
+                      )} />
+                      <span>{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {item.badge && (
+                        <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </div>
+                  </Link>
                 )}
               </div>
             ))}
@@ -311,7 +331,7 @@ export function Sidebar({ className }: SidebarProps) {
                       onClick={() => toggleExpanded(item.href)}
                       className={cn(
                         "group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all",
-                        isExpanded(item.href) && item.children
+                        isExpanded(item.href)
                           ? "bg-orange-100 text-orange-700"
                           : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
                       )}

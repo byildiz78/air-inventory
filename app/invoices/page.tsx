@@ -32,7 +32,9 @@ type Invoice = {
   id: string;
   invoiceNumber: string;
   type: 'PURCHASE' | 'SALE' | 'RETURN';
-  supplierName: string;
+  supplierName: string; // Keep for backward compatibility
+  currentAccountId?: string;
+  currentAccountName?: string;
   date: Date;
   dueDate?: Date | null;
   subtotalAmount: number;
@@ -356,7 +358,7 @@ export default function InvoicesPage() {
                                   </Badge>
                                 </div>
                                 <p className="text-gray-600 font-medium mb-2">
-                                  {invoice.supplierName}
+                                  {invoice.currentAccountName || invoice.supplierName}
                                 </p>
                                 <div className="flex items-center gap-4 text-sm text-gray-500">
                                   <span className="flex items-center gap-2">
@@ -456,7 +458,7 @@ export default function InvoicesPage() {
                     </Badge>
                   </div>
                   <div className="text-sm text-gray-600">
-                    {selectedInvoice.supplierName} • ₺{selectedInvoice.totalAmount.toLocaleString()}
+                    {selectedInvoice.currentAccountName || selectedInvoice.supplierName} • ₺{selectedInvoice.totalAmount.toLocaleString()}
                   </div>
                 </div>
 

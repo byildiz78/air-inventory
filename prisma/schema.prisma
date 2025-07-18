@@ -576,7 +576,8 @@ model Invoice {
   id            String      @id @default(cuid())
   invoiceNumber String      @unique
   type          InvoiceType
-  supplierId    String?
+  supplierId    String?     // Legacy field - will be removed after migration
+  currentAccountId String?  // New field - will replace supplierId
   userId        String
   
   // Invoice Details
@@ -597,6 +598,7 @@ model Invoice {
 
   // Relations
   supplier       Supplier?       @relation(fields: [supplierId], references: [id])
+  currentAccount CurrentAccount? @relation(fields: [currentAccountId], references: [id])
   user           User            @relation(fields: [userId], references: [id])
   items          InvoiceItem[]
   stockMovements StockMovement[]
@@ -878,6 +880,7 @@ model CurrentAccount {
   supplier        Supplier? @relation(fields: [supplierId], references: [id])
   transactions    CurrentAccountTransaction[]
   payments        Payment[]
+  invoices        Invoice[]
 
   @@map("current_accounts")
 }

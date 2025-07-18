@@ -50,6 +50,21 @@ type Supplier = {
   address?: string;
 };
 
+type CurrentAccount = {
+  id: string;
+  code: string;
+  name: string;
+  type: 'SUPPLIER' | 'CUSTOMER' | 'BOTH';
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  taxNumber?: string;
+  address?: string;
+  currentBalance: number;
+  creditLimit: number;
+  isActive: boolean;
+};
+
 type Unit = {
   id: string;
   name: string;
@@ -112,6 +127,7 @@ export default function NewInvoicePage() {
   const invoiceType = searchParams.get('type') || 'purchase';
   const [materials, setMaterials] = useState<MaterialWithRelations[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [currentAccounts, setCurrentAccounts] = useState<CurrentAccount[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [taxes, setTaxes] = useState<TaxWithRate[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -122,7 +138,7 @@ export default function NewInvoicePage() {
   const [invoiceForm, setInvoiceForm] = useState({
     invoiceNumber: '',
     type: invoiceType.toUpperCase(),
-    supplierId: '',
+    currentAccountId: '',
     date: new Date().toISOString().split('T')[0],
     dueDate: '',
     notes: '',
@@ -154,9 +170,10 @@ export default function NewInvoicePage() {
       setLoading(true);
       
       // Tüm verileri paralel olarak yükle
-      const [materialsRes, suppliersRes, unitsRes, taxesRes, warehousesRes, currentUserRes] = await Promise.all([
+      const [materialsRes, suppliersRes, currentAccountsRes, unitsRes, taxesRes, warehousesRes, currentUserRes] = await Promise.all([
         fetch('/api/materials').then(res => res.json()),
         fetch('/api/suppliers').then(res => res.json()),
+        fetch('/api/current-accounts?type=SUPPLIER').then(res => res.json()),
         fetch('/api/units').then(res => res.json()),
         fetch('/api/taxes').then(res => res.json()),
         fetch('/api/warehouses').then(res => res.json()),
@@ -166,6 +183,7 @@ export default function NewInvoicePage() {
       console.log('API Responses:', {
         materials: materialsRes,
         suppliers: suppliersRes,
+        currentAccounts: currentAccountsRes,
         units: unitsRes,
         taxes: taxesRes,
         warehouses: warehousesRes,
@@ -187,6 +205,14 @@ export default function NewInvoicePage() {
       } else {
         console.error('Suppliers data format error:', suppliersRes);
         setSuppliers([]);
+      }
+      
+      if (currentAccountsRes.success && Array.isArray(currentAccountsRes.data)) {
+        setCurrentAccounts(currentAccountsRes.data);
+        console.log('Current accounts set:', currentAccountsRes.data.length, 'accounts');
+      } else {
+        console.error('Current accounts data format error:', currentAccountsRes);
+        setCurrentAccounts([]);
       }
       
       setUnits(unitsRes.data || []);
@@ -268,8 +294,7 @@ export default function NewInvoicePage() {
           // Yeni tedarikçiyi liste başına ekle
           setSuppliers(prev => [result.data, ...prev]);
           
-          // Yeni tedarikçiyi otomatik seç
-          setInvoiceForm(prev => ({ ...prev, supplierId: result.data.id }));
+          // Yeni tedarikçi oluşturuldu
           
           // Form temizle ve modal kapat
           setNewSupplier({
@@ -392,11 +417,11 @@ export default function NewInvoicePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!invoiceForm.invoiceNumber || !invoiceForm.supplierId || !currentUser) {
+    if (!invoiceForm.invoiceNumber || !invoiceForm.currentAccountId || !currentUser) {
       alert('Lütfen zorunlu alanları doldurun!');
       console.error('Form validation failed:', { 
         invoiceNumber: invoiceForm.invoiceNumber, 
-        supplierId: invoiceForm.supplierId, 
+        currentAccountId: invoiceForm.currentAccountId, 
         currentUser 
       });
       return;
@@ -420,7 +445,8 @@ export default function NewInvoicePage() {
         totalTaxAmount: totals.totalTax,
         totalAmount: totals.total,
         status: 'PENDING',
-        createStockMovements: true
+        createStockMovements: true,
+        supplierId: null // Explicitly set to null since we're using currentAccountId
       };
       
       console.log('Gönderilecek fatura verisi:', invoiceData);
@@ -494,7 +520,7 @@ export default function NewInvoicePage() {
   );
 
   const totals = calculateInvoiceTotals();
-  const selectedSupplier = getSupplierById(invoiceForm.supplierId);
+  const selectedCurrentAccount = currentAccounts.find(account => account.id === invoiceForm.currentAccountId);
 
   const getInvoiceTitle = () => {
     switch (invoiceForm.type) {
@@ -630,23 +656,30 @@ export default function NewInvoicePage() {
                   </div>
                   
                   <div>
-                    <Label htmlFor="supplier">
+                    <Label htmlFor="currentAccount">
                       {invoiceForm.type === 'PURCHASE' ? 'Tedarikçi' : 'Müşteri'} *
                     </Label>
                     <div className="flex gap-2">
                       <Select 
-                        value={invoiceForm.supplierId} 
-                        onValueChange={(value) => setInvoiceForm(prev => ({ ...prev, supplierId: value }))}
+                        value={invoiceForm.currentAccountId} 
+                        onValueChange={(value) => setInvoiceForm(prev => ({ ...prev, currentAccountId: value }))}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder={invoiceForm.type === 'PURCHASE' ? 'Tedarikçi seçin' : 'Müşteri seçin'} />
                         </SelectTrigger>
                         <SelectContent>
-                          {suppliers.map(supplier => (
-                            <SelectItem key={supplier.id} value={supplier.id}>
+                          {currentAccounts.filter(account => 
+                            invoiceForm.type === 'PURCHASE' ? 
+                              (account.type === 'SUPPLIER' || account.type === 'BOTH') :
+                              (account.type === 'CUSTOMER' || account.type === 'BOTH')
+                          ).map(account => (
+                            <SelectItem key={account.id} value={account.id}>
                               <div className="flex items-center gap-2">
                                 <Building2 className="w-4 h-4" />
-                                {supplier.name}
+                                <div>
+                                  <div className="font-medium">{account.name}</div>
+                                  <div className="text-sm text-gray-500">{account.code}</div>
+                                </div>
                               </div>
                             </SelectItem>
                           ))}
@@ -700,35 +733,51 @@ export default function NewInvoicePage() {
                     </div>
                   </div>
                   
-                  {selectedSupplier && (
+                  {selectedCurrentAccount && (
                     <div className="p-4 bg-blue-50 rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
                         <Building2 className="w-5 h-5 text-blue-600" />
-                        <h3 className="font-medium">{selectedSupplier.name}</h3>
+                        <div>
+                          <h3 className="font-medium">{selectedCurrentAccount.name}</h3>
+                          <p className="text-sm text-gray-500">{selectedCurrentAccount.code}</p>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        {selectedSupplier.contactName && (
+                        {selectedCurrentAccount.contactName && (
                           <div>
                             <span className="text-muted-foreground">İletişim:</span>
-                            <div>{selectedSupplier.contactName}</div>
+                            <div>{selectedCurrentAccount.contactName}</div>
                           </div>
                         )}
-                        {selectedSupplier.phone && (
+                        {selectedCurrentAccount.phone && (
                           <div>
                             <span className="text-muted-foreground">Telefon:</span>
-                            <div>{selectedSupplier.phone}</div>
+                            <div>{selectedCurrentAccount.phone}</div>
                           </div>
                         )}
-                        {selectedSupplier.email && (
+                        {selectedCurrentAccount.email && (
                           <div>
                             <span className="text-muted-foreground">E-posta:</span>
-                            <div>{selectedSupplier.email}</div>
+                            <div>{selectedCurrentAccount.email}</div>
                           </div>
                         )}
-                        {selectedSupplier.taxNumber && (
+                        {selectedCurrentAccount.taxNumber && (
                           <div>
                             <span className="text-muted-foreground">Vergi No:</span>
-                            <div>{selectedSupplier.taxNumber}</div>
+                            <div>{selectedCurrentAccount.taxNumber}</div>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-muted-foreground">Bakiye:</span>
+                          <div className={selectedCurrentAccount.currentBalance > 0 ? 'text-red-600' : 'text-green-600'}>
+                            ₺{Math.abs(selectedCurrentAccount.currentBalance).toLocaleString()} 
+                            {selectedCurrentAccount.currentBalance > 0 ? ' Borç' : ' Alacak'}
+                          </div>
+                        </div>
+                        {selectedCurrentAccount.creditLimit > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Kredi Limiti:</span>
+                            <div>₺{selectedCurrentAccount.creditLimit.toLocaleString()}</div>
                           </div>
                         )}
                       </div>

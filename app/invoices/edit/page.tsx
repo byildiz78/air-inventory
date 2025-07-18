@@ -51,7 +51,8 @@ interface Invoice {
   id: string;
   invoiceNumber: string;
   type: 'PURCHASE' | 'SALE' | 'RETURN';
-  supplierId: string;
+  supplierId: string; // Keep for backward compatibility
+  currentAccountId?: string;
   date: string;
   dueDate: string | null;
   notes: string | null;
@@ -77,6 +78,21 @@ interface Supplier {
   name: string;
 }
 
+interface CurrentAccount {
+  id: string;
+  code: string;
+  name: string;
+  type: 'SUPPLIER' | 'CUSTOMER' | 'BOTH';
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  taxNumber?: string;
+  address?: string;
+  currentBalance: number;
+  creditLimit: number;
+  isActive: boolean;
+}
+
 interface Unit {
   id: string;
   name: string;
@@ -95,6 +111,7 @@ export default function EditInvoicePage() {
   const invoiceId = searchParams.get('id');
   const [materials, setMaterials] = useState<Material[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [currentAccounts, setCurrentAccounts] = useState<CurrentAccount[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [taxes, setTaxes] = useState<Tax[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -117,18 +134,20 @@ export default function EditInvoicePage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [materialsRes, suppliersRes, unitsRes, taxesRes, warehousesRes, invoiceRes] = await Promise.all([
+      const [materialsRes, suppliersRes, currentAccountsRes, unitsRes, taxesRes, warehousesRes, invoiceRes] = await Promise.all([
         fetch('/api/materials'),
         fetch('/api/suppliers'),
+        fetch('/api/current-accounts?type=SUPPLIER'),
         fetch('/api/units'),
         fetch('/api/taxes?activeOnly=true'),
         fetch('/api/warehouses'),
         fetch(`/api/invoices/${invoiceId}`)
       ]);
 
-      const [materialsData, suppliersData, unitsData, taxesData, warehousesData, invoiceData] = await Promise.all([
+      const [materialsData, suppliersData, currentAccountsData, unitsData, taxesData, warehousesData, invoiceData] = await Promise.all([
         materialsRes.json(),
         suppliersRes.json(),
+        currentAccountsRes.json(),
         unitsRes.json(),
         taxesRes.json(),
         warehousesRes.json(),
@@ -137,6 +156,7 @@ export default function EditInvoicePage() {
 
       setMaterials(materialsData.data || []);
       setSuppliers(suppliersData.data || []);
+      setCurrentAccounts(currentAccountsData.data || []);
       setUnits(unitsData.data || []);
       setTaxes(taxesData.data || []);
       setWarehouses(warehousesData.data || []);
@@ -239,6 +259,7 @@ export default function EditInvoicePage() {
         },
         body: JSON.stringify({
           ...invoiceForm,
+          currentAccountId: invoiceForm.currentAccountId || invoiceForm.supplierId,
           subtotalAmount: totals.subtotal,
           totalDiscountAmount: totals.totalDiscount,
           totalTaxAmount: totals.totalTax,
@@ -293,6 +314,7 @@ export default function EditInvoicePage() {
 
   const totals = calculateInvoiceTotals();
   const selectedSupplier = invoiceForm ? getSupplierById(invoiceForm.supplierId) : null;
+  const selectedCurrentAccount = invoiceForm ? currentAccounts.find(account => account.id === invoiceForm.currentAccountId) : null;
 
   const getInvoiceTitle = () => {
     if (!invoiceForm) return 'Fatura Düzenle';
@@ -415,18 +437,27 @@ export default function EditInvoicePage() {
               </div>
               
               <div>
-                <Label htmlFor="supplier">Tedarikçi *</Label>
+                <Label htmlFor="currentAccount">Tedarikçi *</Label>
                 <Select 
-                  value={invoiceForm.supplierId} 
-                  onValueChange={(value) => setInvoiceForm(prev => prev ? ({ ...prev, supplierId: value }) : null)}
+                  value={invoiceForm.currentAccountId || invoiceForm.supplierId} 
+                  onValueChange={(value) => setInvoiceForm(prev => prev ? ({ ...prev, currentAccountId: value }) : null)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Tedarikçi seçin" />
                   </SelectTrigger>
                   <SelectContent>
-                    {suppliers.map(supplier => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name}
+                    {currentAccounts.filter(account => 
+                      invoiceForm?.type === 'PURCHASE' ? 
+                        (account.type === 'SUPPLIER' || account.type === 'BOTH') :
+                        (account.type === 'CUSTOMER' || account.type === 'BOTH')
+                    ).map(account => (
+                      <SelectItem key={account.id} value={account.id}>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <div className="font-medium">{account.name}</div>
+                            <div className="text-sm text-gray-500">{account.code}</div>
+                          </div>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -630,7 +661,10 @@ export default function EditInvoicePage() {
               
               <div className="space-y-3">
                 <div className="text-sm text-muted-foreground">
-                  <div>Tedarikçi: {selectedSupplier?.name}</div>
+                  <div>Tedarikçi: {selectedCurrentAccount?.name || selectedSupplier?.name}</div>
+                  {selectedCurrentAccount && (
+                    <div>Hesap Kodu: {selectedCurrentAccount.code}</div>
+                  )}
                   <div>Fatura Tarihi: {new Date(invoiceForm.date).toLocaleDateString('tr-TR')}</div>
                   {invoiceForm.dueDate && (
                     <div>Vade Tarihi: {new Date(invoiceForm.dueDate).toLocaleDateString('tr-TR')}</div>

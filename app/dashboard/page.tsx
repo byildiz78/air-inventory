@@ -8,6 +8,10 @@ import { AlertCircle } from 'lucide-react';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { StockAlerts } from '@/components/dashboard/StockAlerts';
 import { CostTrendsChart } from '@/components/dashboard/CostTrendsChart';
+import { PendingInvoices } from '@/components/dashboard/PendingInvoices';
+import { SalesAnalytics } from '@/components/dashboard/SalesAnalytics';
+import { RecentStockMovements } from '@/components/dashboard/RecentStockMovements';
+import { FinancialAnalysis } from '@/components/dashboard/FinancialAnalysis';
 
 // Import hooks
 import { useDashboardData } from '@/hooks/useDashboardData';
@@ -74,10 +78,11 @@ export default function Dashboard() {
                 showViewAllButton={true}
               />
 
-              {/* Placeholder for Pending Invoices - will implement later */}
-              <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
-                <span className="text-gray-500">Bekleyen Faturalar (Yakında)</span>
-              </div>
+              {/* Pending Invoices */}
+              <PendingInvoices 
+                maxItems={5}
+                showViewAllButton={true}
+              />
             </div>
 
             {/* Cost Trends Chart */}
@@ -110,9 +115,7 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="sales" className="space-y-4">
-            <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
-              <span className="text-gray-500">Satış Analizleri (Yakında)</span>
-            </div>
+            <SalesAnalytics timeRange="week" />
           </TabsContent>
 
           <TabsContent value="inventory" className="space-y-4">
@@ -125,15 +128,14 @@ export default function Dashboard() {
             />
 
             {/* Recent Stock Movements */}
-            <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
-              <span className="text-gray-500">Son Stok Hareketleri (Yakında)</span>
-            </div>
+            <RecentStockMovements 
+              maxItems={15}
+              showViewAllButton={true}
+            />
           </TabsContent>
 
           <TabsContent value="finance" className="space-y-4">
-            <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
-              <span className="text-gray-500">Finansal Analiz (Yakında)</span>
-            </div>
+            <FinancialAnalysis timeRange="month" />
           </TabsContent>
         </Tabs>
       </div>

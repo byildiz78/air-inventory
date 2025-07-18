@@ -5,6 +5,49 @@ import { warehouseService } from '@/lib/services/warehouse-service';
 import { RecipeCostUpdater } from '@/lib/services/recipe-cost-updater';
 import { CurrentAccountBalanceUpdater } from '@/lib/services/current-account-balance-updater';
 
+// Helper function to get or create current account ID for a supplier
+async function getOrCreateCurrentAccountId(supplierId: string, tx: any): Promise<string | null> {
+  if (!supplierId) return null;
+  
+  // Try to find existing current account for this supplier
+  const existingAccount = await tx.currentAccount.findFirst({
+    where: { supplierId: supplierId }
+  });
+  
+  if (existingAccount) {
+    return existingAccount.id;
+  }
+  
+  // If no current account exists, create one
+  const supplier = await tx.supplier.findUnique({
+    where: { id: supplierId }
+  });
+  
+  if (!supplier) {
+    throw new Error(`Supplier not found: ${supplierId}`);
+  }
+  
+  // Generate new current account code
+  const count = await tx.currentAccount.count();
+  const code = `CAR${(count + 1).toString().padStart(3, '0')}`;
+  
+  const newAccount = await tx.currentAccount.create({
+    data: {
+      code,
+      name: supplier.name,
+      type: 'SUPPLIER',
+      supplierId: supplier.id,
+      contactName: supplier.contactName,
+      phone: supplier.phone,
+      email: supplier.email,
+      address: supplier.address,
+      taxNumber: supplier.taxNumber,
+    }
+  });
+  
+  return newAccount.id;
+}
+
 // Helper function to calculate stock at a specific date and warehouse
 async function calculateStockAtDate(materialId: string, warehouseId: string | undefined, date: Date): Promise<number> {
   // Get all stock movements for this material and warehouse up to the specified date
@@ -135,6 +178,10 @@ export async function GET(request: NextRequest) {
     const searchTerm = request.nextUrl.searchParams.get('search') || '';
     const status = request.nextUrl.searchParams.get('status') || undefined;
     const type = request.nextUrl.searchParams.get('type') || undefined;
+    const sortBy = request.nextUrl.searchParams.get('sortBy') || 'date';
+    const sortOrder = request.nextUrl.searchParams.get('sortOrder') || 'desc';
+    const page = parseInt(request.nextUrl.searchParams.get('page') || '1');
+    const limit = parseInt(request.nextUrl.searchParams.get('limit') || '10');
 
     // Build the where clause
     const where: any = {};
@@ -142,7 +189,8 @@ export async function GET(request: NextRequest) {
     if (searchTerm) {
       where.OR = [
         { invoiceNumber: { contains: searchTerm, mode: 'insensitive' } },
-        { supplier: { name: { contains: searchTerm, mode: 'insensitive' } } }
+        { supplier: { name: { contains: searchTerm, mode: 'insensitive' } } },
+        { currentAccount: { name: { contains: searchTerm, mode: 'insensitive' } } }
       ];
     }
     
@@ -154,11 +202,30 @@ export async function GET(request: NextRequest) {
       where.type = type;
     }
 
-    // Get all invoices from the database with their related data
+    // Build the orderBy clause
+    const orderBy: any = {};
+    if (sortBy === 'supplierName') {
+      orderBy.currentAccount = { name: sortOrder };
+    } else if (sortBy === 'totalAmount') {
+      orderBy.totalAmount = sortOrder;
+    } else if (sortBy === 'invoiceNumber') {
+      orderBy.invoiceNumber = sortOrder;
+    } else if (sortBy === 'status') {
+      orderBy.status = sortOrder;
+    } else {
+      orderBy.date = sortOrder;
+    }
+
+    // Get total count for pagination
+    const totalCount = await prisma.invoice.count({ where });
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Get paginated invoices from the database with their related data
     const invoices = await prisma.invoice.findMany({
       where,
       include: {
         supplier: true,
+        currentAccount: true,
         items: {
           include: {
             material: true,
@@ -173,9 +240,9 @@ export async function GET(request: NextRequest) {
           }
         }
       },
-      orderBy: {
-        date: 'desc'
-      }
+      orderBy,
+      skip: (page - 1) * limit,
+      take: limit
     });
 
     // Transform the data to match the expected format in the frontend
@@ -183,8 +250,10 @@ export async function GET(request: NextRequest) {
       id: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       type: invoice.type,
-      supplierId: invoice.supplierId,
-      supplierName: invoice.supplier?.name || 'Belirtilmemiş',
+      supplierId: invoice.supplierId, // Keep for backward compatibility
+      supplierName: invoice.supplier?.name || invoice.currentAccount?.name || 'Belirtilmemiş',
+      currentAccountId: invoice.currentAccountId,
+      currentAccountName: invoice.currentAccount?.name || 'Belirtilmemiş',
       date: invoice.date,
       dueDate: invoice.dueDate,
       subtotalAmount: invoice.subtotalAmount,
@@ -221,6 +290,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: formattedInvoices,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
     });
   } catch (error: any) {
     console.error('Error fetching invoices:', error);
@@ -264,14 +341,124 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Debug log
+    console.log('Invoice creation data:', {
+      currentAccountId: body.currentAccountId,
+      supplierId: body.supplierId,
+      type: body.type
+    });
+
+    // Validate and resolve currentAccountId before transaction
+    let finalCurrentAccountId = null;
+    
+    if (body.currentAccountId) {
+      // Validate provided currentAccountId
+      const currentAccount = await prisma.currentAccount.findUnique({
+        where: { id: body.currentAccountId }
+      });
+      if (!currentAccount) {
+        return NextResponse.json(
+          { success: false, error: `Selected account not found: ${body.currentAccountId}` },
+          { status: 400 }
+        );
+      }
+      finalCurrentAccountId = body.currentAccountId;
+      console.log('Using provided current account:', currentAccount.name);
+    } else if (body.supplierId) {
+      // Fallback to supplier - find or create current account
+      const supplier = await prisma.supplier.findUnique({
+        where: { id: body.supplierId }
+      });
+      if (!supplier) {
+        return NextResponse.json(
+          { success: false, error: `Supplier not found: ${body.supplierId}` },
+          { status: 400 }
+        );
+      }
+      
+      // Find existing current account for supplier
+      let currentAccount = await prisma.currentAccount.findFirst({
+        where: { supplierId: body.supplierId }
+      });
+      
+      if (!currentAccount) {
+        // Create new current account for supplier
+        const count = await prisma.currentAccount.count();
+        const code = `CAR${(count + 1).toString().padStart(3, '0')}`;
+        
+        currentAccount = await prisma.currentAccount.create({
+          data: {
+            code,
+            name: supplier.name,
+            type: 'SUPPLIER',
+            supplierId: supplier.id,
+            contactName: supplier.contactName,
+            phone: supplier.phone,
+            email: supplier.email,
+            address: supplier.address,
+            taxNumber: supplier.taxNumber,
+          }
+        });
+        console.log('Created new current account:', currentAccount.name);
+      }
+      
+      finalCurrentAccountId = currentAccount.id;
+      console.log('Using supplier current account:', currentAccount.name);
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'Either currentAccountId or supplierId must be provided' },
+        { status: 400 }
+      );
+    }
+
+    // Additional validation before transaction
+    console.log('Pre-transaction validation...');
+    
+    // Validate userId exists
+    const userExists = await prisma.user.findUnique({
+      where: { id: body.userId }
+    });
+    if (!userExists) {
+      return NextResponse.json(
+        { success: false, error: `User not found: ${body.userId}` },
+        { status: 400 }
+      );
+    }
+    console.log('User validated:', userExists.name);
+    
+    // Validate supplierId if provided (legacy support)
+    if (body.supplierId && body.supplierId !== '') {
+      const supplierExists = await prisma.supplier.findUnique({
+        where: { id: body.supplierId }
+      });
+      if (!supplierExists) {
+        return NextResponse.json(
+          { success: false, error: `Supplier not found: ${body.supplierId}` },
+          { status: 400 }
+        );
+      }
+      console.log('Supplier validated:', supplierExists.name);
+    }
+
     // Create the invoice in a transaction with its items
     const result = await prisma.$transaction(async (tx: any) => {
+
       // Create the invoice
+      console.log('Creating invoice with data:', {
+        invoiceNumber: body.invoiceNumber,
+        type: body.type,
+        supplierId: body.supplierId || null,
+        currentAccountId: finalCurrentAccountId,
+        userId: body.userId,
+        date: new Date(body.date)
+      });
+      
       const invoice = await tx.invoice.create({
         data: {
           invoiceNumber: body.invoiceNumber,
           type: body.type,
-          supplierId: body.supplierId,
+          supplierId: (body.supplierId && body.supplierId !== '') ? body.supplierId : null, // Keep for backward compatibility
+          currentAccountId: finalCurrentAccountId,
           userId: body.userId,
           date: new Date(body.date),
           dueDate: body.dueDate ? new Date(body.dueDate) : null,
@@ -374,46 +561,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Auto-create current account transaction for purchase invoices
-      if (body.type === 'PURCHASE' && body.supplierId) {
-        // Find or create current account for supplier
-        let currentAccount = await tx.currentAccount.findFirst({
-          where: { supplierId: body.supplierId }
+      // Create current account transaction for purchase invoices
+      if (body.type === 'PURCHASE' && finalCurrentAccountId) {
+        // Get current account
+        const currentAccount = await tx.currentAccount.findUnique({
+          where: { id: finalCurrentAccountId }
         });
-
-        if (!currentAccount) {
-          // Get supplier info
-          const supplier = await tx.supplier.findUnique({
-            where: { id: body.supplierId }
-          });
-
-          if (supplier) {
-            // Auto-generate current account code
-            const count = await tx.currentAccount.count();
-            const code = `CAR${(count + 1).toString().padStart(3, '0')}`;
-
-            // Create current account for supplier
-            currentAccount = await tx.currentAccount.create({
-              data: {
-                code: code,
-                name: supplier.name,
-                type: 'SUPPLIER',
-                supplierId: body.supplierId,
-                contactName: supplier.contactName,
-                phone: supplier.phone,
-                email: supplier.email,
-                address: supplier.address,
-                taxNumber: supplier.taxNumber,
-                openingBalance: 0,
-                currentBalance: 0,
-                creditLimit: 0,
-                isActive: true,
-                createdAt: new Date(),
-                updatedAt: new Date()
-              }
-            });
-          }
-        }
 
         if (currentAccount) {
           // Create debt transaction for the invoice

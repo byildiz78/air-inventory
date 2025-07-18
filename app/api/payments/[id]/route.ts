@@ -153,7 +153,7 @@ export async function PUT(
       }
 
       // Recalculate current account balances
-      await CurrentAccountBalanceUpdater.recalculateForPaymentUpdate(paymentId, tx);
+      await CurrentAccountBalanceUpdater.recalculateForPaymentUpdate(paymentId, prisma);
 
       return updatedPayment;
     });

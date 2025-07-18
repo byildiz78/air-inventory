@@ -2,75 +2,119 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Calculator, 
-  Search, 
-  ChefHat,
-  TrendingUp,
-  DollarSign,
-  Package
-} from 'lucide-react';
-import { 
-  recipeService, 
-  materialService 
-} from '@/lib/data-service';
-import { CostAnalysis } from '@/components/recipes/CostAnalysis';
+import { Badge } from '@/components/ui/badge';
+import { Search, ChefHat, AlertCircle, ArrowUpDown, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+
+// Import modular components
+import { RecipeStatsCards } from '@/components/recipes/RecipeStatsCards';
+import { RecipeSelectionCard } from '@/components/recipes/RecipeSelectionCard';
+import { DetailedCostAnalysis } from '@/components/recipes/DetailedCostAnalysis';
+
+interface ApiResponse {
+  success: boolean;
+  data: any[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+  filters: {
+    categories: string[];
+    profitabilityOptions: Array<{
+      value: string;
+      label: string;
+      count: number;
+    }>;
+  };
+  error?: string;
+}
 
 export default function CostAnalysisPage() {
   const [recipes, setRecipes] = useState<any[]>([]);
-  const [materials, setMaterials] = useState<any[]>([]);
-  const [recipeIngredients, setRecipeIngredients] = useState<any[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Filter states
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedProfitability, setSelectedProfitability] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  
+  // Filter options
+  const [categories, setCategories] = useState<string[]>([]);
+  const [profitabilityOptions, setProfitabilityOptions] = useState<Array<{value: string; label: string; count: number}>>([]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    fetchRecipeAnalysis();
+  }, [currentPage, pageSize, searchTerm, selectedCategory, selectedProfitability, sortBy, sortOrder]);
 
-  const loadData = async () => {
+  const fetchRecipeAnalysis = async () => {
     try {
       setLoading(true);
-      const [recipesData, materialsData] = await Promise.all([
-        recipeService.getAll(),
-        materialService.getAll(),
-      ]);
+      setError(null);
+      
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (selectedCategory && selectedCategory !== 'all') params.append('category', selectedCategory);
+      if (selectedProfitability && selectedProfitability !== 'all') params.append('profitability', selectedProfitability);
+      params.append('sortBy', sortBy);
+      params.append('sortOrder', sortOrder);
+      params.append('page', currentPage.toString());
+      params.append('limit', pageSize.toString());
+      
+      const response = await fetch(`/api/recipes/cost-analysis?${params}`);
+      const data: ApiResponse = await response.json();
 
-      setRecipes(recipesData);
-      setMaterials(materialsData);
-
-      // Load recipe ingredients for all recipes
-      const allIngredients: any[] = [];
-      for (const recipe of recipesData) {
-        const ingredients = await recipeService.getIngredients(recipe.id);
-        allIngredients.push(...ingredients);
+      if (data.success) {
+        setRecipes(data.data);
+        setTotalPages(data.pagination.totalPages);
+        setTotalCount(data.pagination.totalCount);
+        setCategories(data.filters.categories);
+        setProfitabilityOptions(data.filters.profitabilityOptions);
+      } else {
+        setError(data.error || 'Reçete maliyet analizi yüklenemedi');
       }
-      setRecipeIngredients(allIngredients);
-
-    } catch (error) {
-      console.error('Cost analysis data loading error:', error);
+    } catch (err) {
+      console.error('Cost analysis fetch error:', err);
+      setError('Reçete maliyet analizi yüklenirken hata oluştu');
     } finally {
       setLoading(false);
     }
   };
 
-  const getRecipeIngredients = (recipeId: string) => 
-    recipeIngredients.filter(ing => ing.recipeId === recipeId);
-
-  const filteredRecipes = recipes.filter(recipe =>
-    recipe.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const getProfitabilityBadge = (profitMargin?: number) => {
-    if (!profitMargin) return { variant: 'outline' as const, text: 'Bilinmiyor', color: 'text-gray-500' };
-    if (profitMargin >= 40) return { variant: 'default' as const, text: 'Yüksek', color: 'text-green-600' };
-    if (profitMargin >= 20) return { variant: 'secondary' as const, text: 'Orta', color: 'text-yellow-600' };
-    return { variant: 'destructive' as const, text: 'Düşük', color: 'text-red-600' };
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
   };
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('all');
+    setSelectedProfitability('all');
+    setSortBy('name');
+    setSortOrder('asc');
+    setCurrentPage(1);
+  };
+
+  const getSortingOptions = () => [
+    { value: 'name', label: 'Ad (A-Z)' },
+    { value: 'profitMargin', label: 'Kâr Marjı (Yüksek-Düşük)' },
+    { value: 'profitAmount', label: 'Kâr Tutarı (Yüksek-Düşük)' },
+    { value: 'costPerServing', label: 'Maliyet (Düşük-Yüksek)' }
+  ];
 
   if (loading) {
     return (
@@ -78,6 +122,31 @@ export default function CostAnalysisPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-muted-foreground">Maliyet analizi yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="max-w-2xl mx-auto">
+          <Card className="border-red-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-red-600">
+                <AlertCircle className="h-5 w-5" />
+                <span className="font-medium">Hata</span>
+              </div>
+              <p className="text-red-600 mt-2">{error}</p>
+              <Button 
+                onClick={fetchRecipeAnalysis}
+                className="mt-4"
+                variant="outline"
+              >
+                Tekrar Dene
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -93,58 +162,17 @@ export default function CostAnalysisPage() {
             <h1 className="text-3xl font-bold">Maliyet Analizi</h1>
             <p className="text-muted-foreground">Reçete maliyet analizi ve karlılık hesaplamaları</p>
           </div>
+          <Button 
+            onClick={fetchRecipeAnalysis}
+            variant="outline"
+            size="sm"
+          >
+            Yenile
+          </Button>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Toplam Reçete</CardTitle>
-              <ChefHat className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{recipes.length}</div>
-              <p className="text-xs text-muted-foreground">Analiz edilebilir</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Ortalama Maliyet</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                ₺{recipes.length > 0 ? (recipes.reduce((sum, r) => sum + r.costPerServing, 0) / recipes.length).toFixed(2) : '0.00'}
-              </div>
-              <p className="text-xs text-muted-foreground">Porsiyon başı</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Yüksek Karlı</CardTitle>
-              <TrendingUp className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {recipes.filter(r => (r.profitMargin || 0) >= 40).length}
-              </div>
-              <p className="text-xs text-muted-foreground">%40+ kâr marjı</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Malzeme Çeşidi</CardTitle>
-              <Package className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{materials.length}</div>
-              <p className="text-xs text-muted-foreground">Toplam malzeme</p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Stats Cards */}
+        <RecipeStatsCards recipes={recipes} />
 
         {selectedRecipe ? (
           // Show detailed cost analysis for selected recipe
@@ -155,7 +183,8 @@ export default function CostAnalysisPage() {
                   <div>
                     <CardTitle className="text-2xl">{selectedRecipe.name}</CardTitle>
                     <CardDescription>
-                      {selectedRecipe.category} • {selectedRecipe.servingSize} porsiyon • {selectedRecipe.preparationTime} dakika
+                      {selectedRecipe.category} • {selectedRecipe.servingSize} porsiyon • 
+                      {selectedRecipe.preparationTime} dakika
                     </CardDescription>
                   </div>
                   <Button variant="outline" onClick={() => setSelectedRecipe(null)}>
@@ -165,99 +194,200 @@ export default function CostAnalysisPage() {
               </CardHeader>
             </Card>
 
-            <CostAnalysis
-              recipe={selectedRecipe}
-              ingredients={getRecipeIngredients(selectedRecipe.id)}
-              materials={materials}
-            />
+            <DetailedCostAnalysis recipe={selectedRecipe} />
           </div>
         ) : (
-          // Show recipe selection
+          // Show recipe selection with filters
           <div className="space-y-6">
-            {/* Search */}
+            
+            {/* Filters */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Reçete Seç</CardTitle>
-                <CardDescription>
-                  Maliyet analizi yapmak istediğiniz reçeteyi seçin
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Filter className="h-5 w-5" />
+                      Filtreler
+                    </CardTitle>
+                    <CardDescription>
+                      Reçetelerinizi filtreleyerek analiz edin
+                    </CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                    Temizle
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="relative max-w-md">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Reçete ara..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Reçete ara..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+
+                  {/* Category Filter */}
+                  <Select value={selectedCategory || undefined} onValueChange={(value) => setSelectedCategory(value || '')}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Kategori" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tüm Kategoriler</SelectItem>
+                      {categories.map(category => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Profitability Filter */}
+                  <Select value={selectedProfitability || undefined} onValueChange={(value) => setSelectedProfitability(value || '')}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Kârlılık" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tüm Kârlılık</SelectItem>
+                      {profitabilityOptions.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label} ({option.count})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Sort Options */}
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sıralama" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getSortingOptions().map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Sort Order */}
+                  <Button
+                    variant="outline"
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="flex items-center gap-2"
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                    {sortOrder === 'asc' ? 'Artan' : 'Azalan'}
+                  </Button>
                 </div>
+
+                {/* Active Filters */}
+                {(searchTerm || (selectedCategory && selectedCategory !== 'all') || (selectedProfitability && selectedProfitability !== 'all')) && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {searchTerm && (
+                      <Badge variant="secondary">
+                        Arama: {searchTerm}
+                      </Badge>
+                    )}
+                    {selectedCategory && selectedCategory !== 'all' && (
+                      <Badge variant="secondary">
+                        Kategori: {selectedCategory}
+                      </Badge>
+                    )}
+                    {selectedProfitability && selectedProfitability !== 'all' && (
+                      <Badge variant="secondary">
+                        Kârlılık: {profitabilityOptions.find(o => o.value === selectedProfitability)?.label}
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            {/* Recipe List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredRecipes.map((recipe) => {
-                const profitBadge = getProfitabilityBadge(recipe.profitMargin);
-                const ingredients = getRecipeIngredients(recipe.id);
-                
-                return (
-                  <Card key={recipe.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedRecipe(recipe)}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="text-lg">{recipe.name}</CardTitle>
-                          <CardDescription className="mt-1">
-                            {recipe.category}
-                          </CardDescription>
-                        </div>
-                        <Badge variant={profitBadge.variant}>
-                          {profitBadge.text}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {recipe.description}
-                      </p>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Porsiyon Maliyeti:</span>
-                          <span className="font-medium">₺{recipe.costPerServing.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Önerilen Fiyat:</span>
-                          <span className="font-medium text-green-600">₺{recipe.suggestedPrice?.toFixed(2) || 'Belirtilmemiş'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Kâr Marjı:</span>
-                          <span className={`font-medium ${profitBadge.color}`}>
-                            %{recipe.profitMargin?.toFixed(1) || '0.0'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Malzeme Sayısı:</span>
-                          <span className="font-medium">{ingredients.length}</span>
-                        </div>
-                      </div>
-
-                      <Button className="w-full bg-orange-500 hover:bg-orange-600">
-                        <Calculator className="w-4 h-4 mr-2" />
-                        Analiz Et
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+            {/* Results Count */}
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {totalCount} reçete bulundu
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Sayfa başı:</span>
+                <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="6">6</SelectItem>
+                    <SelectItem value="12">12</SelectItem>
+                    <SelectItem value="24">24</SelectItem>
+                    <SelectItem value="48">48</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {filteredRecipes.length === 0 && (
+            {/* Recipe List */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recipes.map((recipe) => (
+                <RecipeSelectionCard
+                  key={recipe.id}
+                  recipe={recipe}
+                  onSelect={setSelectedRecipe}
+                />
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Önceki
+                </Button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  Sonraki
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {recipes.length === 0 && (
               <div className="text-center py-12">
                 <ChefHat className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <h3 className="text-lg font-medium mb-2">Reçete bulunamadı</h3>
                 <p className="text-muted-foreground">
-                  {searchTerm ? 'Arama kriterinize uygun reçete bulunamadı.' : 'Henüz reçete eklenmemiş.'}
+                  Arama kriterinize uygun reçete bulunamadı. Filtreleri değiştirmeyi deneyin.
                 </p>
               </div>
             )}

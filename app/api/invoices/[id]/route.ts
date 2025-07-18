@@ -137,6 +137,7 @@ export async function GET(
       where: { id: params.id },
       include: {
         supplier: true,
+        currentAccount: true,
         user: true,
         items: {
           include: {
@@ -162,14 +163,15 @@ export async function GET(
     // Format the response to match the expected format in the frontend
     const formattedInvoice = {
       ...invoice,
-      supplierName: invoice.supplier?.name,
+      supplierName: invoice.supplier?.name || invoice.currentAccount?.name,
+      currentAccountName: invoice.currentAccount?.name,
       userName: invoice.user?.name,
       supplierInfo: {
-        contactName: invoice.supplier?.contactName,
-        phone: invoice.supplier?.phone,
-        email: invoice.supplier?.email,
-        taxNumber: invoice.supplier?.taxNumber,
-        address: invoice.supplier?.address
+        contactName: invoice.supplier?.contactName || invoice.currentAccount?.contactName,
+        phone: invoice.supplier?.phone || invoice.currentAccount?.phone,
+        email: invoice.supplier?.email || invoice.currentAccount?.email,
+        taxNumber: invoice.supplier?.taxNumber || invoice.currentAccount?.taxNumber,
+        address: invoice.supplier?.address || invoice.currentAccount?.address
       },
       items: invoice.items.map((item: any) => ({
         ...item,
@@ -245,7 +247,8 @@ export async function PUT(
         data: {
           invoiceNumber: body.invoiceNumber,
           type: body.type,
-          supplierId: body.supplierId,
+          supplierId: body.supplierId, // Keep for backward compatibility
+          currentAccountId: body.currentAccountId,
           date: body.date ? new Date(body.date) : undefined,
           dueDate: body.dueDate ? new Date(body.dueDate) : null,
           subtotalAmount: body.subtotalAmount,
