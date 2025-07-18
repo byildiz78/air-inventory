@@ -5,6 +5,301 @@ import { warehouseService } from '@/lib/services/warehouse-service';
 import { RecipeCostUpdater } from '@/lib/services/recipe-cost-updater';
 import { CurrentAccountBalanceUpdater } from '@/lib/services/current-account-balance-updater';
 
+/**
+ * @swagger
+ * /api/invoices:
+ *   get:
+ *     summary: Retrieve invoices with pagination and filtering
+ *     description: Get a list of invoices with support for pagination, filtering, and sorting
+ *     tags:
+ *       - Invoices
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for invoice number or supplier name
+ *         example: "INV-2024"
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [PENDING, APPROVED, PAID, CANCELLED]
+ *         description: Filter by invoice status
+ *         example: "PENDING"
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [PURCHASE, SALE, RETURN]
+ *         description: Filter by invoice type
+ *         example: "PURCHASE"
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [date, invoiceNumber, supplierName, totalAmount, status]
+ *         description: Field to sort by
+ *         example: "date"
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *         description: Sort order
+ *         example: "desc"
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Page number for pagination
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Number of items per page
+ *         example: 10
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved invoices
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Invoice'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/PaginationInfo'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   post:
+ *     summary: Create a new invoice
+ *     description: Create a new invoice with items and handle stock movements
+ *     tags:
+ *       - Invoices
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - invoiceNumber
+ *               - type
+ *               - date
+ *               - userId
+ *             properties:
+ *               invoiceNumber:
+ *                 type: string
+ *                 description: Unique invoice number
+ *                 example: "INV-2024-001"
+ *               type:
+ *                 type: string
+ *                 enum: [PURCHASE, SALE, RETURN]
+ *                 description: Type of invoice
+ *                 example: "PURCHASE"
+ *               currentAccountId:
+ *                 type: string
+ *                 description: Current account ID (preferred over supplierId)
+ *                 example: "clx1234567890"
+ *               supplierId:
+ *                 type: string
+ *                 description: Supplier ID (legacy, will be converted to currentAccountId)
+ *                 example: "clx1234567890"
+ *               userId:
+ *                 type: string
+ *                 description: ID of the user creating the invoice
+ *                 example: "clx1234567890"
+ *               date:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Invoice date
+ *                 example: "2024-01-15T10:30:00Z"
+ *               dueDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Due date for payment
+ *                 example: "2024-02-15T10:30:00Z"
+ *               subtotalAmount:
+ *                 type: number
+ *                 format: float
+ *                 description: Subtotal amount (excluding tax)
+ *                 example: 1000.00
+ *               totalDiscountAmount:
+ *                 type: number
+ *                 format: float
+ *                 description: Total discount amount
+ *                 example: 100.00
+ *               totalTaxAmount:
+ *                 type: number
+ *                 format: float
+ *                 description: Total tax amount
+ *                 example: 180.00
+ *               totalAmount:
+ *                 type: number
+ *                 format: float
+ *                 description: Total amount (including tax)
+ *                 example: 1080.00
+ *               status:
+ *                 type: string
+ *                 enum: [PENDING, APPROVED, PAID, CANCELLED]
+ *                 description: Invoice status
+ *                 example: "PENDING"
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes
+ *                 example: "Monthly supply order"
+ *               createStockMovements:
+ *                 type: boolean
+ *                 description: Whether to create stock movements for the invoice items
+ *                 example: true
+ *               items:
+ *                 type: array
+ *                 description: Invoice items
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - materialId
+ *                     - unitId
+ *                     - warehouseId
+ *                     - taxId
+ *                     - quantity
+ *                     - unitPrice
+ *                   properties:
+ *                     materialId:
+ *                       type: string
+ *                       description: Material ID
+ *                       example: "clx1234567890"
+ *                     unitId:
+ *                       type: string
+ *                       description: Unit ID
+ *                       example: "clx1234567890"
+ *                     warehouseId:
+ *                       type: string
+ *                       description: Warehouse ID
+ *                       example: "clx1234567890"
+ *                     taxId:
+ *                       type: string
+ *                       description: Tax ID
+ *                       example: "clx1234567890"
+ *                     quantity:
+ *                       type: number
+ *                       format: float
+ *                       description: Quantity
+ *                       example: 10.5
+ *                     unitPrice:
+ *                       type: number
+ *                       format: float
+ *                       description: Unit price (excluding tax)
+ *                       example: 15.50
+ *                     discount1Rate:
+ *                       type: number
+ *                       format: float
+ *                       description: First discount rate (%)
+ *                       example: 5.0
+ *                     discount2Rate:
+ *                       type: number
+ *                       format: float
+ *                       description: Second discount rate (%)
+ *                       example: 2.0
+ *                     discount1Amount:
+ *                       type: number
+ *                       format: float
+ *                       description: First discount amount
+ *                       example: 7.75
+ *                     discount2Amount:
+ *                       type: number
+ *                       format: float
+ *                       description: Second discount amount
+ *                       example: 3.00
+ *                     totalDiscountAmount:
+ *                       type: number
+ *                       format: float
+ *                       description: Total discount amount
+ *                       example: 10.75
+ *                     subtotalAmount:
+ *                       type: number
+ *                       format: float
+ *                       description: Subtotal amount (after discounts, before tax)
+ *                       example: 152.00
+ *                     taxAmount:
+ *                       type: number
+ *                       format: float
+ *                       description: Tax amount
+ *                       example: 30.40
+ *                     totalAmount:
+ *                       type: number
+ *                       format: float
+ *                       description: Total amount (including tax)
+ *                       example: 182.40
+ *     responses:
+ *       200:
+ *         description: Invoice created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "clx1234567890"
+ *                     invoiceNumber:
+ *                       type: string
+ *                       example: "INV-2024-001"
+ *                     type:
+ *                       type: string
+ *                       example: "PURCHASE"
+ *                     supplierName:
+ *                       type: string
+ *                       example: "ABC Tedarik Ltd."
+ *                     date:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-15T10:30:00Z"
+ *                     totalAmount:
+ *                       type: number
+ *                       format: float
+ *                       example: 1080.00
+ *                     status:
+ *                       type: string
+ *                       example: "PENDING"
+ *                 message:
+ *                   type: string
+ *                   example: "Invoice created successfully"
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
 // Helper function to get or create current account ID for a supplier
 async function getOrCreateCurrentAccountId(supplierId: string, tx: any): Promise<string | null> {
   if (!supplierId) return null;
@@ -349,7 +644,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Validate and resolve currentAccountId before transaction
-    let finalCurrentAccountId = null;
+    let finalCurrentAccountId: string | null = null;
     
     if (body.currentAccountId) {
       // Validate provided currentAccountId

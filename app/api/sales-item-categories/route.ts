@@ -1,6 +1,210 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+/**
+ * @swagger
+ * /api/sales-item-categories:
+ *   get:
+ *     summary: Retrieve all sales item categories
+ *     description: Get a list of all sales item categories ordered by sortOrder and name
+ *     tags:
+ *       - Sales Item Categories
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved sales item categories
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/SalesItemCategory'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   post:
+ *     summary: Create a new sales item category
+ *     description: Create a new sales item category with automatic sort order assignment
+ *     tags:
+ *       - Sales Item Categories
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Category name
+ *                 example: "Ana Yemek"
+ *               description:
+ *                 type: string
+ *                 description: Category description
+ *                 example: "Et, tavuk ve sebze ana yemekleri"
+ *               color:
+ *                 type: string
+ *                 description: Hex color code for UI display
+ *                 example: "#3B82F6"
+ *               sortOrder:
+ *                 type: integer
+ *                 description: Display order (auto-assigned if not provided)
+ *                 example: 1
+ *               isActive:
+ *                 type: boolean
+ *                 description: Whether the category is active
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Sales item category created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/SalesItemCategory'
+ *                 message:
+ *                   type: string
+ *                   example: "Sales item category created successfully"
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   put:
+ *     summary: Update a sales item category
+ *     description: Update an existing sales item category
+ *     tags:
+ *       - Sales Item Categories
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 description: Category ID
+ *                 example: "clx1234567890"
+ *               name:
+ *                 type: string
+ *                 description: Category name
+ *                 example: "Ana Yemek"
+ *               description:
+ *                 type: string
+ *                 description: Category description
+ *                 example: "Et, tavuk ve sebze ana yemekleri"
+ *               color:
+ *                 type: string
+ *                 description: Hex color code for UI display
+ *                 example: "#3B82F6"
+ *               sortOrder:
+ *                 type: integer
+ *                 description: Display order
+ *                 example: 1
+ *               isActive:
+ *                 type: boolean
+ *                 description: Whether the category is active
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Category updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/SalesItemCategory'
+ *                 message:
+ *                   type: string
+ *                   example: "Category updated successfully"
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Category not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   delete:
+ *     summary: Delete a sales item category
+ *     description: Delete a sales item category (only if not in use)
+ *     tags:
+ *       - Sales Item Categories
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Category ID to delete
+ *         example: "clx1234567890"
+ *     responses:
+ *       200:
+ *         description: Category deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Category deleted successfully"
+ *       400:
+ *         description: Bad request - category in use or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Category not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
 export async function GET(request: NextRequest) {
   try {
     // Get all sales item categories from the database

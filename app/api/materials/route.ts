@@ -2,6 +2,153 @@ import { NextRequest, NextResponse } from 'next/server';
 import { materialService } from '@/lib/services/material-service';
 import { ActivityLogger } from '@/lib/activity-logger';
 
+/**
+ * @swagger
+ * /api/materials:
+ *   get:
+ *     summary: Retrieve materials with filtering options
+ *     description: Get a list of materials with support for filtering by category, low stock, search, and active status
+ *     tags:
+ *       - Materials
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for material name or description
+ *         example: "domates"
+ *       - in: query
+ *         name: categoryId
+ *         schema:
+ *           type: string
+ *         description: Filter by category ID
+ *         example: "clx1234567890"
+ *       - in: query
+ *         name: lowStock
+ *         schema:
+ *           type: boolean
+ *         description: Filter materials with low stock levels
+ *         example: true
+ *       - in: query
+ *         name: includeInactive
+ *         schema:
+ *           type: boolean
+ *         description: Include inactive materials in results
+ *         example: false
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved materials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Material'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   post:
+ *     summary: Create a new material
+ *     description: Create a new material with category, units, and stock information
+ *     tags:
+ *       - Materials
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - categoryId
+ *               - purchaseUnitId
+ *               - consumptionUnitId
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Material name
+ *                 example: "Domates"
+ *               description:
+ *                 type: string
+ *                 description: Material description
+ *                 example: "Taze domates"
+ *               categoryId:
+ *                 type: string
+ *                 description: Category ID
+ *                 example: "clx1234567890"
+ *               purchaseUnitId:
+ *                 type: string
+ *                 description: Purchase unit ID
+ *                 example: "clx1234567890"
+ *               consumptionUnitId:
+ *                 type: string
+ *                 description: Consumption unit ID
+ *                 example: "clx1234567890"
+ *               supplierId:
+ *                 type: string
+ *                 description: Default supplier ID
+ *                 example: "clx1234567890"
+ *               defaultTaxId:
+ *                 type: string
+ *                 description: Default tax ID
+ *                 example: "clx1234567890"
+ *               defaultWarehouseId:
+ *                 type: string
+ *                 description: Default warehouse ID
+ *                 example: "clx1234567890"
+ *               minStockLevel:
+ *                 type: number
+ *                 format: float
+ *                 description: Minimum stock level
+ *                 example: 10.0
+ *               maxStockLevel:
+ *                 type: number
+ *                 format: float
+ *                 description: Maximum stock level
+ *                 example: 100.0
+ *               isActive:
+ *                 type: boolean
+ *                 description: Whether the material is active
+ *                 example: true
+ *     responses:
+ *       201:
+ *         description: Material created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Material'
+ *                 message:
+ *                   type: string
+ *                   example: "Material created successfully"
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;

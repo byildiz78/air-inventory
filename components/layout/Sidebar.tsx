@@ -134,14 +134,9 @@ const bottomNavigation = [
       { name: 'Vergi Oranları', href: '/settings/taxes' },
       { name: 'İşlem Logları', href: '/users/activity-logs' },
       { name: 'Yedekleme', href: '/settings/backup' },
+      { name: 'Kullanıcılar', href: '/users' },
+      { name: 'api Dökümantasyon', href: '/docs' },
     ],
-  },
-  {
-    name: 'Kullanıcılar',
-    href: '/users',
-    icon: Users,
-    current: false,
-    badge: null,
   }
 ];
 

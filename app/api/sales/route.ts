@@ -2,6 +2,150 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
 
+/**
+ * @swagger
+ * /api/sales:
+ *   get:
+ *     summary: Retrieve sales records
+ *     description: Get a list of sales records with filtering, searching, and date range options
+ *     tags:
+ *       - Sales
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in item name or customer name
+ *         example: "pilav"
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: Filter by user ID (use 'all' for all users)
+ *         example: "clx1234567890"
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for date range filter (YYYY-MM-DD)
+ *         example: "2024-01-01"
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for date range filter (YYYY-MM-DD)
+ *         example: "2024-12-31"
+ *       - in: query
+ *         name: recipeFilter
+ *         schema:
+ *           type: string
+ *           enum: [with-recipe, without-recipe]
+ *         description: Filter by recipe mapping status
+ *         example: "with-recipe"
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved sales records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Sale'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   post:
+ *     summary: Create a new sale record
+ *     description: Create a new sale record with automatic cost calculation, profit analysis, and stock movements
+ *     tags:
+ *       - Sales
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - salesItemId
+ *               - quantity
+ *               - unitPrice
+ *               - userId
+ *             properties:
+ *               date:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Sale date and time
+ *                 example: "2024-01-15T10:30:00Z"
+ *               salesItemId:
+ *                 type: string
+ *                 description: ID of the sales item being sold
+ *                 example: "clx1234567890"
+ *               quantity:
+ *                 type: number
+ *                 format: float
+ *                 description: Quantity sold
+ *                 example: 2.5
+ *               unitPrice:
+ *                 type: number
+ *                 format: float
+ *                 description: Unit price
+ *                 example: 25.50
+ *               customerName:
+ *                 type: string
+ *                 description: Customer name (optional)
+ *                 example: "Ahmet Yılmaz"
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes (optional)
+ *                 example: "Ekstra baharat istedi"
+ *               userId:
+ *                 type: string
+ *                 description: ID of the user creating the sale
+ *                 example: "clx1234567890"
+ *     responses:
+ *       200:
+ *         description: Sale created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Sale'
+ *       400:
+ *         description: Bad request - missing required fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Sales item not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;

@@ -54,8 +54,10 @@ export async function PATCH(
       currentUserId,
       'invoice',
       invoiceId,
-      { status: existingInvoice.status },
-      { status: status },
+      {
+        before: { status: existingInvoice.status },
+        after: { status: status }
+      },
       request
     );
 

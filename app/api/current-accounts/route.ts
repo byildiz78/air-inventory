@@ -2,6 +2,172 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
 
+/**
+ * @swagger
+ * /api/current-accounts:
+ *   get:
+ *     summary: Retrieve current accounts with filtering and pagination
+ *     description: Get a list of current accounts with support for filtering by type, search, and pagination
+ *     tags:
+ *       - Current Accounts
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for account name or code
+ *         example: "ABC"
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [SUPPLIER, CUSTOMER, BOTH]
+ *         description: Filter by account type
+ *         example: "SUPPLIER"
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Page number for pagination
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Number of items per page
+ *         example: 10
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved current accounts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/CurrentAccount'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       example: 100
+ *                     page:
+ *                       type: integer
+ *                       example: 1
+ *                     limit:
+ *                       type: integer
+ *                       example: 10
+ *                     pages:
+ *                       type: integer
+ *                       example: 10
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   post:
+ *     summary: Create a new current account
+ *     description: Create a new current account with automatic code generation
+ *     tags:
+ *       - Current Accounts
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - type
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Account name
+ *                 example: "ABC Tedarik Ltd."
+ *               type:
+ *                 type: string
+ *                 enum: [SUPPLIER, CUSTOMER, BOTH]
+ *                 description: Account type
+ *                 example: "SUPPLIER"
+ *               supplierId:
+ *                 type: string
+ *                 description: Associated supplier ID
+ *                 example: "clx1234567890"
+ *               openingBalance:
+ *                 type: number
+ *                 format: float
+ *                 description: Opening balance
+ *                 example: 0.00
+ *               creditLimit:
+ *                 type: number
+ *                 format: float
+ *                 description: Credit limit
+ *                 example: 10000.00
+ *               contactName:
+ *                 type: string
+ *                 description: Contact person name
+ *                 example: "Ahmet Yılmaz"
+ *               phone:
+ *                 type: string
+ *                 description: Phone number
+ *                 example: "+90 555 123 4567"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Email address
+ *                 example: "info@abctedarik.com"
+ *               address:
+ *                 type: string
+ *                 description: Address
+ *                 example: "Atatürk Cad. No:123 Şişli/İstanbul"
+ *               taxNumber:
+ *                 type: string
+ *                 description: Tax number
+ *                 example: "1234567890"
+ *               isActive:
+ *                 type: boolean
+ *                 description: Whether the account is active
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Current account created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/CurrentAccount'
+ *                 message:
+ *                   type: string
+ *                   example: "Cari hesap başarıyla oluşturuldu"
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
 // Calculate real-time balance for a current account
 async function calculateRealTimeBalance(currentAccountId: string, openingBalance: number): Promise<number> {
   // Get all transactions for this account (payments are already included as PAYMENT type transactions)

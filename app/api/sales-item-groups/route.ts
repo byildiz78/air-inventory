@@ -1,6 +1,226 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+/**
+ * @swagger
+ * /api/sales-item-groups:
+ *   get:
+ *     summary: Retrieve sales item groups
+ *     description: Get a list of sales item groups with optional filtering by category
+ *     tags:
+ *       - Sales Item Groups
+ *     parameters:
+ *       - in: query
+ *         name: categoryId
+ *         schema:
+ *           type: string
+ *         description: Filter groups by category ID
+ *         example: "clx1234567890"
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved sales item groups
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/SalesItemGroup'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   post:
+ *     summary: Create a new sales item group
+ *     description: Create a new sales item group within a category
+ *     tags:
+ *       - Sales Item Groups
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - categoryId
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Group name
+ *                 example: "Et Yemekleri"
+ *               categoryId:
+ *                 type: string
+ *                 description: Parent category ID
+ *                 example: "clx1234567890"
+ *               description:
+ *                 type: string
+ *                 description: Group description
+ *                 example: "Çeşitli et yemekleri"
+ *               color:
+ *                 type: string
+ *                 description: Hex color code for UI display
+ *                 example: "#6B7280"
+ *               sortOrder:
+ *                 type: integer
+ *                 description: Display order within category (auto-assigned if not provided)
+ *                 example: 1
+ *               isActive:
+ *                 type: boolean
+ *                 description: Whether the group is active
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Sales item group created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/SalesItemGroup'
+ *                 message:
+ *                   type: string
+ *                   example: "Sales item group created successfully"
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   put:
+ *     summary: Update a sales item group
+ *     description: Update an existing sales item group
+ *     tags:
+ *       - Sales Item Groups
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 description: Group ID
+ *                 example: "clx1234567890"
+ *               name:
+ *                 type: string
+ *                 description: Group name
+ *                 example: "Et Yemekleri"
+ *               categoryId:
+ *                 type: string
+ *                 description: Parent category ID
+ *                 example: "clx1234567890"
+ *               description:
+ *                 type: string
+ *                 description: Group description
+ *                 example: "Çeşitli et yemekleri"
+ *               color:
+ *                 type: string
+ *                 description: Hex color code for UI display
+ *                 example: "#6B7280"
+ *               sortOrder:
+ *                 type: integer
+ *                 description: Display order within category
+ *                 example: 1
+ *               isActive:
+ *                 type: boolean
+ *                 description: Whether the group is active
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Group updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/SalesItemGroup'
+ *                 message:
+ *                   type: string
+ *                   example: "Group updated successfully"
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Group not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *   delete:
+ *     summary: Delete a sales item group
+ *     description: Delete a sales item group (only if not in use)
+ *     tags:
+ *       - Sales Item Groups
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Group ID to delete
+ *         example: "clx1234567890"
+ *     responses:
+ *       200:
+ *         description: Group deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Group deleted successfully"
+ *       400:
+ *         description: Bad request - group in use or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Group not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
 export async function GET(request: NextRequest) {
   try {
     const url = request.nextUrl;

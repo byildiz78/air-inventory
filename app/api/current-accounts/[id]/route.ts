@@ -105,14 +105,16 @@ export async function PUT(
       'current_account',
       currentAccountId,
       {
-        name: existingAccount.name,
-        type: existingAccount.type,
-        creditLimit: existingAccount.creditLimit
-      },
-      {
-        name: updatedAccount.name,
-        type: updatedAccount.type,
-        creditLimit: updatedAccount.creditLimit
+        before: {
+          name: existingAccount.name,
+          type: existingAccount.type,
+          creditLimit: existingAccount.creditLimit
+        },
+        after: {
+          name: updatedAccount.name,
+          type: updatedAccount.type,
+          creditLimit: updatedAccount.creditLimit
+        }
       },
       request
     );
