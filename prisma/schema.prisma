@@ -38,6 +38,7 @@ model User {
   activityLogs       ActivityLog[]
   payments           Payment[]
   currentAccountTransactions CurrentAccountTransaction[]
+  productions        Production[]
 
   @@map("users")
 }
@@ -249,6 +250,7 @@ model Material {
   
   // Status
   isActive      Boolean @default(true)
+  isFinishedProduct Boolean @default(false) // true = yarı mamül (üretilebilir), false = ham madde
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -438,6 +440,7 @@ model Recipe {
   ingredients RecipeIngredient[]
   sales       Sale[]
   mappings    RecipeMapping[]
+  productions Production[]
 
   @@map("recipes")
 }
@@ -976,4 +979,43 @@ enum TransactionType {
   CREDIT     // Alacak (Satış faturası)
   PAYMENT    // Ödeme
   ADJUSTMENT // Düzeltme
+}
+
+// ================================
+// PRODUCTION MANAGEMENT
+// ================================
+
+model Production {
+  id               String   @id @default(cuid())
+  date             DateTime
+  
+  // Recipe Information
+  recipeId         String
+  recipeName       String
+  
+  // Produced Material
+  materialId       String
+  materialName     String
+  quantity         Float    // Recipe portions produced
+  producedQuantity Float    // Actual material quantity produced
+  
+  // Location
+  warehouseId      String
+  
+  // Additional Info
+  notes            String?
+  totalCost        Float    @default(0)
+  
+  // Audit
+  userId           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  recipe           Recipe    @relation(fields: [recipeId], references: [id])
+  material         Material  @relation(fields: [materialId], references: [id])
+  warehouse        Warehouse @relation(fields: [warehouseId], references: [id])
+  user             User      @relation(fields: [userId], references: [id])
+
+  @@map("productions")
 }

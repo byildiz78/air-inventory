@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { AuthMiddleware } from '@/lib/auth-middleware';
+import { stockService } from '@/lib/services/stock-service';
 
 /**
  * @swagger
@@ -287,13 +288,14 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
 
     // Get recipe ID if available
     let recipeId = null;
+    let recipeMapping = null;
     let totalCost = 0;
     let grossProfit = 0;
     let profitMargin = 0;
 
     // Eğer aktif reçete eşleştirmesi varsa
     if (salesItem.mappings && salesItem.mappings.length > 0) {
-      const recipeMapping = salesItem.mappings[0];
+      recipeMapping = salesItem.mappings[0];
       recipeId = recipeMapping.recipeId;
       
       // Calculate cost and profit if recipe exists
@@ -331,48 +333,32 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
 
     // Create stock movements if recipe exists
     if (recipeId) {
-      // Get recipe ingredients
-      const recipeIngredients = await prisma.recipeIngredient.findMany({
-        where: { recipeId },
-        include: {
-          material: true,
-          unit: true
-        }
-      });
+      try {
+        // Get the portion ratio from recipe mapping
+        const portionRatio = recipeMapping ? recipeMapping.portionRatio : 1;
+        
+        // Calculate total recipe portions needed
+        const totalPortions = body.quantity * portionRatio;
+        
+        // Consume recipe ingredients using stock service
+        const stockConsumption = await stockService.consumeRecipeIngredients({
+          recipeId,
+          quantity: totalPortions,
+          warehouseId: salesItem.defaultWarehouseId || undefined, // Use sales item's default warehouse if available
+          userId: body.userId,
+          reason: `Satış: ${salesItem.name}`,
+          referenceId: sale.id
+        });
 
-      // Create stock movements for each ingredient
-      for (const ingredient of recipeIngredients) {
-        if (ingredient.material && ingredient.material.defaultWarehouseId) {
-          const consumedQuantity = ingredient.quantity * body.quantity;
-          
-          // Get current stock for this material and warehouse
-          const materialStock = await prisma.materialStock.findUnique({
-            where: {
-              materialId_warehouseId: {
-                materialId: ingredient.materialId,
-                warehouseId: ingredient.material.defaultWarehouseId
-              }
-            }
-          });
-          
-          const currentStock = materialStock?.currentStock || 0;
-          const newStock = currentStock - consumedQuantity;
-          
-          await prisma.stockMovement.create({
-            data: {
-              date: new Date(body.date),
-              materialId: ingredient.materialId,
-              quantity: -consumedQuantity, // Negative for consumption
-              unitId: ingredient.unitId,
-              warehouseId: ingredient.material.defaultWarehouseId,
-              type: 'OUT',
-              reason: `Satış: ${salesItem.name} - Satış ID: ${sale.id}`,
-              userId: body.userId,
-              stockBefore: currentStock,
-              stockAfter: newStock
-            }
-          });
+        // Log if any stock went negative (just for info, we allow it)
+        if (stockConsumption.hasNegativeStock) {
+          console.log(`Warning: Some materials went to negative stock for sale ${sale.id}`);
         }
+
+      } catch (stockError) {
+        console.error('Stock consumption error for sale:', sale.id, stockError);
+        // Continue with sale creation even if stock fails
+        // This allows the sale to complete and negative stock to occur
       }
     }
 

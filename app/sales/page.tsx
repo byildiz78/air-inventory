@@ -196,7 +196,7 @@ export default function SalesPage() {
     try {
       const newSale = {
         ...saleForm,
-        date: new Date().toISOString(),
+        date: new Date(saleForm.date).toISOString(),
         totalAmount: saleForm.quantity * saleForm.unitPrice
       };
       
@@ -211,7 +211,7 @@ export default function SalesPage() {
           unitPrice: 0,
           customerName: '',
           notes: '',
-          date: new Date().toISOString(),
+          date: new Date().toISOString().split('T')[0],
           userId: users[0]?.id || ''
         });
         loadData();

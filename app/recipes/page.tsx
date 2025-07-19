@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
 import { Material, Unit } from '@prisma/client';
+import { apiClient } from '@/lib/api-client';
 import { RecipeWithRelations } from './types';
 import { RecipeForm } from './components/RecipeForm';
 import { RecipeCard } from './components/RecipeCard';
@@ -51,16 +52,10 @@ export default function RecipesPage() {
   const loadRecipeData = async () => {
     try {
       setLoading(true);
-      const [recipesRes, materialsRes, unitsRes] = await Promise.all([
-        fetch('/api/recipes'),
-        fetch('/api/materials'),
-        fetch('/api/units'),
-      ]);
-
       const [recipesData, materialsData, unitsData] = await Promise.all([
-        recipesRes.json(),
-        materialsRes.json(),
-        unitsRes.json(),
+        apiClient.get('/api/recipes'),
+        apiClient.get('/api/materials'),
+        apiClient.get('/api/units'),
       ]);
 
       setRecipes(recipesData.data || []);
@@ -156,24 +151,16 @@ export default function RecipesPage() {
         profitMargin: 40
       };
 
-      let response;
+      let result;
       if (selectedRecipe && isEditRecipeOpen) {
         // Update existing recipe
-        response = await fetch(`/api/recipes/${selectedRecipe.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(recipeData)
-        });
+        result = await apiClient.put(`/api/recipes/${selectedRecipe.id}`, recipeData);
       } else {
         // Create new recipe
-        response = await fetch('/api/recipes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(recipeData)
-        });
+        result = await apiClient.post('/api/recipes', recipeData);
       }
 
-      if (response.ok) {
+      if (result.success) {
         await loadRecipeData();
         setIsAddRecipeOpen(false);
         setIsEditRecipeOpen(false);
@@ -241,6 +228,12 @@ export default function RecipesPage() {
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Yeni Reçete Ekle</DialogTitle>
+                <DialogDescription>
+                  Yeni bir reçete oluşturun ve malzemelerini ekleyin
+                </DialogDescription>
+              </DialogHeader>
               <RecipeForm
                 materials={materials}
                 units={units}
@@ -259,6 +252,12 @@ export default function RecipesPage() {
           {/* Edit Recipe Modal */}
           <Dialog open={isEditRecipeOpen} onOpenChange={setIsEditRecipeOpen}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Reçete Düzenle</DialogTitle>
+                <DialogDescription>
+                  {selectedRecipe?.name} reçetesini düzenleyin
+                </DialogDescription>
+              </DialogHeader>
               <RecipeForm
                 isEdit={true}
                 materials={materials}
