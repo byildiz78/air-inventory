@@ -196,6 +196,32 @@ export const materialService = {
   },
 
   async create(data: MaterialCreateData) {
+    // Use Prisma on server-side
+    if (isServerSide && USE_PRISMA) {
+      try {
+        return await prisma.material.create({
+          data,
+          include: {
+            category: true,
+            purchaseUnit: true,
+            consumptionUnit: true,
+            supplier: true,
+            defaultTax: true,
+            defaultWarehouse: true,
+            materialStocks: {
+              include: {
+                warehouse: true
+              }
+            }
+          }
+        });
+      } catch (error: any) {
+        console.error('Error creating material with Prisma:', error);
+        throw error;
+      }
+    }
+    
+    // Use API on client-side
     try {
       const response = await fetch('/api/materials', {
         method: 'POST',
@@ -219,6 +245,33 @@ export const materialService = {
   },
 
   async update(id: string, data: MaterialUpdateData) {
+    // Use Prisma on server-side
+    if (isServerSide && USE_PRISMA) {
+      try {
+        return await prisma.material.update({
+          where: { id },
+          data,
+          include: {
+            category: true,
+            purchaseUnit: true,
+            consumptionUnit: true,
+            supplier: true,
+            defaultTax: true,
+            defaultWarehouse: true,
+            materialStocks: {
+              include: {
+                warehouse: true
+              }
+            }
+          }
+        });
+      } catch (error: any) {
+        console.error(`Error updating material with id ${id} using Prisma:`, error);
+        throw error;
+      }
+    }
+    
+    // Use API on client-side
     try {
       const response = await fetch(`/api/materials/${id}`, {
         method: 'PUT',
@@ -242,6 +295,20 @@ export const materialService = {
   },
 
   async delete(id: string) {
+    // Use Prisma on server-side
+    if (isServerSide && USE_PRISMA) {
+      try {
+        await prisma.material.delete({
+          where: { id }
+        });
+        return true;
+      } catch (error: any) {
+        console.error(`Error deleting material with id ${id} using Prisma:`, error);
+        throw error;
+      }
+    }
+    
+    // Use API on client-side
     if (USE_API) {
       try {
         const response = await fetch(`/api/materials/${id}`, {

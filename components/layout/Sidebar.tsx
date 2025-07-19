@@ -45,14 +45,16 @@ const navigation = [
     href: '/inventory',
     icon: Package,
     current: false,
-    badge: '3', // Düşük stok uyarısı
+    badge: '5', // Düşük stok uyarısı
     children: [
-      { name: 'Malzemeler', href: '/inventory/materials' },
+  
       { name: 'Kategoriler', href: '/inventory/categories' },
-      { name: 'Depolar', href: '/inventory/warehouses' },
+      { name: 'Malzemeler', href: '/inventory/materials' },
+
+      { name: 'Satış Malları', href: '/recipes/sales-items' },
       { name: 'Stok Hareketleri', href: '/inventory/movements' },
       { name: 'Stok Tutarlılığı', href: '/inventory/consistency' },
-      { name: 'Stok Sayımı', href: '/inventory/stock-count' },
+    
     ],
   },
   {
@@ -64,7 +66,7 @@ const navigation = [
     children: [
       { name: 'Reçete Listesi', href: '/recipes' },
       { name: 'Yeni Reçete', href: '/recipes/new' },
-      { name: 'Satış Malları', href: '/recipes/sales-items' },
+     
       { name: 'Reçete Eşleştirmeleri', href: '/recipes/mappings' },
       { name: 'Maliyet Analizi', href: '/recipes/cost-analysis' },
     ],
@@ -74,7 +76,7 @@ const navigation = [
     href: '/invoices',
     icon: FileText,
     current: false,
-    badge: '2', // Bekleyen faturalar
+    badge: '3', // Bekleyen faturalar
     children: [
       { name: 'Alış Faturaları', href: '/invoices/purchases' },
       { name: 'Satış Faturaları', href: '/invoices/sales' },
@@ -93,6 +95,20 @@ const navigation = [
     ],
   },
   {
+    name: 'Depo Yönetimi',
+    href: '/inventory/warehouses',
+    icon: Package,
+    current: false,
+    badge: 2,
+    children: [
+      { name: 'Depolar', href: '/inventory/warehouses' },
+      { name: 'Depo Sayımı', href: '/inventory/stock-count' },
+    ],
+  },
+
+
+
+  {
     name: 'Satışlar',
     href: '/sales',
     icon: TrendingUp,
@@ -101,7 +117,6 @@ const navigation = [
     children: [
       { name: 'Satış Kayıtları', href: '/sales', current: false },
       { name: 'Günlük Satış', href: '/sales/daily' },
-      { name: 'Satış Analizi', href: '/sales/analysis' },
     ],
   },
   {
@@ -109,7 +124,7 @@ const navigation = [
     href: '/reports',
     icon: BarChart3,
     current: false,
-    badge: null,
+    badge: 7,
     children: [
       { name: 'Stok Raporları', href: '/reports/inventory' },
       { name: 'Stok Hareketleri', href: '/reports/inventory/movements' },

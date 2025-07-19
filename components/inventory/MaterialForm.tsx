@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Category, Supplier, Unit, Warehouse, Tax } from '@prisma/client';
+import { Category, Unit, Warehouse, Tax } from '@prisma/client';
 import { 
   Package, 
   Building2, 
@@ -20,7 +20,6 @@ import {
 
 interface MaterialFormProps {
   categories: Category[];
-  suppliers: Supplier[];
   units: Unit[];
   taxes: Tax[];
   warehouses?: Warehouse[];
@@ -31,7 +30,6 @@ interface MaterialFormProps {
 
 export function MaterialForm({ 
   categories, 
-  suppliers, 
   units, 
   taxes,
   warehouses = [],
@@ -45,7 +43,6 @@ export function MaterialForm({
     categoryId: initialData?.categoryId || '',
     purchaseUnitId: initialData?.purchaseUnitId || '',
     consumptionUnitId: initialData?.consumptionUnitId || '',
-    supplierId: initialData?.supplierId || 'none',
     defaultWarehouseId: initialData?.defaultWarehouseId || 'none',
     defaultTaxId: initialData?.defaultTaxId || 'none',
   });
@@ -89,11 +86,29 @@ export function MaterialForm({
 
   // Seçilen değerlerin bilgilerini al
   const selectedCategory = categories.find(cat => cat.id === formData.categoryId);
-  const selectedSupplier = suppliers.find(sup => sup.id === formData.supplierId);
   const selectedWarehouse = warehouses.find(wh => wh.id === formData.defaultWarehouseId);
   const selectedTax = taxes.find(tax => tax.id === formData.defaultTaxId);
   const selectedPurchaseUnit = units.find(unit => unit.id === formData.purchaseUnitId);
   const selectedConsumptionUnit = units.find(unit => unit.id === formData.consumptionUnitId);
+  
+  // Filter units for purchase (base units only)
+  const purchaseUnits = units.filter(unit => unit.isBaseUnit);
+  
+  // Filter units for consumption (units related to selected purchase unit)
+  const getConsumptionUnits = () => {
+    if (!formData.purchaseUnitId) return [];
+    
+    const selectedPurchase = units.find(unit => unit.id === formData.purchaseUnitId);
+    if (!selectedPurchase) return [];
+    
+    // Return the selected purchase unit itself and all units that have it as base unit
+    return units.filter(unit => 
+      unit.id === selectedPurchase.id || 
+      unit.baseUnitId === selectedPurchase.id
+    );
+  };
+  
+  const consumptionUnits = getConsumptionUnits();
 
   return (
     <div className="max-h-[80vh] overflow-y-auto">
@@ -284,13 +299,19 @@ export function MaterialForm({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="purchaseUnit">Satın Alma Birimi *</Label>
-                <Select value={formData.purchaseUnitId} onValueChange={(value) => handleChange('purchaseUnitId', value)}>
+                <Select value={formData.purchaseUnitId} onValueChange={(value) => {
+                  handleChange('purchaseUnitId', value);
+                  // Reset consumption unit when purchase unit changes
+                  if (value !== formData.purchaseUnitId) {
+                    handleChange('consumptionUnitId', '');
+                  }
+                }}>
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Satın alma birimi seçin" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Birim seçin</SelectItem>
-                    {units.map(unit => (
+                    {purchaseUnits.map(unit => (
                       <SelectItem key={unit.id} value={unit.id}>
                         <div className="flex items-center gap-2">
                           <Scale className="w-4 h-4" />
@@ -298,6 +319,7 @@ export function MaterialForm({
                           <Badge variant="outline" className="text-xs">
                             {unit.type}
                           </Badge>
+                          <Badge variant="secondary" className="text-xs">Ana Birim</Badge>
                         </div>
                       </SelectItem>
                     ))}
@@ -310,13 +332,21 @@ export function MaterialForm({
               
               <div>
                 <Label htmlFor="consumptionUnit">Tüketim Birimi *</Label>
-                <Select value={formData.consumptionUnitId} onValueChange={(value) => handleChange('consumptionUnitId', value)}>
+                <Select 
+                  value={formData.consumptionUnitId} 
+                  onValueChange={(value) => handleChange('consumptionUnitId', value)}
+                  disabled={!formData.purchaseUnitId || formData.purchaseUnitId === 'none'}
+                >
                   <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Tüketim birimi seçin" />
+                    <SelectValue placeholder={
+                      !formData.purchaseUnitId || formData.purchaseUnitId === 'none' 
+                        ? "Önce satın alma birimi seçin" 
+                        : "Tüketim birimi seçin"
+                    } />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Birim seçin</SelectItem>
-                    {units.map(unit => (
+                    {consumptionUnits.map(unit => (
                       <SelectItem key={unit.id} value={unit.id}>
                         <div className="flex items-center gap-2">
                           <Scale className="w-4 h-4" />
@@ -324,13 +354,19 @@ export function MaterialForm({
                           <Badge variant="outline" className="text-xs">
                             {unit.type}
                           </Badge>
+                          {unit.id === formData.purchaseUnitId && (
+                            <Badge variant="secondary" className="text-xs">Ana Birim</Badge>
+                          )}
+                          {unit.baseUnitId === formData.purchaseUnitId && (
+                            <Badge variant="outline" className="text-xs">Türetilmiş</Badge>
+                          )}
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Reçetede kullanılan birim
+                  Reçetede kullanılan birim (satın alma birimine bağlı)
                 </p>
               </div>
             </div>
@@ -365,98 +401,55 @@ export function MaterialForm({
           </CardContent>
         </Card>
 
-        {/* Tedarikçi ve Vergi */}
+        {/* Vergi Ayarları */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-orange-600" />
-              Tedarikçi ve Vergi
+              <Receipt className="w-5 h-5 text-orange-600" />
+              Vergi Ayarları
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="supplier">Tedarikçi</Label>
-                <Select value={formData.supplierId} onValueChange={(value) => handleChange('supplierId', value)}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Tedarikçi seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Tedarikçi yok</SelectItem>
-                    {suppliers.map(supplier => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4" />
-                          {supplier.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="defaultTax">Varsayılan KDV</Label>
-                <Select value={formData.defaultTaxId} onValueChange={(value) => handleChange('defaultTaxId', value)}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="KDV oranı seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">KDV oranı seçin</SelectItem>
-                    {taxes.filter(tax => tax.isActive && tax.type === 'VAT').map(tax => (
-                      <SelectItem key={tax.id} value={tax.id}>
-                        <div className="flex items-center gap-2">
-                          <Receipt className="w-4 h-4" />
-                          {tax.name} (%{tax.rate})
-                          {tax.isDefault && (
-                            <Badge variant="default" className="text-xs">Varsayılan</Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Faturalarda kullanılacak varsayılan KDV oranı
-                </p>
-              </div>
+            <div>
+              <Label htmlFor="defaultTax">Varsayılan KDV</Label>
+              <Select value={formData.defaultTaxId} onValueChange={(value) => handleChange('defaultTaxId', value)}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="KDV oranı seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">KDV oranı seçin</SelectItem>
+                  {taxes.filter(tax => tax.isActive && tax.type === 'VAT').map(tax => (
+                    <SelectItem key={tax.id} value={tax.id}>
+                      <div className="flex items-center gap-2">
+                        <Receipt className="w-4 h-4" />
+                        {tax.name} (%{tax.rate})
+                        {tax.isDefault && (
+                          <Badge variant="default" className="text-xs">Varsayılan</Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Faturalarda kullanılacak varsayılan KDV oranı
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {selectedSupplier && (
-                <div className="p-3 bg-orange-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-orange-600" />
-                    <span className="font-medium">{selectedSupplier.name}</span>
-                  </div>
-                  {selectedSupplier.contactName && (
-                    <p className="text-sm text-muted-foreground">
-                      İletişim: {selectedSupplier.contactName}
-                    </p>
-                  )}
-                  {selectedSupplier.phone && (
-                    <p className="text-sm text-muted-foreground">
-                      Tel: {selectedSupplier.phone}
-                    </p>
-                  )}
+            {selectedTax && (
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium">{selectedTax.name}</span>
+                  <Badge variant="secondary">%{selectedTax.rate}</Badge>
                 </div>
-              )}
-              
-              {selectedTax && (
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Receipt className="w-4 h-4 text-blue-600" />
-                    <span className="font-medium">{selectedTax.name}</span>
-                    <Badge variant="secondary">%{selectedTax.rate}</Badge>
-                  </div>
-                  {selectedTax.description && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {selectedTax.description}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
+                {selectedTax.description && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {selectedTax.description}
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

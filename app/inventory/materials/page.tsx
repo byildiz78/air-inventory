@@ -218,7 +218,6 @@ export default function MaterialsPage() {
               </DialogHeader>
               <MaterialForm
                 categories={categories}
-                suppliers={suppliers}
                 units={units}
                 warehouses={warehouses}
                 taxes={taxes}
@@ -459,7 +458,6 @@ export default function MaterialsPage() {
             {editingMaterial && (
               <MaterialForm
                 categories={categories}
-                suppliers={suppliers}
                 units={units}
                 warehouses={warehouses}
                 taxes={taxes}
