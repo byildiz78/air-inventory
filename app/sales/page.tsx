@@ -747,11 +747,11 @@ export default function SalesPage() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Toplam:</span>
-                        <div className="font-medium">₺{selectedSale.totalPrice.toFixed(2)}</div>
+                        <div className="font-medium">₺{(selectedSale.totalAmount || 0).toFixed(2)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Maliyet:</span>
-                        <div className="font-medium">₺{selectedSale.totalCost.toFixed(2)}</div>
+                        <div className="font-medium">₺{(selectedSale.totalCost || 0).toFixed(2)}</div>
                       </div>
                     </div>
                   </div>
@@ -761,11 +761,11 @@ export default function SalesPage() {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">Brüt Kâr:</span>
-                        <div className="font-medium text-green-600">₺{selectedSale.grossProfit.toFixed(2)}</div>
+                        <div className="font-medium text-green-600">₺{(selectedSale.grossProfit || 0).toFixed(2)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Kâr Marjı:</span>
-                        <div className="font-medium text-green-600">%{selectedSale.profitMargin.toFixed(1)}</div>
+                        <div className="font-medium text-green-600">%{(selectedSale.profitMargin || 0).toFixed(1)}</div>
                       </div>
                     </div>
                   </div>

@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Category, Unit, Warehouse, Tax } from '@prisma/client';
 import { 
   Package, 
@@ -45,6 +46,7 @@ export function MaterialForm({
     consumptionUnitId: initialData?.consumptionUnitId || '',
     defaultWarehouseId: initialData?.defaultWarehouseId || 'none',
     defaultTaxId: initialData?.defaultTaxId || 'none',
+    isFinishedProduct: initialData?.isFinishedProduct || false,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -182,6 +184,30 @@ export function MaterialForm({
                 rows={3}
                 className="mt-1"
               />
+            </div>
+
+            {/* Malzeme Türü */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Malzeme Türü</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="isFinishedProduct"
+                  checked={formData.isFinishedProduct}
+                  onCheckedChange={(checked) => handleChange('isFinishedProduct', checked)}
+                />
+                <Label 
+                  htmlFor="isFinishedProduct" 
+                  className="text-sm font-normal cursor-pointer"
+                >
+                  Bu bir yarı mamüldür (üretilebilir malzeme)
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formData.isFinishedProduct 
+                  ? "Bu malzeme reçete kullanılarak ham maddelerden üretilebilir" 
+                  : "Bu malzeme ham madde olarak kullanılır ve başka malzemelerin üretiminde tüketilir"
+                }
+              </p>
             </div>
           </CardContent>
         </Card>

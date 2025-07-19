@@ -79,6 +79,21 @@ export const stockService = {
 
     const stockBefore = materialStock.currentStock;
     const stockAfter = stockBefore - quantity; // Can go negative
+    
+    // Calculate cost based on average cost
+    // If MaterialStock.averageCost is 0, try to get from Material.averageCost as fallback
+    let unitCost = materialStock.averageCost || 0;
+    
+    if (unitCost === 0) {
+      // Fallback to Material.averageCost
+      const material = await db.material.findUnique({
+        where: { id: materialId },
+        select: { averageCost: true }
+      });
+      unitCost = material?.averageCost || 0;
+    }
+    
+    const totalCost = unitCost * quantity;
 
     // Update material stock
     await db.materialStock.update({
@@ -105,7 +120,7 @@ export const stockService = {
       }
     });
 
-    // Create stock movement record
+    // Create stock movement record with cost information
     const stockMovement = await db.stockMovement.create({
       data: {
         materialId,
@@ -117,6 +132,8 @@ export const stockService = {
         reason,
         stockBefore,
         stockAfter,
+        unitCost,
+        totalCost,
         date: new Date()
       }
     });
@@ -125,7 +142,9 @@ export const stockService = {
       stockMovement,
       stockBefore,
       stockAfter,
-      isNegative: stockAfter < 0
+      isNegative: stockAfter < 0,
+      unitCost,
+      totalCost
     };
   },
 
@@ -154,6 +173,7 @@ export const stockService = {
     }
 
     const consumptionResults = [];
+    let totalCost = 0;
 
     // Consume each ingredient
     for (const ingredient of recipe.ingredients) {
@@ -176,6 +196,8 @@ export const stockService = {
         tx: db as any
       });
 
+      totalCost += result.totalCost || 0;
+
       consumptionResults.push({
         materialId: ingredient.materialId,
         materialName: ingredient.material.name,
@@ -188,7 +210,8 @@ export const stockService = {
       recipe,
       consumptionResults,
       totalConsumed: consumptionResults.length,
-      hasNegativeStock: consumptionResults.some(r => r.isNegative)
+      hasNegativeStock: consumptionResults.some(r => r.isNegative),
+      totalCost
     };
   },
 
@@ -196,8 +219,8 @@ export const stockService = {
    * Produce material stock (IN movement)
    * Adds stock for semi-finished products
    */
-  async produceStock(params: ProduceStockParams) {
-    const { materialId, quantity, unitId, warehouseId, reason, userId, referenceId, tx } = params;
+  async produceStock(params: ProduceStockParams & { unitCost?: number }) {
+    const { materialId, quantity, unitId, warehouseId, reason, userId, referenceId, tx, unitCost: providedUnitCost } = params;
     const db = tx || prisma;
 
     // Get or create material stock for the warehouse
@@ -227,6 +250,28 @@ export const stockService = {
 
     const stockBefore = materialStock.currentStock;
     const stockAfter = stockBefore + quantity; // Add stock
+    
+    // Use provided unit cost or calculate from MaterialStock/Material averageCost
+    let unitCost = providedUnitCost || materialStock.averageCost || 0;
+    
+    if (unitCost === 0 && !providedUnitCost) {
+      // Fallback to Material.averageCost if MaterialStock.averageCost is 0
+      const material = await db.material.findUnique({
+        where: { id: materialId },
+        select: { averageCost: true }
+      });
+      unitCost = material?.averageCost || 0;
+    }
+    
+    const totalCost = unitCost * quantity;
+    
+    // Calculate new average cost with weighted average
+    let newAverageCost = materialStock.averageCost;
+    if (stockAfter > 0) {
+      const existingValue = stockBefore * materialStock.averageCost;
+      const newValue = quantity * unitCost;
+      newAverageCost = (existingValue + newValue) / stockAfter;
+    }
 
     // Update material stock
     await db.materialStock.update({
@@ -239,6 +284,7 @@ export const stockService = {
       data: {
         currentStock: stockAfter,
         availableStock: stockAfter - materialStock.reservedStock,
+        averageCost: newAverageCost,
         lastUpdated: new Date()
       }
     });
@@ -253,7 +299,7 @@ export const stockService = {
       }
     });
 
-    // Create stock movement record
+    // Create stock movement record with cost information
     const stockMovement = await db.stockMovement.create({
       data: {
         materialId,
@@ -265,6 +311,8 @@ export const stockService = {
         reason,
         stockBefore,
         stockAfter,
+        unitCost,
+        totalCost,
         date: new Date()
       }
     });
@@ -273,7 +321,10 @@ export const stockService = {
       stockMovement,
       stockBefore,
       stockAfter,
-      produced: quantity
+      produced: quantity,
+      unitCost,
+      totalCost,
+      newAverageCost
     };
   },
 
@@ -283,9 +334,20 @@ export const stockService = {
    */
   async produceFromRecipe(params: ProduceRecipeParams) {
     const { recipeId, quantity, warehouseId, userId, reason, referenceId, tx } = params;
-    const db = tx || prisma;
+    
+    if (tx) {
+      // Already in a transaction, use the provided transaction client
+      return await this._produceFromRecipeInTransaction(params, tx);
+    } else {
+      // Start a new transaction
+      return await prisma.$transaction(async (transaction) => {
+        return await this._produceFromRecipeInTransaction(params, transaction);
+      });
+    }
+  },
 
-    return await db.$transaction(async (transaction) => {
+  async _produceFromRecipeInTransaction(params: ProduceRecipeParams, transaction: any) {
+    const { recipeId, quantity, warehouseId, userId, reason, referenceId } = params;
       // Get recipe with ingredients and check if it's for a semi-finished product
       const recipe = await transaction.recipe.findUnique({
         where: { id: recipeId },
@@ -314,8 +376,8 @@ export const stockService = {
       }
 
       // Check if this recipe is mapped to a semi-finished product
-      const semiFinishedMapping = recipe.mappings.find(m => 
-        m.salesItem?.material?.isFinishedProduct === false
+      const semiFinishedMapping = recipe.mappings.find((m: any) => 
+        m.salesItem?.material?.isFinishedProduct === true
       );
 
       if (!semiFinishedMapping?.salesItem?.material) {
@@ -324,8 +386,10 @@ export const stockService = {
 
       const semiFinishedMaterial = semiFinishedMapping.salesItem.material;
 
-      // 1. Consume raw materials (ingredients)
+      // 1. Consume raw materials (ingredients) and calculate total cost
       const consumptionResults = [];
+      let totalRecipeCost = 0;
+      
       for (const ingredient of recipe.ingredients) {
         const consumedQuantity = ingredient.quantity * quantity;
         const targetWarehouseId = warehouseId || ingredient.material.defaultWarehouseId;
@@ -345,6 +409,8 @@ export const stockService = {
           tx: transaction as any
         });
 
+        totalRecipeCost += result.totalCost || 0;
+
         consumptionResults.push({
           materialId: ingredient.materialId,
           materialName: ingredient.material.name,
@@ -353,33 +419,38 @@ export const stockService = {
         });
       }
 
-      // 2. Produce semi-finished material
+      // 2. Produce semi-finished material with cost calculation
       const productionWarehouseId = warehouseId || semiFinishedMaterial.defaultWarehouseId;
       if (!productionWarehouseId) {
         throw new Error(`Semi-finished material ${semiFinishedMaterial.name} has no default warehouse`);
       }
 
+      const producedQuantity = quantity * (semiFinishedMapping.portionRatio || 1);
+      const unitCostForProduction = producedQuantity > 0 ? totalRecipeCost / producedQuantity : 0;
+
       const productionResult = await this.produceStock({
         materialId: semiFinishedMaterial.id,
-        quantity: quantity * (semiFinishedMapping.portionRatio || 1), // Apply portion ratio
+        quantity: producedQuantity, // Apply portion ratio
         unitId: semiFinishedMaterial.stockUnitId || semiFinishedMaterial.consumptionUnitId!,
         warehouseId: productionWarehouseId,
         reason: `${reason} - Production of ${recipe.name}`,
         userId,
         referenceId,
+        unitCost: unitCostForProduction, // Pass calculated unit cost
         tx: transaction as any
       });
 
-      return {
-        recipe,
-        semiFinishedMaterial,
-        consumptionResults,
-        productionResult,
-        totalConsumed: consumptionResults.length,
-        totalProduced: quantity,
-        hasNegativeStock: consumptionResults.some(r => r.isNegative)
-      };
-    });
+    return {
+      recipe,
+      semiFinishedMaterial,
+      consumptionResults,
+      productionResult,
+      totalConsumed: consumptionResults.length,
+      totalProduced: quantity,
+      hasNegativeStock: consumptionResults.some(r => r.isNegative),
+      totalRecipeCost,
+      unitCostForProduction
+    };
   }
 };
 

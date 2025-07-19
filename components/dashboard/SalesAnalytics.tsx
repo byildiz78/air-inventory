@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Calendar, BarChart3 } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 
 interface SalesData {
   totalSales: number;
@@ -38,8 +39,7 @@ export function SalesAnalytics({ timeRange = 'week' }: SalesAnalyticsProps) {
   const fetchSalesData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/sales/analytics?timeRange=${timeRange}`);
-      const data = await response.json();
+      const data = await apiClient.get(`/api/sales/analytics?timeRange=${timeRange}`);
 
       if (data.success) {
         setSalesData(data.data);
@@ -214,7 +214,7 @@ export function SalesAnalytics({ timeRange = 'week' }: SalesAnalyticsProps) {
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium">{item.itemName}</p>
+                      <p className="font-medium">{item.name}</p>
                       <p className="text-sm text-gray-600">{formatNumber(item.quantity)} adet</p>
                     </div>
                   </div>

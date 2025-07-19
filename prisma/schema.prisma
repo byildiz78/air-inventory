@@ -216,6 +216,7 @@ model Warehouse {
   stockCounts   StockCount[]
   stockAdjustments StockAdjustment[]
   stockMovements StockMovement[]
+  productions   Production[]
 
   @@map("warehouses")
 }
@@ -268,6 +269,8 @@ model Material {
   stockCountItems   StockCountItem[]
   stockAdjustments  StockAdjustment[]
   materialTransfers WarehouseTransfer[] @relation("MaterialTransfers")
+  productions       Production[]
+  salesItems        SalesItem[] // Yarı mamül ise otomatik oluşturulan satış malları
 
   @@map("materials")
 }
@@ -515,6 +518,7 @@ model SalesItem {
   name        String // "Kuşbaşılı Pilav", "Mercimek Çorbası"
   categoryId  String
   groupId     String?
+  materialId  String? // Yarı mamül bağlantısı (otomatik oluşturulan SalesItem'lar için)
   description String?
   
   // Pricing Information
@@ -535,6 +539,7 @@ model SalesItem {
   // Relations
   category SalesItemCategory @relation(fields: [categoryId], references: [id])
   group    SalesItemGroup?   @relation(fields: [groupId], references: [id])
+  material Material?         @relation(fields: [materialId], references: [id])
   mappings RecipeMapping[]
   sales    Sale[]
 

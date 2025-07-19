@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FileText, AlertCircle, Clock, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
+import { apiClient } from '@/lib/api-client';
 
 interface PendingInvoice {
   id: string;
@@ -35,8 +36,7 @@ export function PendingInvoices({ maxItems = 5, showViewAllButton = true }: Pend
   const fetchPendingInvoices = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/invoices?status=PENDING');
-      const data = await response.json();
+      const data = await apiClient.get('/api/invoices?status=PENDING&sortBy=date&sortOrder=desc&page=1&limit=50');
 
       if (data.success && Array.isArray(data.data)) {
         // Calculate days overdue and sort by urgency

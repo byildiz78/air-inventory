@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -61,8 +62,7 @@ export default function InvoicesPage() {
     const fetchInvoices = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/invoices?search=${searchTerm}&status=${statusFilter !== 'all' ? statusFilter : ''}&type=${typeFilter !== 'all' ? typeFilter : ''}`);
-        const data = await response.json();
+        const data = await apiClient.get(`/api/invoices?search=${searchTerm}&status=${statusFilter !== 'all' ? statusFilter : ''}&type=${typeFilter !== 'all' ? typeFilter : ''}&sortBy=date&sortOrder=desc&page=1&limit=50`);
         
         if (data.success) {
           // Convert date strings to Date objects
@@ -122,38 +122,26 @@ export default function InvoicesPage() {
     try {
       setUpdatingStatus(true);
       
-      const response = await fetch(`/api/invoices/${invoiceId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: newStatus,
-          userId: '1' // Current user ID
-        }),
+      const result = await apiClient.patch(`/api/invoices/${invoiceId}/status`, {
+        status: newStatus,
+        userId: '1' // Current user ID
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          // Update the invoice in the list
-          setInvoices(prev => prev.map(invoice => 
-            invoice.id === invoiceId 
-              ? { ...invoice, status: newStatus as Invoice['status'] }
-              : invoice
-          ));
-          setIsStatusModalOpen(false);
-          setSelectedInvoice(null);
-        } else {
-          alert(result.error || 'Durum güncellenirken hata oluştu');
-        }
+      if (result.success) {
+        // Update the invoice in the list
+        setInvoices(prev => prev.map(invoice => 
+          invoice.id === invoiceId 
+            ? { ...invoice, status: newStatus as Invoice['status'] }
+            : invoice
+        ));
+        setIsStatusModalOpen(false);
+        setSelectedInvoice(null);
       } else {
-        const error = await response.json();
-        alert(error.error || 'Durum güncellenirken hata oluştu');
+        alert(result.error || 'Durum güncellenirken hata oluştu');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Status update error:', error);
-      alert('Durum güncellenirken hata oluştu');
+      alert(error.error || 'Durum güncellenirken hata oluştu');
     } finally {
       setUpdatingStatus(false);
     }

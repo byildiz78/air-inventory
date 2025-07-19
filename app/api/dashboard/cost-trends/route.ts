@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { CostTrend } from '@/types/dashboard';
+import { AuthMiddleware } from '@/lib/auth-middleware';
 
-export async function GET(request: Request) {
+export const GET = AuthMiddleware.withAuth(async (request: Request) => {
   try {
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '7');
@@ -12,8 +13,8 @@ export async function GET(request: Request) {
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - days + 1);
 
-    // Get stock movements by day for the last N days
-    const stockMovements = await prisma.stockMovement.groupBy({
+    // Get sales data grouped by day for the last N days
+    const salesData = await prisma.sale.groupBy({
       by: ['date'],
       where: {
         date: {
@@ -22,8 +23,8 @@ export async function GET(request: Request) {
         }
       },
       _sum: {
-        totalCost: true,
-        quantity: true
+        totalPrice: true,
+        totalCost: true
       },
       _count: {
         id: true
@@ -41,15 +42,14 @@ export async function GET(request: Request) {
       date.setDate(startDate.getDate() + i);
       const dateStr = date.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
       
-      // Find matching stock movement data for this date
-      const dayData = stockMovements.find(movement => {
-        const movementDate = new Date(movement.date);
-        return movementDate.toDateString() === date.toDateString();
+      // Find matching sales data for this date
+      const dayData = salesData.find(sale => {
+        const saleDate = new Date(sale.date);
+        return saleDate.toDateString() === date.toDateString();
       });
 
-      const totalCost = Math.abs(dayData?._sum.totalCost || 0);
-      // Estimate sales as cost * 1.4 (40% profit margin)
-      const totalSales = totalCost * 1.4;
+      const totalSales = dayData?._sum.totalPrice || 0;
+      const totalCost = dayData?._sum.totalCost || 0;
       const profit = totalSales - totalCost;
 
       costTrends.push({
@@ -68,4 +68,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});

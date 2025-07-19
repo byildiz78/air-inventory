@@ -117,9 +117,14 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Check if the item exists
+    // Check if the item exists and get material relation
     const existingItem = await prisma.salesItem.findUnique({
-      where: { id: params.id }
+      where: { id: params.id },
+      include: {
+        material: true, // Include material to check if it's auto-created
+        mappings: true, // Include recipe mappings
+        sales: true     // Include sales to check usage
+      }
     });
 
     if (!existingItem) {
@@ -132,7 +137,40 @@ export async function DELETE(
       );
     }
 
-    // Delete the item from the database
+    // Check if this SalesItem is linked to a semi-finished product (auto-created)
+    if (existingItem.materialId && existingItem.material?.isFinishedProduct) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Bu satış malı yarı mamül bağlantısına sahip olduğu için silinemez. Önce malzemeden yarı mamül işaretini kaldırın.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Check if this SalesItem has recipe mappings
+    if (existingItem.mappings && existingItem.mappings.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Bu satış malı reçete eşleştirmelerine sahip olduğu için silinemez. Önce tüm reçete eşleştirmelerini silin.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Check if this SalesItem has sales records
+    if (existingItem.sales && existingItem.sales.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Bu satış malı satış kayıtlarına sahip olduğu için silinemez.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Safe to delete - no dependencies
     await prisma.salesItem.delete({
       where: { id: params.id }
     });

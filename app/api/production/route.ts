@@ -171,27 +171,31 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
 
-    // Validate required fields
-    if (!body.recipeId || !body.quantity || !body.userId) {
+    // Validate required fields - we now expect materialId instead of recipeId
+    if (!body.materialId || !body.quantity || !body.userId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields: recipeId, quantity, and userId are required',
+          error: 'Missing required fields: materialId, quantity, and userId are required',
         },
         { status: 400 }
       );
     }
 
-    // Get recipe to validate and get details
-    const recipe = await prisma.recipe.findUnique({
-      where: { id: body.recipeId },
+    // Get material and its recipe mapping
+    const material = await prisma.material.findUnique({
+      where: { id: body.materialId },
       include: {
-        mappings: {
-          where: { isActive: true },
+        salesItems: {
           include: {
-            salesItem: {
+            mappings: {
+              where: { isActive: true },
               include: {
-                material: true
+                recipe: {
+                  include: {
+                    ingredients: true
+                  }
+                }
               }
             }
           }
@@ -199,36 +203,45 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
       }
     });
 
-    if (!recipe) {
+    if (!material) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Recipe not found',
+          error: 'Material not found',
         },
         { status: 404 }
       );
     }
 
-    // Check if recipe is mapped to a semi-finished product
-    const semiFinishedMapping = recipe.mappings.find(m => 
-      m.salesItem?.material?.isFinishedProduct === false
-    );
-
-    if (!semiFinishedMapping?.salesItem?.material) {
+    // Check if material is semi-finished product
+    if (!material.isFinishedProduct) {
       return NextResponse.json(
         {
           success: false,
-          error: 'This recipe is not mapped to a semi-finished product. Only semi-finished products can be produced.',
+          error: 'Only semi-finished products can be produced',
         },
         { status: 400 }
       );
     }
 
-    const semiFinishedMaterial = semiFinishedMapping.salesItem.material;
+    // Get the recipe mapping
+    const salesItem = material.salesItems[0];
+    const recipeMapping = salesItem?.mappings[0];
+    const recipe = recipeMapping?.recipe;
+
+    if (!recipe) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No recipe found for this semi-finished product. Please create a recipe mapping.',
+        },
+        { status: 400 }
+      );
+    }
 
     // Perform production using stock service
     const productionResult = await stockService.produceFromRecipe({
-      recipeId: body.recipeId,
+      recipeId: recipe.id,
       quantity: body.quantity,
       warehouseId: body.warehouseId,
       userId: body.userId,
@@ -240,19 +253,16 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
     const production = await prisma.production.create({
       data: {
         date: new Date(body.date || new Date()),
-        recipeId: body.recipeId,
+        recipeId: recipe.id,
         recipeName: recipe.name,
-        materialId: semiFinishedMaterial.id,
-        materialName: semiFinishedMaterial.name,
+        materialId: material.id,
+        materialName: material.name,
         quantity: body.quantity,
         producedQuantity: productionResult.productionResult.produced,
-        warehouseId: body.warehouseId || semiFinishedMaterial.defaultWarehouseId!,
+        warehouseId: body.warehouseId || material.defaultWarehouseId!,
         notes: body.notes || null,
         userId: body.userId,
-        totalCost: productionResult.consumptionResults.reduce((sum, result) => {
-          // Calculate cost based on consumed materials
-          return sum + (result.quantity * 0); // TODO: Add actual material cost calculation
-        }, 0)
+        totalCost: productionResult.totalRecipeCost || 0
       },
       include: {
         user: true,
@@ -269,7 +279,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
       production.id,
       {
         recipeName: recipe.name,
-        materialName: semiFinishedMaterial.name,
+        materialName: material.name,
         quantity: body.quantity,
         producedQuantity: productionResult.productionResult.produced,
         consumedMaterials: productionResult.totalConsumed,
@@ -285,8 +295,8 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         productionDetails: {
           consumedMaterials: productionResult.consumptionResults,
           producedMaterial: {
-            id: semiFinishedMaterial.id,
-            name: semiFinishedMaterial.name,
+            id: material.id,
+            name: material.name,
             quantity: productionResult.productionResult.produced
           },
           hasNegativeStock: productionResult.hasNegativeStock

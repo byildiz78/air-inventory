@@ -65,9 +65,11 @@ const navigation = [
     badge: null,
     children: [
       { name: 'Reçete Listesi', href: '/recipes' },
-      { name: 'Yeni Reçete', href: '/recipes/new' },
+  
      
       { name: 'Reçete Eşleştirmeleri', href: '/recipes/mappings' },
+
+      { name: 'Yarı Mamül Üretim', href: '/production' },
       { name: 'Maliyet Analizi', href: '/recipes/cost-analysis' },
     ],
   },

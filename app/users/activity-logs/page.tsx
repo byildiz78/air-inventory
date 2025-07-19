@@ -50,17 +50,23 @@ export default function ActivityLogsPage() {
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
   const [entityFilter, setEntityFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]); // Default to today
+  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]); // Default to today
 
   useEffect(() => {
     loadActivityLogs();
-  }, [actionFilter, entityFilter, userFilter, dateFrom, dateTo]);
+  }, [actionFilter, entityFilter, userFilter, dateFrom, dateTo, currentPage, pageSize]);
 
   const loadActivityLogs = async () => {
     try {
@@ -74,11 +80,17 @@ export default function ActivityLogsPage() {
       if (dateFrom) params.append('fromDate', dateFrom);
       if (dateTo) params.append('toDate', dateTo);
       
+      // Add pagination parameters
+      params.append('page', currentPage.toString());
+      params.append('limit', pageSize.toString());
+      
       const response = await fetch(`/api/activity-logs?${params.toString()}`);
       
       if (response.ok) {
         const data = await response.json();
         setLogs(data.logs || []);
+        setTotalItems(data.pagination?.total || 0);
+        setTotalPages(data.pagination?.totalPages || 1);
       } else {
         console.error('Failed to fetch activity logs');
       }
@@ -97,6 +109,28 @@ export default function ActivityLogsPage() {
     
     return matchesSearch;
   });
+
+  // Reset to first page when filters change
+  const handleFilterChange = (filterType: string, value: string) => {
+    setCurrentPage(1);
+    switch (filterType) {
+      case 'action':
+        setActionFilter(value);
+        break;
+      case 'entity':
+        setEntityFilter(value);
+        break;
+      case 'user':
+        setUserFilter(value);
+        break;
+      case 'dateFrom':
+        setDateFrom(value);
+        break;
+      case 'dateTo':
+        setDateTo(value);
+        break;
+    }
+  };
 
   const getActionBadge = (action: string) => {
     switch (action) {
@@ -210,7 +244,7 @@ export default function ActivityLogsPage() {
                 />
               </div>
               
-              <Select value={actionFilter} onValueChange={setActionFilter}>
+              <Select value={actionFilter} onValueChange={(value) => handleFilterChange('action', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="İşlem Tipi" />
                 </SelectTrigger>
@@ -222,7 +256,7 @@ export default function ActivityLogsPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={entityFilter} onValueChange={setEntityFilter}>
+              <Select value={entityFilter} onValueChange={(value) => handleFilterChange('entity', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Veri Tipi" />
                 </SelectTrigger>
@@ -237,8 +271,8 @@ export default function ActivityLogsPage() {
               </Select>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Select value={userFilter} onValueChange={setUserFilter}>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Select value={userFilter} onValueChange={(value) => handleFilterChange('user', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Kullanıcı" />
                 </SelectTrigger>
@@ -255,27 +289,81 @@ export default function ActivityLogsPage() {
               <Input
                 type="date"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
                 placeholder="Başlangıç Tarihi"
               />
 
               <Input
                 type="date"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
                 placeholder="Bitiş Tarihi"
               />
+              
+              <Select value="" onValueChange={(value) => {
+                const today = new Date().toISOString().split('T')[0];
+                const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                
+                switch (value) {
+                  case 'today':
+                    handleFilterChange('dateFrom', today);
+                    handleFilterChange('dateTo', today);
+                    break;
+                  case 'yesterday':
+                    handleFilterChange('dateFrom', yesterday);
+                    handleFilterChange('dateTo', yesterday);
+                    break;
+                  case 'week':
+                    handleFilterChange('dateFrom', weekAgo);
+                    handleFilterChange('dateTo', today);
+                    break;
+                  case 'all':
+                    handleFilterChange('dateFrom', '');
+                    handleFilterChange('dateTo', '');
+                    break;
+                }
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Hızlı Tarih" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Bugün</SelectItem>
+                  <SelectItem value="yesterday">Dün</SelectItem>
+                  <SelectItem value="week">Son 7 Gün</SelectItem>
+                  <SelectItem value="all">Tüm Zamanlar</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
 
         {/* Activity Logs */}
         <Card>
-          <CardHeader>
-            <CardTitle>İşlem Geçmişi</CardTitle>
-            <CardDescription>
-              {filteredLogs.length} işlem gösteriliyor
-            </CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>İşlem Geçmişi</CardTitle>
+              <CardDescription>
+                {totalItems} kayıttan {filteredLogs.length} işlem gösteriliyor (Sayfa {currentPage}/{totalPages})
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={pageSize.toString()} onValueChange={(value) => {
+                setPageSize(parseInt(value));
+                setCurrentPage(1);
+              }}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-muted-foreground">kayıt/sayfa</span>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -343,6 +431,61 @@ export default function ActivityLogsPage() {
                 })
               )}
             </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6">
+                <div className="text-sm text-muted-foreground">
+                  {totalItems} kayıttan {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalItems)} arası gösteriliyor
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Önceki
+                  </Button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Sonraki
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

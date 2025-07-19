@@ -67,8 +67,8 @@ export class AuthMiddleware {
   /**
    * Create protected route wrapper
    */
-  static withAuth(handler: (request: AuthenticatedRequest) => Promise<NextResponse>) {
-    return async (request: NextRequest): Promise<NextResponse> => {
+  static withAuth(handler: (request: AuthenticatedRequest, context?: any) => Promise<NextResponse>) {
+    return async (request: NextRequest, context?: any): Promise<NextResponse> => {
       const authResult = await AuthMiddleware.verifyToken(request);
       
       if (!authResult.success) {
@@ -85,15 +85,15 @@ export class AuthMiddleware {
       const authenticatedRequest = request as AuthenticatedRequest;
       authenticatedRequest.user = authResult.user;
 
-      return handler(authenticatedRequest);
+      return handler(authenticatedRequest, context);
     };
   }
 
   /**
    * Create role-based protected route wrapper
    */
-  static withRole(requiredRoleId: number, handler: (request: AuthenticatedRequest) => Promise<NextResponse>) {
-    return async (request: NextRequest): Promise<NextResponse> => {
+  static withRole(requiredRoleId: number, handler: (request: AuthenticatedRequest, context?: any) => Promise<NextResponse>) {
+    return async (request: NextRequest, context?: any): Promise<NextResponse> => {
       const authResult = await AuthMiddleware.verifyToken(request);
       
       if (!authResult.success) {
@@ -121,15 +121,15 @@ export class AuthMiddleware {
       const authenticatedRequest = request as AuthenticatedRequest;
       authenticatedRequest.user = authResult.user;
 
-      return handler(authenticatedRequest);
+      return handler(authenticatedRequest, context);
     };
   }
 
   /**
    * Optional auth - user bilgisini ekler ama zorunlu değil
    */
-  static withOptionalAuth(handler: (request: AuthenticatedRequest) => Promise<NextResponse>) {
-    return async (request: NextRequest): Promise<NextResponse> => {
+  static withOptionalAuth(handler: (request: AuthenticatedRequest, context?: any) => Promise<NextResponse>) {
+    return async (request: NextRequest, context?: any): Promise<NextResponse> => {
       const authResult = await AuthMiddleware.verifyToken(request);
       
       const authenticatedRequest = request as AuthenticatedRequest;
@@ -138,7 +138,7 @@ export class AuthMiddleware {
         authenticatedRequest.user = authResult.user;
       }
 
-      return handler(authenticatedRequest);
+      return handler(authenticatedRequest, context);
     };
   }
 }

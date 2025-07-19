@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { AuthMiddleware } from '@/lib/auth-middleware';
 
-export async function GET(request: NextRequest) {
+export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const timeRange = searchParams.get('timeRange') || 'month';
@@ -24,10 +25,9 @@ export async function GET(request: NextRequest) {
         startDate.setMonth(now.getMonth() - 1);
     }
 
-    // Get revenue from sales invoices
-    const salesInvoices = await prisma.invoice.findMany({
+    // Get revenue from sales table
+    const sales = await prisma.sale.findMany({
       where: {
-        type: 'SALE',
         date: {
           gte: startDate,
           lte: now
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate basic metrics
-    const totalRevenue = salesInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+    const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalPrice, 0);
     const totalExpenses = purchaseInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
     const netProfit = totalRevenue - totalExpenses;
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
@@ -63,14 +63,11 @@ export async function GET(request: NextRequest) {
     // Calculate cash flow (simplified)
     const cashFlow = currentAccounts.reduce((sum, account) => sum + account.currentBalance, 0);
 
-    // Calculate accounts receivable and payable
-    const accountsReceivable = currentAccounts
-      .filter(account => account.type === 'CUSTOMER' && account.currentBalance > 0)
-      .reduce((sum, account) => sum + account.currentBalance, 0);
-
-    const accountsPayable = currentAccounts
-      .filter(account => account.type === 'SUPPLIER' && account.currentBalance < 0)
-      .reduce((sum, account) => sum + Math.abs(account.currentBalance), 0);
+    // Calculate accounts receivable and payable using the same logic as current accounts module
+    // Positive balances = Debt (money we owe to suppliers)
+    // Negative balances = Receivables (money customers owe us)
+    const accountsPayable = currentAccounts.reduce((sum, acc) => sum + (acc.currentBalance > 0 ? acc.currentBalance : 0), 0);
+    const accountsReceivable = currentAccounts.reduce((sum, acc) => sum + (acc.currentBalance < 0 ? Math.abs(acc.currentBalance) : 0), 0);
 
     // Get top expense categories (simplified based on suppliers)
     const expensesBySupplier = new Map<string, number>();
@@ -120,9 +117,8 @@ export async function GET(request: NextRequest) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
       
-      const monthSales = await prisma.invoice.findMany({
+      const monthSales = await prisma.sale.findMany({
         where: {
-          type: 'SALE',
           date: {
             gte: monthStart,
             lte: monthEnd
@@ -140,7 +136,7 @@ export async function GET(request: NextRequest) {
         }
       });
       
-      const monthRevenue = monthSales.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+      const monthRevenue = monthSales.reduce((sum, sale) => sum + sale.totalPrice, 0);
       const monthExpenses = monthPurchases.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
       const monthProfit = monthRevenue - monthExpenses;
       
@@ -176,4 +172,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

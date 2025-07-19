@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { DashboardStats } from '@/types/dashboard';
+import { AuthMiddleware } from '@/lib/auth-middleware';
 
-export async function GET() {
+export const GET = AuthMiddleware.withAuth(async () => {
   try {
     // Get current date for today's calculations
     const today = new Date();
@@ -34,34 +35,44 @@ export async function GET() {
       }
     }
     
-    // Get stock movement data for cost calculations
-    const totalSalesData = await prisma.stockMovement.aggregate({
-      where: { type: 'OUT' },
-      _sum: { totalCost: true },
+    // Get actual sales data from sales table
+    const totalSalesData = await prisma.sale.aggregate({
+      _sum: { 
+        totalPrice: true,
+        totalCost: true 
+      },
       _count: { id: true }
     });
     
-    const todaySalesData = await prisma.stockMovement.aggregate({
+    const todaySalesData = await prisma.sale.aggregate({
       where: {
-        type: 'OUT',
         date: {
           gte: today,
           lt: tomorrow
         }
       },
-      _sum: { totalCost: true }
+      _sum: { 
+        totalPrice: true,
+        totalCost: true 
+      }
     });
     
-    const pendingInvoiceCount = 0; // Placeholder
+    // Get invoice counts
+    const [totalInvoiceCount, pendingInvoiceCount] = await Promise.all([
+      prisma.invoice.count(),
+      prisma.invoice.count({
+        where: { status: 'PENDING' }
+      })
+    ]);
 
-    // Calculate stats (using available data + reasonable estimates)
+    // Calculate stats from actual sales data
+    const totalSales = totalSalesData._sum.totalPrice || 0;
     const totalCosts = totalSalesData._sum.totalCost || 0;
-    const totalSales = totalCosts * 1.4; // Assume 40% profit margin
     const grossProfit = totalSales - totalCosts;
     const profitMargin = totalSales > 0 ? (grossProfit / totalSales) * 100 : 0;
 
+    const todaySales = todaySalesData._sum.totalPrice || 0;
     const todayCosts = todaySalesData._sum.totalCost || 0;
-    const todaySales = todayCosts * 1.4;
 
     const stats: DashboardStats = {
       totalSales,
@@ -75,7 +86,7 @@ export async function GET() {
       totalMaterials: materialCount,
       totalRecipes: recipeCount,
       totalUsers: userCount,
-      totalInvoices: 0 // Placeholder
+      totalInvoices: totalInvoiceCount
     };
 
     return NextResponse.json(stats);
@@ -86,4 +97,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

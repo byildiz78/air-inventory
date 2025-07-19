@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { materialService } from '@/lib/services/material-service';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { AuthMiddleware } from '@/lib/auth-middleware';
+import { prisma } from '@/lib/prisma';
 
 /**
  * @swagger
@@ -158,21 +159,104 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
     const search = searchParams.get('search');
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
-    let materials;
+    // Build filter conditions
+    const whereConditions: any = {
+      ...(includeInactive ? {} : { isActive: true }),
+      ...(categoryId && { categoryId }),
+      ...(search && {
+        OR: [
+          { name: { contains: search } },
+          { description: { contains: search } }
+        ]
+      })
+    };
 
-    if (search) {
-      materials = await materialService.search(search);
-    } else if (categoryId) {
-      materials = await materialService.getByCategory(categoryId);
-    } else if (lowStock) {
-      materials = await materialService.getLowStock();
-    } else {
-      materials = await materialService.getAll(includeInactive);
+    // For lowStock, we need to filter after fetching due to stock calculation
+    const materials = await prisma.material.findMany({
+      where: whereConditions,
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          }
+        },
+        purchaseUnit: {
+          select: {
+            id: true,
+            name: true,
+            abbreviation: true,
+          }
+        },
+        consumptionUnit: {
+          select: {
+            id: true,
+            name: true,
+            abbreviation: true,
+          }
+        },
+        supplier: {
+          select: {
+            id: true,
+            name: true,
+          }
+        },
+        defaultWarehouse: {
+          select: {
+            id: true,
+            name: true,
+          }
+        },
+        materialStocks: {
+          include: {
+            warehouse: {
+              select: {
+                id: true,
+                name: true,
+              }
+            }
+          }
+        },
+        salesItems: {
+          include: {
+            mappings: {
+              where: { isActive: true },
+              include: {
+                recipe: {
+                  include: {
+                    ingredients: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        _count: {
+          select: {
+            recipeIngredients: true,
+            invoiceItems: true,
+            stockMovements: true,
+          }
+        }
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    });
+
+    // Filter for low stock if needed
+    let filteredMaterials = materials;
+    if (lowStock) {
+      filteredMaterials = materials.filter(material => {
+        const totalStock = material.materialStocks?.reduce((sum, stock) => sum + stock.currentStock, 0) || 0;
+        return totalStock <= material.minStockLevel;
+      });
     }
 
     return NextResponse.json({
       success: true,
-      data: materials,
+      data: filteredMaterials,
     });
   } catch (error) {
     console.error('Error fetching materials:', error);
@@ -222,21 +306,76 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
       );
     }
 
-    const newMaterial = await materialService.create({
-      name: body.name,
-      description: body.description || null,
-      categoryId: body.categoryId,
-      purchaseUnitId: body.purchaseUnitId,
-      consumptionUnitId: body.consumptionUnitId,
-      supplierId: body.supplierId || null,
-      defaultTaxId: body.defaultTaxId || null,
-      defaultWarehouseId: body.defaultWarehouseId || null,
-      currentStock: 0, // New materials start with 0 stock
-      minStockLevel: body.minStockLevel || 0,
-      maxStockLevel: body.maxStockLevel || null,
-      lastPurchasePrice: body.lastPurchasePrice || null,
-      averageCost: body.averageCost || 0,
-      isActive: body.isActive !== undefined ? body.isActive : true,
+    // Create material with transaction to handle semi-finished product logic
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the material
+      const newMaterial = await tx.material.create({
+        data: {
+          name: body.name,
+          description: body.description || null,
+          categoryId: body.categoryId,
+          purchaseUnitId: body.purchaseUnitId,
+          consumptionUnitId: body.consumptionUnitId,
+          supplierId: body.supplierId || null,
+          defaultTaxId: body.defaultTaxId || null,
+          defaultWarehouseId: body.defaultWarehouseId || null,
+          currentStock: 0, // New materials start with 0 stock
+          minStockLevel: body.minStockLevel || 0,
+          maxStockLevel: body.maxStockLevel || null,
+          lastPurchasePrice: body.lastPurchasePrice || null,
+          averageCost: body.averageCost || 0,
+          isActive: body.isActive !== undefined ? body.isActive : true,
+          isFinishedProduct: body.isFinishedProduct || false,
+        },
+        include: {
+          category: true,
+          purchaseUnit: true,
+          consumptionUnit: true,
+          supplier: true,
+          defaultTax: true,
+          defaultWarehouse: true,
+        }
+      });
+
+      let newSalesItem = null;
+
+      // If this is a semi-finished product, automatically create a SalesItem
+      if (body.isFinishedProduct) {
+        // Get or create a default "Yarı Mamül" category for SalesItems
+        let semiFinishedCategory = await tx.salesItemCategory.findFirst({
+          where: { name: 'Yarı Mamül' }
+        });
+
+        if (!semiFinishedCategory) {
+          semiFinishedCategory = await tx.salesItemCategory.create({
+            data: {
+              name: 'Yarı Mamül',
+              description: 'Otomatik oluşturulan yarı mamül kategorisi',
+              color: '#10B981', // Green color
+              sortOrder: 999,
+              isActive: true
+            }
+          });
+        }
+
+        // Create the SalesItem linked to this material
+        newSalesItem = await tx.salesItem.create({
+          data: {
+            name: newMaterial.name,
+            description: newMaterial.description,
+            categoryId: semiFinishedCategory.id,
+            materialId: newMaterial.id,
+            basePrice: null, // Can be set later via recipe cost
+            taxPercent: 10.0, // Default tax
+            menuCode: null,
+            sortOrder: 0,
+            isActive: true,
+            isAvailable: true
+          }
+        });
+      }
+
+      return { newMaterial, newSalesItem };
     });
 
     // Log the activity
@@ -244,19 +383,22 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
     await ActivityLogger.logCreate(
       userId,
       'material',
-      newMaterial.id,
+      result.newMaterial.id,
       {
-        name: newMaterial.name,
-        categoryId: newMaterial.categoryId,
-        currentStock: newMaterial.currentStock,
-        minStockLevel: newMaterial.minStockLevel
+        name: result.newMaterial.name,
+        categoryId: result.newMaterial.categoryId,
+        currentStock: result.newMaterial.currentStock,
+        minStockLevel: result.newMaterial.minStockLevel,
+        isFinishedProduct: result.newMaterial.isFinishedProduct,
+        autoCreatedSalesItem: !!result.newSalesItem
       },
       request
     );
 
     return NextResponse.json({
       success: true,
-      data: newMaterial,
+      data: result.newMaterial,
+      salesItem: result.newSalesItem, // Include created sales item info
     });
   } catch (error: any) {
     console.error('Error creating material:', error);

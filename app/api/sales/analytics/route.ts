@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { AuthMiddleware } from '@/lib/auth-middleware';
 
-export async function GET(request: NextRequest) {
+export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const timeRange = searchParams.get('timeRange') || 'week';
@@ -24,21 +25,18 @@ export async function GET(request: NextRequest) {
         startDate.setDate(now.getDate() - 7);
     }
 
-    // Get sales data from invoice sales
-    const salesInvoices = await prisma.invoice.findMany({
+    // Get sales data from the sales table
+    const sales = await prisma.sale.findMany({
       where: {
-        type: 'SALE',
         date: {
           gte: startDate,
           lte: now
         }
       },
       include: {
-        items: {
-          include: {
-            material: true
-          }
-        }
+        user: true,
+        salesItem: true,
+        recipe: true
       },
       orderBy: {
         date: 'desc'
@@ -46,8 +44,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate analytics
-    const totalSales = salesInvoices.length;
-    const totalRevenue = salesInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+    const totalSales = sales.length;
+    const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalPrice, 0);
     const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
 
     // Calculate growth (comparing with previous period)
@@ -56,9 +54,8 @@ export async function GET(request: NextRequest) {
     const periodDiff = now.getTime() - startDate.getTime();
     prevStartDate.setTime(prevStartDate.getTime() - periodDiff);
     
-    const prevSalesInvoices = await prisma.invoice.findMany({
+    const prevSales = await prisma.sale.findMany({
       where: {
-        type: 'SALE',
         date: {
           gte: prevStartDate,
           lte: prevEndDate
@@ -66,26 +63,24 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    const prevTotalSales = prevSalesInvoices.length;
+    const prevTotalSales = prevSales.length;
     const salesGrowth = prevTotalSales > 0 ? ((totalSales - prevTotalSales) / prevTotalSales) * 100 : 0;
 
     // Get top selling items
     const itemSales = new Map<string, { name: string; quantity: number; revenue: number }>();
     
-    salesInvoices.forEach(invoice => {
-      invoice.items.forEach(item => {
-        const existing = itemSales.get(item.materialId);
-        if (existing) {
-          existing.quantity += item.quantity;
-          existing.revenue += item.totalAmount;
-        } else {
-          itemSales.set(item.materialId, {
-            name: item.material.name,
-            quantity: item.quantity,
-            revenue: item.totalAmount
-          });
-        }
-      });
+    sales.forEach(sale => {
+      const existing = itemSales.get(sale.salesItemId);
+      if (existing) {
+        existing.quantity += sale.quantity;
+        existing.revenue += sale.totalPrice;
+      } else {
+        itemSales.set(sale.salesItemId, {
+          name: sale.itemName,
+          quantity: sale.quantity,
+          revenue: sale.totalPrice
+        });
+      }
     });
 
     const topSellingItems = Array.from(itemSales.values())
@@ -95,16 +90,16 @@ export async function GET(request: NextRequest) {
     // Get daily sales for the period
     const dailySales = new Map<string, { sales: number; revenue: number }>();
     
-    salesInvoices.forEach(invoice => {
-      const dateKey = invoice.date.toDateString();
+    sales.forEach(sale => {
+      const dateKey = sale.date.toDateString();
       const existing = dailySales.get(dateKey);
       if (existing) {
         existing.sales += 1;
-        existing.revenue += invoice.totalAmount;
+        existing.revenue += sale.totalPrice;
       } else {
         dailySales.set(dateKey, {
           sales: 1,
-          revenue: invoice.totalAmount
+          revenue: sale.totalPrice
         });
       }
     });
@@ -139,4 +134,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

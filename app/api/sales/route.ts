@@ -292,22 +292,15 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
     let totalCost = 0;
     let grossProfit = 0;
     let profitMargin = 0;
+    let stockConsumption = null;
 
     // Eğer aktif reçete eşleştirmesi varsa
     if (salesItem.mappings && salesItem.mappings.length > 0) {
       recipeMapping = salesItem.mappings[0];
       recipeId = recipeMapping.recipeId;
-      
-      // Calculate cost and profit if recipe exists
-      const recipe = recipeMapping.recipe;
-      if (recipe && recipe.totalCost) {
-        totalCost = recipe.totalCost * body.quantity;
-        grossProfit = totalPrice - totalCost;
-        profitMargin = totalPrice > 0 ? (grossProfit / totalPrice) * 100 : 0;
-      }
     }
 
-    // Create sale record
+    // Create sale record (initially without cost data)
     const sale = await prisma.sale.create({
       data: {
         date: new Date(body.date),
@@ -320,9 +313,9 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         notes: body.notes || null,
         userId: body.userId,
         recipeId,
-        totalCost,
-        grossProfit,
-        profitMargin
+        totalCost: 0, // Will be updated after stock consumption
+        grossProfit: 0,
+        profitMargin: 0
       },
       include: {
         user: true,
@@ -331,7 +324,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
       }
     });
 
-    // Create stock movements if recipe exists
+    // Create stock movements if recipe exists and calculate real cost
     if (recipeId) {
       try {
         // Get the portion ratio from recipe mapping
@@ -341,13 +334,28 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         const totalPortions = body.quantity * portionRatio;
         
         // Consume recipe ingredients using stock service
-        const stockConsumption = await stockService.consumeRecipeIngredients({
+        stockConsumption = await stockService.consumeRecipeIngredients({
           recipeId,
           quantity: totalPortions,
-          warehouseId: salesItem.defaultWarehouseId || undefined, // Use sales item's default warehouse if available
+          warehouseId: undefined, // Let stock service use material's default warehouse
           userId: body.userId,
           reason: `Satış: ${salesItem.name}`,
           referenceId: sale.id
+        });
+
+        // Calculate real cost from stock consumption
+        totalCost = stockConsumption.totalCost || 0;
+        grossProfit = totalPrice - totalCost;
+        profitMargin = totalPrice > 0 ? (grossProfit / totalPrice) * 100 : 0;
+
+        // Update sale record with real cost data
+        await prisma.sale.update({
+          where: { id: sale.id },
+          data: {
+            totalCost,
+            grossProfit,
+            profitMargin
+          }
         });
 
         // Log if any stock went negative (just for info, we allow it)
@@ -373,15 +381,34 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         quantity: sale.quantity,
         unitPrice: sale.unitPrice,
         totalPrice: sale.totalPrice,
+        totalCost,
+        grossProfit,
+        profitMargin: profitMargin.toFixed(2) + '%',
         customerName: sale.customerName,
-        hasRecipe: !!recipeId
+        hasRecipe: !!recipeId,
+        hasNegativeStock: stockConsumption?.hasNegativeStock || false
       },
       request
     );
 
+    // Return updated sale data
+    const updatedSale = await prisma.sale.findUnique({
+      where: { id: sale.id },
+      include: {
+        user: true,
+        salesItem: true,
+        recipe: true
+      }
+    });
+
     return NextResponse.json({
       success: true,
-      data: sale,
+      data: updatedSale,
+      stockConsumption: stockConsumption ? {
+        totalCost: stockConsumption.totalCost,
+        hasNegativeStock: stockConsumption.hasNegativeStock,
+        materialsConsumed: stockConsumption.totalConsumed
+      } : null
     });
   } catch (error: any) {
     console.error('Error creating sale:', error);

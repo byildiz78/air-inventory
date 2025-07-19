@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -171,13 +172,13 @@ export default function NewInvoicePage() {
       
       // Tüm verileri paralel olarak yükle
       const [materialsRes, suppliersRes, currentAccountsRes, unitsRes, taxesRes, warehousesRes, currentUserRes] = await Promise.all([
-        fetch('/api/materials').then(res => res.json()),
-        fetch('/api/suppliers').then(res => res.json()),
-        fetch('/api/current-accounts?type=SUPPLIER').then(res => res.json()),
-        fetch('/api/units').then(res => res.json()),
-        fetch('/api/taxes').then(res => res.json()),
-        fetch('/api/warehouses').then(res => res.json()),
-        fetch('/api/users/current').then(res => res.json())
+        apiClient.get('/api/materials'),
+        apiClient.get('/api/suppliers'),
+        apiClient.get('/api/current-accounts?type=SUPPLIER'),
+        apiClient.get('/api/units'),
+        apiClient.get('/api/taxes'),
+        apiClient.get('/api/warehouses'),
+        apiClient.get('/api/users/current')
       ]);
       
       console.log('API Responses:', {
@@ -273,24 +274,16 @@ export default function NewInvoicePage() {
     try {
       setAddingSupplier(true);
       
-      const response = await fetch('/api/suppliers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newSupplier.name.trim(),
-          contactName: newSupplier.contactName.trim() || null,
-          phone: newSupplier.phone.trim() || null,
-          email: newSupplier.email.trim() || null,
-          address: newSupplier.address.trim() || null,
-          taxNumber: newSupplier.taxNumber.trim() || null,
-        }),
+      const result = await apiClient.post('/api/suppliers', {
+        name: newSupplier.name.trim(),
+        contactName: newSupplier.contactName.trim() || null,
+        phone: newSupplier.phone.trim() || null,
+        email: newSupplier.email.trim() || null,
+        address: newSupplier.address.trim() || null,
+        taxNumber: newSupplier.taxNumber.trim() || null,
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
+      if (result.success) {
           // Yeni tedarikçiyi liste başına ekle
           setSuppliers(prev => [result.data, ...prev]);
           
@@ -311,10 +304,6 @@ export default function NewInvoicePage() {
         } else {
           alert(result.error || 'Tedarikçi eklenirken bir hata oluştu');
         }
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Tedarikçi eklenirken bir hata oluştu');
-      }
     } catch (error) {
       console.error('Tedarikçi ekleme hatası:', error);
       alert('Tedarikçi eklenirken bir hata oluştu');
@@ -451,53 +440,15 @@ export default function NewInvoicePage() {
       
       console.log('Gönderilecek fatura verisi:', invoiceData);
       
-      const response = await fetch('/api/invoices', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(invoiceData),
-      });
+      const result = await apiClient.post('/api/invoices', invoiceData);
       
-      console.log('API yanıt durumu:', response.status, response.statusText);
+      console.log('API yanıtı:', result);
       
-      if (!response.ok) {
-        // Response body'yi sadece bir kez oku
-        const contentType = response.headers.get('content-type');
-        let errorMessage = `API hatası: ${response.status} ${response.statusText}`;
-        
-        try {
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            console.error('API hata yanıtı (JSON):', errorData);
-            
-            // Fatura numarası zaten var hatası kontrolü
-            if (errorData.error && errorData.error.includes('Invoice number already exists')) {
-              alert('Bu fatura numarası zaten kullanılmış! Lütfen başka bir fatura numarası girin.');
-              return;
-            }
-            
-            errorMessage = errorData.error || errorMessage;
-          } else {
-            const errorText = await response.text();
-            console.error('API hata yanıtı (text):', errorText);
-            errorMessage = errorText || errorMessage;
-          }
-        } catch (parseError) {
-          console.error('Hata yanıtı ayrıştırılamadı:', parseError);
-        }
-        
-        throw new Error(errorMessage);
-      }
-      
-      const responseData = await response.json();
-      console.log('API yanıtı:', responseData);
-      
-      if (responseData && responseData.success && responseData.data && responseData.data.id) {
+      if (result && result.success && result.data && result.data.id) {
         alert('Fatura başarıyla kaydedildi!');
-        window.location.href = `/invoices/${responseData.data.id}`;
+        window.location.href = `/invoices/${result.data.id}`;
       } else {
-        console.error('API başarılı yanıt döndürmedi:', responseData);
+        console.error('API başarılı yanıt döndürmedi:', result);
         alert('Fatura kaydedilirken bir hata oluştu!');
       }
     } catch (error) {
