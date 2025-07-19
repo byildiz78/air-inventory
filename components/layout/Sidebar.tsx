@@ -25,7 +25,8 @@ import {
   ChevronDown,
   ChevronRight,
   Building2,
-  CreditCard
+  CreditCard,
+  Calculator
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -119,6 +120,19 @@ const navigation = [
     children: [
       { name: 'Satış Kayıtları', href: '/sales', current: false },
       { name: 'Günlük Satış', href: '/sales/daily' },
+    ],
+  },
+  {
+    name: 'Masraf Yönetimi',
+    href: '/expenses',
+    icon: Calculator,
+    current: false,
+    badge: null,
+    children: [
+      { name: 'Masraf Kategorileri', href: '/expenses/categories' },
+      { name: 'Masraf Girişi', href: '/expenses/new' },
+      { name: 'Masraf Listesi', href: '/expenses' },
+      { name: 'Aylık Analiz', href: '/expenses/analysis' },
     ],
   },
   {

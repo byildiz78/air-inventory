@@ -39,6 +39,7 @@ model User {
   payments           Payment[]
   currentAccountTransactions CurrentAccountTransaction[]
   productions        Production[]
+  expenses           Expense[]
 
   @@map("users")
 }
@@ -190,6 +191,7 @@ model Supplier {
   materials Material[]
   invoices  Invoice[]
   currentAccounts CurrentAccount[]
+  expenses  Expense[]
 
   @@map("suppliers")
 }
@@ -1023,4 +1025,73 @@ model Production {
   user             User      @relation(fields: [userId], references: [id])
 
   @@map("productions")
+}
+
+// ================================
+// EXPENSE MANAGEMENT
+// ================================
+
+model ExpenseCategory {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  type        ExpenseType
+  description String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relations
+  expenses    Expense[]
+  
+  @@map("expense_categories")
+}
+
+enum ExpenseType {
+  FIXED     // Sabit Giderler (Kira, Maaş, vb.)
+  VARIABLE  // Değişken Giderler (Elektrik, Malzeme, vb.)
+}
+
+model Expense {
+  id              String          @id @default(cuid())
+  categoryId      String
+  
+  // Gider Bilgileri
+  description     String
+  amount          Float
+  date            DateTime
+  
+  // Periyodik Giderler
+  isRecurring     Boolean         @default(false)
+  recurringPeriod RecurringPeriod?
+  recurringEndDate DateTime?
+  
+  // Muhasebe Bilgileri
+  invoiceNumber   String?
+  supplierId      String?
+  
+  // Ödeme Durumu
+  paymentStatus   PaymentStatus   @default(PENDING)
+  paymentDate     DateTime?
+  
+  // Ek Bilgiler
+  notes           String?
+  attachmentUrl   String?         // Fatura/belge eki
+  
+  // Audit
+  userId          String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  // Relations
+  category        ExpenseCategory @relation(fields: [categoryId], references: [id])
+  supplier        Supplier?       @relation(fields: [supplierId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+  
+  @@map("expenses")
+}
+
+enum RecurringPeriod {
+  MONTHLY
+  QUARTERLY
+  YEARLY
 }
