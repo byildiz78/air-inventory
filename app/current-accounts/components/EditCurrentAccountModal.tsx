@@ -17,7 +17,7 @@ interface EditCurrentAccountModalProps {
 
 export function EditCurrentAccountModal({ account, onClose, onAccountUpdated }: EditCurrentAccountModalProps) {
   const [saving, setSaving] = useState(false);
-  const [suppliers, setSuppliers] = useState([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: account.name || '',
     type: account.type || 'SUPPLIER',

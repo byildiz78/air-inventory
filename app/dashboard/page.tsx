@@ -15,6 +15,7 @@ import { FinancialAnalysis } from '@/components/dashboard/FinancialAnalysis';
 
 // Import hooks
 import { useDashboardData } from '@/hooks/useDashboardData';
+// MainLayout is provided by the dashboard layout file
 
 export default function Dashboard() {
   const { 
@@ -52,93 +53,95 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        
-        {/* Stats Cards */}
-        {stats && <DashboardStats stats={stats} loading={loading} />}
+    <>
+      <div className="p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          
+          {/* Stats Cards */}
+          {stats && <DashboardStats stats={stats} loading={loading} />}
 
-        {/* Main Content */}
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
-            <TabsTrigger value="sales">Satışlar</TabsTrigger>
-            <TabsTrigger value="inventory">Stok Durumu</TabsTrigger>
-            <TabsTrigger value="finance">Finansal</TabsTrigger>
-          </TabsList>
+          {/* Main Content */}
+          <Tabs defaultValue="overview" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
+              <TabsTrigger value="sales">Satışlar</TabsTrigger>
+              <TabsTrigger value="inventory">Stok Durumu</TabsTrigger>
+              <TabsTrigger value="finance">Finansal</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Stock Alerts */}
+            <TabsContent value="overview" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Stock Alerts */}
+                <StockAlerts 
+                  alerts={stockAlerts} 
+                  loading={loading}
+                  maxItems={5}
+                  showViewAllButton={true}
+                />
+
+                {/* Pending Invoices */}
+                <PendingInvoices 
+                  maxItems={5}
+                  showViewAllButton={true}
+                />
+              </div>
+
+              {/* Cost Trends Chart */}
+              <CostTrendsChart 
+                data={costTrends}
+                loading={loading}
+              />
+
+              {/* Quick Stats */}
+              {stats && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-4 bg-white rounded-lg border text-center">
+                    <div className="text-2xl font-bold">{stats.totalMaterials}</div>
+                    <div className="text-sm text-muted-foreground">Toplam Malzeme</div>
+                  </div>
+                  <div className="p-4 bg-white rounded-lg border text-center">
+                    <div className="text-2xl font-bold">{stats.totalRecipes}</div>
+                    <div className="text-sm text-muted-foreground">Toplam Reçete</div>
+                  </div>
+                  <div className="p-4 bg-white rounded-lg border text-center">
+                    <div className="text-2xl font-bold">{stats.totalInvoices}</div>
+                    <div className="text-sm text-muted-foreground">Toplam Fatura</div>
+                  </div>
+                  <div className="p-4 bg-white rounded-lg border text-center">
+                    <div className="text-2xl font-bold">{stats.totalUsers}</div>
+                    <div className="text-sm text-muted-foreground">Toplam Kullanıcı</div>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="sales" className="space-y-4">
+              <SalesAnalytics timeRange="week" />
+            </TabsContent>
+
+            <TabsContent value="inventory" className="space-y-4">
+              {/* Stock Status - Full view */}
               <StockAlerts 
                 alerts={stockAlerts} 
                 loading={loading}
-                maxItems={5}
-                showViewAllButton={true}
+                maxItems={20}
+                showViewAllButton={false}
               />
 
-              {/* Pending Invoices */}
-              <PendingInvoices 
-                maxItems={5}
+              {/* Recent Stock Movements */}
+              <RecentStockMovements 
+                maxItems={15}
                 showViewAllButton={true}
               />
-            </div>
+            </TabsContent>
 
-            {/* Cost Trends Chart */}
-            <CostTrendsChart 
-              data={costTrends}
-              loading={loading}
-            />
-
-            {/* Quick Stats */}
-            {stats && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 bg-white rounded-lg border text-center">
-                  <div className="text-2xl font-bold">{stats.totalMaterials}</div>
-                  <div className="text-sm text-muted-foreground">Toplam Malzeme</div>
-                </div>
-                <div className="p-4 bg-white rounded-lg border text-center">
-                  <div className="text-2xl font-bold">{stats.totalRecipes}</div>
-                  <div className="text-sm text-muted-foreground">Toplam Reçete</div>
-                </div>
-                <div className="p-4 bg-white rounded-lg border text-center">
-                  <div className="text-2xl font-bold">{stats.totalInvoices}</div>
-                  <div className="text-sm text-muted-foreground">Toplam Fatura</div>
-                </div>
-                <div className="p-4 bg-white rounded-lg border text-center">
-                  <div className="text-2xl font-bold">{stats.totalUsers}</div>
-                  <div className="text-sm text-muted-foreground">Toplam Kullanıcı</div>
-                </div>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="sales" className="space-y-4">
-            <SalesAnalytics timeRange="week" />
-          </TabsContent>
-
-          <TabsContent value="inventory" className="space-y-4">
-            {/* Stock Status - Full view */}
-            <StockAlerts 
-              alerts={stockAlerts} 
-              loading={loading}
-              maxItems={20}
-              showViewAllButton={false}
-            />
-
-            {/* Recent Stock Movements */}
-            <RecentStockMovements 
-              maxItems={15}
-              showViewAllButton={true}
-            />
-          </TabsContent>
-
-          <TabsContent value="finance" className="space-y-4">
-            <FinancialAnalysis timeRange="month" />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="finance" className="space-y-4">
+              <FinancialAnalysis timeRange="month" />
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

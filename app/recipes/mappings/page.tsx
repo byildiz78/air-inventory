@@ -106,10 +106,16 @@ export default function RecipeMappingsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
       const [salesItemsRes, recipesRes, mappingsRes] = await Promise.all([
-        fetch('/api/sales-items'),
-        fetch('/api/recipes'),
-        fetch('/api/recipe-mappings')
+        fetch('/api/sales-items', { headers }),
+        fetch('/api/recipes', { headers }),
+        fetch('/api/recipe-mappings', { headers })
       ]);
 
       const [salesItemsData, recipesData, mappingsData] = await Promise.all([

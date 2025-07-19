@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { hasPermission } from '@/lib/auth-utils';
+import bcrypt from 'bcryptjs';
 
 // GET /api/users - Get all users
 export async function GET(request: NextRequest) {
@@ -78,8 +79,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // In a real app, you would hash the password here
-    const hashedPassword = data.password; // This should be hashed!
+    // Hash the password before storing it
+    const hashedPassword = await bcrypt.hash(data.password, 10);
 
     // Create the user
     const newUser = await prisma.user.create({

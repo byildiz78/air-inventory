@@ -178,8 +178,9 @@ export default function ApiDocsPage() {
 
           {/* Swagger UI */}
           <div className="swagger-ui-container">
-            <SwaggerUI 
-              spec={spec}
+            {spec && (
+              <SwaggerUI 
+                spec={spec}
               docExpansion="none"
               defaultModelsExpandDepth={2}
               defaultModelExpandDepth={2}
@@ -205,7 +206,8 @@ export default function ApiDocsPage() {
               }}
               plugins={[]}
               supportedSubmitMethods={['get', 'post', 'put', 'delete', 'patch']}
-            />
+              />
+            )}
           </div>
         </div>
       </main>

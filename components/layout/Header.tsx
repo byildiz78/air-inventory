@@ -1,10 +1,12 @@
 'use client';
 
-import { Bell, Search, User, HelpCircle, Settings, Menu as MenuIcon, AlertTriangle, FileText, TrendingUp, LogOut } from 'lucide-react';
+import { Bell, Search, User, HelpCircle, Menu as MenuIcon, AlertTriangle, FileText, TrendingUp, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/contexts/UserContext';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +24,34 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   const { user, loading } = useUser();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      // Token'ı localStorage'dan sil
+      localStorage.removeItem('token');
+      
+      // Logout API'sini çağır
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+      
+      // Ana sayfaya yönlendir
+      router.push('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Hata olsa bile token'ı sil ve yönlendir
+      localStorage.removeItem('token');
+      router.push('/');
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-lg">
       <div className="flex items-center justify-between">
@@ -147,16 +177,17 @@ export function Header({ title, subtitle }: HeaderProps) {
                 </div>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer hover:bg-orange-50">
-                <User className="w-4 h-4 mr-2 text-orange-500" />
-                <span>Profil</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer hover:bg-orange-50">
-                <Settings className="w-4 h-4 mr-2 text-orange-500" />
-                <span>Ayarlar</span>
+              <DropdownMenuItem className="cursor-pointer hover:bg-orange-50" asChild>
+                <Link href="/profile">
+                  <User className="w-4 h-4 mr-2 text-orange-500" />
+                  <span>Profil</span>
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50">
+              <DropdownMenuItem 
+                className="cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
+                onClick={handleLogout}
+              >
                 <LogOut className="w-4 h-4 mr-2 text-red-600" />
                 <span>Çıkış Yap</span>
               </DropdownMenuItem>

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/contexts/UserContext';
+import { useRouter } from 'next/navigation';
 import { 
   LayoutDashboard,
   Package,
@@ -142,9 +143,38 @@ const bottomNavigation = [
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const { user, loading } = useUser();
+
+  const handleLogout = async () => {
+    try {
+      // Token'ı localStorage'dan al
+      const token = localStorage.getItem('token');
+      
+      // Logout API'sini çağır
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+      
+      // Token'ı localStorage'dan sil
+      localStorage.removeItem('token');
+      
+      // Ana sayfaya yönlendir
+      router.push('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Hata olsa bile token'ı sil ve yönlendir
+      localStorage.removeItem('token');
+      router.push('/');
+    }
+  };
 
   const toggleExpanded = (href: string) => {
     setExpandedItems(prev => 
@@ -303,9 +333,9 @@ export function Sidebar({ className }: SidebarProps) {
                       <span>{item.name}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {item.badge && (
+                      {(item as any).badge && (
                         <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
-                          {item.badge}
+                          {(item as any).badge}
                         </Badge>
                       )}
                     </div>
@@ -390,9 +420,9 @@ export function Sidebar({ className }: SidebarProps) {
                       <span>{item.name}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {item.badge && (
+                      {(item as any).badge && (
                         <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5">
-                          {item.badge}
+                          {(item as any).badge}
                         </Badge>
                       )}
                     </div>
@@ -403,7 +433,11 @@ export function Sidebar({ className }: SidebarProps) {
 
             {/* Logout Button */}
             <div className="mt-4 px-3">
-              <Button variant="ghost" className="w-full justify-start text-gray-600 hover:text-orange-600 hover:bg-orange-50">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start text-gray-600 hover:text-orange-600 hover:bg-orange-50"
+                onClick={handleLogout}
+              >
                 <LogOut className="w-4 h-4 mr-3 text-orange-500" />
                 Çıkış Yap
               </Button>

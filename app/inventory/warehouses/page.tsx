@@ -99,15 +99,15 @@ export default function WarehousesPage() {
         console.log('📊 Stock API Response:', stocksResult);
         if (stocksResult.success && stocksResult.data) {
           // Convert the material stocks data to the format expected by the components
-          const allMaterialStocks = [];
+          const allMaterialStocks: any[] = [];
           
           console.log(`🔄 Processing ${stocksResult.data.length} materials for stock transformation`);
           
-          stocksResult.data.forEach(material => {
+          stocksResult.data.forEach((material: any) => {
             console.log(`📦 Processing material: ${material.name}, warehouseStocks: ${material.warehouseStocks?.length || 0}`);
             
             if (material.warehouseStocks) {
-              material.warehouseStocks.forEach(stock => {
+              material.warehouseStocks.forEach((stock: any) => {
                 const transformedStock = {
                   id: `${material.id}-${stock.warehouseId}`,
                   materialId: material.id,
@@ -132,7 +132,7 @@ export default function WarehousesPage() {
           setMaterialStocks(allMaterialStocks);
           
           // Create enriched materials with unitConversion from stock data
-          enrichedMaterials = stocksResult.data.map(material => ({
+          enrichedMaterials = stocksResult.data.map((material: any) => ({
             ...material,
             // Include all stock data fields in material object
           }));

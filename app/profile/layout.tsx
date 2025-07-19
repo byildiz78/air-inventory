@@ -2,7 +2,7 @@
 
 import { MainLayout } from '@/components/layout/MainLayout';
 
-export default function RecipesLayout({
+export default function ProfileLayout({
   children,
 }: {
   children: React.ReactNode;

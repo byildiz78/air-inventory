@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { JwtUtils } from '@/lib/jwt';
+import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -118,34 +119,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // Test kullanıcıları - production'da veritabanından alınacak
-    const testUsers = [
-      { 
-        id: '1', 
-        email: 'admin@restaurant.com', 
-        password: await bcrypt.hash('password123', 10), 
-        name: 'Admin User', 
-        roleId: 1 
-      },
-      { 
-        id: '2', 
-        email: 'manager@restaurant.com', 
-        password: await bcrypt.hash('password123', 10), 
-        name: 'Restaurant Manager', 
-        roleId: 2 
-      },
-      { 
-        id: '3', 
-        email: 'staff@restaurant.com', 
-        password: await bcrypt.hash('password123', 10), 
-        name: 'Kitchen Staff', 
-        roleId: 3 
-      },
-    ];
-
-    const user = testUsers.find(u => u.email === email);
+    console.log('Login attempt for email:', email);
+    
+    // Veritabanından kullanıcıyı e-posta ile bul
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          email: true,
+          password: true,
+          name: true,
+          role: true,
+          isSuperAdmin: true,
+          isActive: true
+        }
+      });
+      
+      console.log('Database user lookup result:', user ? 'User found' : 'User not found');
+    } catch (dbError) {
+      console.error('Database error during login:', dbError);
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Veritabanı hatası oluştu' 
+        },
+        { status: 500 }
+      );
+    }
 
     if (!user) {
+      console.log('User not found with email:', email);
       return NextResponse.json(
         { 
           success: false,
@@ -154,9 +159,24 @@ export async function POST(request: Request) {
         { status: 401 }
       );
     }
+    
+    // Kullanıcı aktif mi kontrolü
+    if (user.isActive === false) {
+      console.log('User account is inactive:', email);
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Hesabınız aktif değil. Lütfen yönetici ile iletişime geçin.' 
+        },
+        { status: 403 }
+      );
+    }
 
     // Şifre kontrolü
+    console.log('Comparing password for user:', user.email);
     const isPasswordValid = await bcrypt.compare(password, user.password);
+    console.log('Password valid:', isPasswordValid);
+    
     if (!isPasswordValid) {
       return NextResponse.json(
         { 
@@ -172,7 +192,7 @@ export async function POST(request: Request) {
       userId: user.id,
       email: user.email,
       name: user.name,
-      roleId: user.roleId
+      roleId: user.role === 'ADMIN' ? 1 : user.role === 'MANAGER' ? 2 : 3
     });
 
     // Token süresi
@@ -185,7 +205,9 @@ export async function POST(request: Request) {
         id: user.id,
         email: user.email,
         name: user.name,
-        roleId: user.roleId,
+        roleId: user.role === 'ADMIN' ? 1 : user.role === 'MANAGER' ? 2 : 3,
+        isSuperAdmin: user.isSuperAdmin,
+        role: user.role
       },
       expiresIn
     });

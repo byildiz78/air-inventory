@@ -14,19 +14,37 @@ import {
 export class DashboardAPI {
   
   static async getDashboardStats(): Promise<DashboardStats> {
-    const response = await fetch('/api/dashboard/stats');
+    const token = localStorage.getItem('token');
+    const response = await fetch('/api/dashboard/stats', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
     if (!response.ok) throw new Error('Failed to fetch dashboard stats');
     return response.json();
   }
 
   static async getStockAlerts(): Promise<StockAlert[]> {
-    const response = await fetch('/api/dashboard/stock-alerts');
+    const token = localStorage.getItem('token');
+    const response = await fetch('/api/dashboard/stock-alerts', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
     if (!response.ok) throw new Error('Failed to fetch stock alerts');
     return response.json();
   }
 
   static async getCostTrends(days: number = 7): Promise<CostTrend[]> {
-    const response = await fetch(`/api/dashboard/cost-trends?days=${days}`);
+    const token = localStorage.getItem('token');
+    const response = await fetch(`/api/dashboard/cost-trends?days=${days}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
     if (!response.ok) throw new Error('Failed to fetch cost trends');
     return response.json();
   }

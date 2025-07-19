@@ -27,6 +27,7 @@ import {
   User
 } from 'lucide-react';
 import Link from 'next/link';
+import { apiClient } from '@/lib/api-client';
 
 // Invoice type definition
 type Invoice = {
@@ -90,12 +91,11 @@ export default function PurchaseInvoicesPage() {
       params.append('page', currentPage.toString());
       params.append('limit', pageSize.toString());
 
-      const response = await fetch(`/api/invoices?${params}`);
-      const data: ApiResponse = await response.json();
+      const data = await apiClient.get<Invoice[]>(`/api/invoices?${params}`);
       
       if (data.success) {
         // Convert date strings to Date objects
-        const formattedInvoices = data.data.map((invoice: any) => ({
+        const formattedInvoices = data.data!.map((invoice: any) => ({
           ...invoice,
           date: new Date(invoice.date),
           dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null
@@ -400,7 +400,7 @@ export default function PurchaseInvoicesPage() {
                   {invoices.map((invoice) => {
                     const statusBadge = getStatusBadge(invoice.status);
                     const StatusIcon = statusBadge.icon;
-                    const daysUntilDue = getDaysUntilDue(invoice.dueDate);
+                    const daysUntilDue = getDaysUntilDue(invoice.dueDate || null);
                     
                     return (
                       <div key={invoice.id} className="border rounded-lg hover:shadow-md transition-all duration-200">

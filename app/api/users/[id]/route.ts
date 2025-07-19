@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { hasPermission } from '@/lib/auth-utils';
+import bcrypt from 'bcryptjs';
 
 // GET /api/users/[id] - Get a specific user
 export async function GET(
@@ -94,8 +95,8 @@ export async function PUT(
     
     // Only update password if provided
     if (data.password) {
-      // In a real app, you would hash the password here
-      updateData.password = data.password; // This should be hashed!
+      // Hash the password before storing it
+      updateData.password = await bcrypt.hash(data.password, 10);
     }
 
     // Update the user

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { apiClient } from '@/lib/api-client';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -70,17 +71,10 @@ export default function SalesPage() {
       setError(null);
       
       // API çağrılarını yap
-      const [salesResponse, salesItemsResponse, usersResponse] = await Promise.all([
-        fetch('/api/sales'),
-        fetch('/api/sales-items'),
-        fetch('/api/users')
-      ]);
-      
-      // Yanıtları JSON'a dönüştür
       const [salesData, salesItemsData, usersData] = await Promise.all([
-        salesResponse.json(),
-        salesItemsResponse.json(),
-        usersResponse.json()
+        apiClient.get('/api/sales'),
+        apiClient.get('/api/sales-items'),
+        apiClient.get('/api/users')
       ]);
       
       // Verileri kontrol et ve state'e kaydet
@@ -170,8 +164,7 @@ export default function SalesPage() {
       if (dateTo) params.append('dateTo', dateTo);
       
       // API'den filtrelenmiş verileri çek
-      const response = await fetch(`/api/sales?${params.toString()}`);
-      const data = await response.json();
+      const data = await apiClient.get(`/api/sales?${params.toString()}`);
       
       if (data.success) {
         setSales(data.data);
@@ -208,15 +201,7 @@ export default function SalesPage() {
       };
       
       // API çağrısı ile satış oluştur
-      const response = await fetch('/api/sales', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newSale),
-      });
-      
-      const result = await response.json();
+      const result = await apiClient.post('/api/sales', newSale);
       
       if (result.success) {
         setIsNewSaleOpen(false);
@@ -247,11 +232,7 @@ export default function SalesPage() {
         setLoading(true);
         
         // API çağrısı ile satış sil
-        const response = await fetch(`/api/sales/${id}`, {
-          method: 'DELETE',
-        });
-        
-        const result = await response.json();
+        const result = await apiClient.delete(`/api/sales/${id}`);
         
         if (result.success) {
           toast.success('Satış başarıyla silindi!');
@@ -287,11 +268,11 @@ export default function SalesPage() {
 
   // Calculate stats
   const stats = {
-    totalSales: filteredSales.reduce((sum, sale) => sum + sale.totalPrice, 0),
+    totalSales: filteredSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0),
     totalItems: filteredSales.reduce((sum, sale) => sum + sale.quantity, 0),
-    totalProfit: filteredSales.reduce((sum, sale) => sum + sale.grossProfit, 0),
+    totalProfit: filteredSales.reduce((sum, sale) => sum + (sale.grossProfit || 0), 0),
     avgProfit: filteredSales.length > 0 
-      ? filteredSales.reduce((sum, sale) => sum + sale.profitMargin, 0) / filteredSales.length 
+      ? filteredSales.reduce((sum, sale) => sum + (sale.profitMargin || 0), 0) / filteredSales.length 
       : 0
   };
   
@@ -691,7 +672,7 @@ export default function SalesPage() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Users className="w-3 h-3" />
-                              {user?.name || 'Bilinmeyen Kullanıcı'}
+                              {sale.userName || 'Bilinmeyen Kullanıcı'}
                             </span>
                             {sale.customerName && (
                               <span>Müşteri: {sale.customerName}</span>
@@ -824,7 +805,7 @@ export default function SalesPage() {
                   
                   <div className="text-xs text-muted-foreground">
                     <div>Satış Tarihi: {new Date(selectedSale.date).toLocaleString('tr-TR')}</div>
-                    <div>Kaydeden: {getUserById(selectedSale.userId)?.name || 'Bilinmeyen Kullanıcı'}</div>
+                    <div>Kaydeden: {selectedSale.userName || 'Bilinmeyen Kullanıcı'}</div>
                     <div>Kayıt Tarihi: {new Date(selectedSale.createdAt).toLocaleString('tr-TR')}</div>
                   </div>
                 </div>

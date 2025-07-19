@@ -129,11 +129,17 @@ export default function SalesItemsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
       const [salesItemsRes, categoriesRes, groupsRes, mappingsRes] = await Promise.all([
-        fetch('/api/sales-items'),
-        fetch('/api/sales-item-categories'),
-        fetch('/api/sales-item-groups'),
-        fetch('/api/recipe-mappings')
+        fetch('/api/sales-items', { headers }),
+        fetch('/api/sales-item-categories', { headers }),
+        fetch('/api/sales-item-groups', { headers }),
+        fetch('/api/recipe-mappings', { headers })
       ]);
 
       const [salesItemsData, categoriesData, groupsData, mappingsData] = await Promise.all([
@@ -194,9 +200,13 @@ export default function SalesItemsPage() {
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/sales-items', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           ...itemForm,
           basePrice: itemForm.basePrice ? parseFloat(itemForm.basePrice) : undefined,
@@ -225,9 +235,13 @@ export default function SalesItemsPage() {
     if (!editingItem) return;
     
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/sales-items/${editingItem.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           ...itemForm,
           basePrice: itemForm.basePrice ? parseFloat(itemForm.basePrice) : undefined,
@@ -317,8 +331,12 @@ export default function SalesItemsPage() {
   const handleDeleteItem = async (id: string) => {
     if (confirm('Bu satış malını silmek istediğinizden emin misiniz?')) {
       try {
+        const token = localStorage.getItem('token');
         const response = await fetch(`/api/sales-items/${id}`, {
           method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         });
 
         if (response.ok) {

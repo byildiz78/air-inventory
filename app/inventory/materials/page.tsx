@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Material, Category, Supplier, Unit, Tax, Warehouse } from '@prisma/client';
 import { MaterialForm } from '@/components/inventory/MaterialForm';
+import { apiClient } from '@/lib/api-client';
 
 type MaterialWithRelations = Material & {
   category?: Category;
@@ -60,22 +61,13 @@ export default function MaterialsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [materialsRes, categoriesRes, suppliersRes, unitsRes, taxesRes, warehousesRes] = await Promise.all([
-        fetch('/api/materials'),
-        fetch('/api/categories'),
-        fetch('/api/suppliers'),
-        fetch('/api/units'),
-        fetch('/api/taxes?activeOnly=true'),
-        fetch('/api/warehouses'),
-      ]);
-
       const [materialsData, categoriesData, suppliersData, unitsData, taxesData, warehousesData] = await Promise.all([
-        materialsRes.json(),
-        categoriesRes.json(),
-        suppliersRes.json(),
-        unitsRes.json(),
-        taxesRes.json(),
-        warehousesRes.json(),
+        apiClient.get('/api/materials'),
+        apiClient.get('/api/categories'),
+        apiClient.get('/api/suppliers'),
+        apiClient.get('/api/units'),
+        apiClient.get('/api/taxes?activeOnly=true'),
+        apiClient.get('/api/warehouses'),
       ]);
 
       setMaterials(materialsData.data || []);
@@ -136,21 +128,9 @@ export default function MaterialsPage() {
         defaultTaxId: data.defaultTaxId === 'none' ? null : data.defaultTaxId,
       };
 
-      const response = await fetch('/api/materials', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(processedData),
-      });
-
-      if (response.ok) {
-        await loadData();
-        setIsAddMaterialOpen(false);
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Malzeme eklenirken hata oluştu');
-      }
+      await apiClient.post('/api/materials', processedData);
+      await loadData();
+      setIsAddMaterialOpen(false);
     } catch (error) {
       console.error('Error adding material:', error);
       alert('Malzeme eklenirken hata oluştu');
@@ -169,21 +149,9 @@ export default function MaterialsPage() {
         defaultTaxId: data.defaultTaxId === 'none' ? null : data.defaultTaxId,
       };
 
-      const response = await fetch(`/api/materials/${editingMaterial.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(processedData),
-      });
-
-      if (response.ok) {
-        await loadData();
-        setEditingMaterial(null);
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Malzeme güncellenirken hata oluştu');
-      }
+      await apiClient.put(`/api/materials/${editingMaterial.id}`, processedData);
+      await loadData();
+      setEditingMaterial(null);
     } catch (error) {
       console.error('Error updating material:', error);
       alert('Malzeme güncellenirken hata oluştu');
@@ -193,16 +161,8 @@ export default function MaterialsPage() {
   const handleDeleteMaterial = async (id: string) => {
     if (confirm('Bu malzemeyi silmek istediğinizden emin misiniz?')) {
       try {
-        const response = await fetch(`/api/materials/${id}`, {
-          method: 'DELETE',
-        });
-
-        if (response.ok) {
-          await loadData();
-        } else {
-          const error = await response.json();
-          alert(error.error || 'Malzeme silinirken hata oluştu');
-        }
+        await apiClient.delete(`/api/materials/${id}`);
+        await loadData();
       } catch (error) {
         console.error('Error deleting material:', error);
         alert('Malzeme silinirken hata oluştu');
@@ -212,16 +172,8 @@ export default function MaterialsPage() {
 
   const handleToggleActive = async (id: string) => {
     try {
-      const response = await fetch(`/api/materials/${id}/toggle-active`, {
-        method: 'PUT',
-      });
-
-      if (response.ok) {
-        await loadData();
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Malzeme durumu değiştirilirken hata oluştu');
-      }
+      await apiClient.put(`/api/materials/${id}/toggle-active`);
+      await loadData();
     } catch (error) {
       console.error('Error toggling material active status:', error);
       alert('Malzeme durumu değiştirilirken hata oluştu');

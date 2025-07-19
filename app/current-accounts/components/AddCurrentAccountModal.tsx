@@ -16,7 +16,7 @@ interface AddCurrentAccountModalProps {
 export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [suppliers, setSuppliers] = useState([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     type: 'SUPPLIER',

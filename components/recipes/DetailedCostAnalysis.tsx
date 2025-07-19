@@ -132,7 +132,7 @@ export function DetailedCostAnalysis({ recipe }: DetailedCostAnalysisProps) {
         <CardContent>
           <div className="space-y-4">
             {ingredientCostsWithPercentage
-              .sort((a, b) => b.totalCost - a.totalCost)
+              .sort((a: any, b: any) => b.totalCost - a.totalCost)
               .slice(0, 8)
               .map((item: any, index: number) => (
                 <div key={index} className="space-y-2">
@@ -233,7 +233,7 @@ export function DetailedCostAnalysis({ recipe }: DetailedCostAnalysisProps) {
         <CardContent>
           <div className="space-y-3">
             {ingredientCostsWithPercentage
-              .sort((a, b) => b.percentage - a.percentage)
+              .sort((a: any, b: any) => b.percentage - a.percentage)
               .slice(0, 3)
               .map((item: any, index: number) => (
                 <div key={index} className="p-3 border-l-4 border-orange-500 bg-orange-50">

@@ -1,7 +1,11 @@
+'use client';
+
+import { MainLayout } from '@/components/layout/MainLayout';
+
 export default function ReportsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return <MainLayout>{children}</MainLayout>;
 }
