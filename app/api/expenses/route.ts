@@ -19,12 +19,16 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
     const where: any = {};
     
     if (categoryId) {
-      where.categoryId = categoryId;
+      where.expenseItemId = categoryId; // Using categoryId as expenseItemId for backward compatibility
     }
     
     if (type) {
-      where.category = {
-        type: type
+      where.expenseItem = {
+        subCategory: {
+          mainCategory: {
+            code: type === 'FIXED' ? 'FIXED' : type === 'VARIABLE' ? 'VARIABLE' : type === 'PERSONNEL' ? 'PERSONNEL' : type
+          }
+        }
       };
     }
     
@@ -49,7 +53,22 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
         take: limit,
         orderBy: { date: 'desc' },
         include: {
-          category: true,
+          expenseItem: {
+            include: {
+              subCategory: {
+                include: {
+                  mainCategory: true
+                }
+              }
+            }
+          },
+          batch: {
+            select: {
+              id: true,
+              batchNumber: true,
+              name: true
+            }
+          },
           user: {
             select: {
               id: true,

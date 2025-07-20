@@ -1,18 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -22,166 +14,83 @@ import {
 } from '@/components/ui/select';
 import { 
   Plus, 
-  Search, 
-  Filter,
+  FileText,
   Calendar,
   DollarSign,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Edit,
-  Trash2,
   TrendingUp,
-  TrendingDown
+  Package,
+  Users,
+  ArrowRight
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'react-hot-toast';
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
-
-interface Expense {
-  id: string;
-  description: string;
-  amount: number;
-  date: string;
-  isRecurring: boolean;
-  recurringPeriod: string | null;
-  invoiceNumber: string | null;
-  paymentStatus: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
-  paymentDate: string | null;
-  notes: string | null;
-  createdAt: string;
-  category: {
-    id: string;
-    name: string;
-    type: 'FIXED' | 'VARIABLE';
-  };
-  supplier: {
-    id: string;
-    name: string;
-  } | null;
-  user: {
-    id: string;
-    name: string;
-  };
-}
 
 interface ExpenseStats {
-  totalExpenses: number;
+  totalBatches: number;
   totalAmount: number;
-  averageExpense: number;
+  averageBatchAmount: number;
+  monthlyStats: {
+    month: number;
+    year: number;
+    totalAmount: number;
+    batchCount: number;
+  }[];
 }
 
 export default function ExpensesPage() {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [stats, setStats] = useState<ExpenseStats>({ totalExpenses: 0, totalAmount: 0, averageExpense: 0 });
+  const router = useRouter();
+  const [stats, setStats] = useState<ExpenseStats>({
+    totalBatches: 0,
+    totalAmount: 0,
+    averageBatchAmount: 0,
+    monthlyStats: []
+  });
   const [loading, setLoading] = useState(true);
   
   // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [pageSize] = useState(20);
+  const currentDate = new Date();
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
   useEffect(() => {
-    loadExpenses();
     loadStats();
-  }, [currentPage, categoryFilter, typeFilter, statusFilter, dateFrom, dateTo]);
+  }, [selectedYear, selectedMonth]);
 
-  const loadExpenses = async () => {
+  const loadStats = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: pageSize.toString(),
+        year: selectedYear.toString()
       });
+      
+      if (selectedMonth) {
+        params.append('month', selectedMonth.toString());
+      }
 
-      if (categoryFilter !== 'all') params.append('categoryId', categoryFilter);
-      if (typeFilter !== 'all') params.append('type', typeFilter);
-      if (statusFilter !== 'all') params.append('paymentStatus', statusFilter);
-      if (dateFrom) params.append('dateFrom', dateFrom);
-      if (dateTo) params.append('dateTo', dateTo);
-
-      const response = await apiClient.get(`/api/expenses?${params.toString()}`);
+      const response = await apiClient.get(`/api/expenses/stats?${params.toString()}`);
+      
       if (response.success) {
-        setExpenses(response.data);
-        if (response.pagination) {
-          setTotalPages(response.pagination.totalPages);
-          setTotalItems(response.pagination.totalCount);
-        }
+        setStats(response.data);
       }
     } catch (error) {
-      console.error('Error loading expenses:', error);
-      toast.error('Masraflar yüklenirken hata oluştu');
+      console.error('Error loading expense stats:', error);
+      toast.error('İstatistikler yüklenirken hata oluştu');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadStats = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (dateFrom) params.append('dateFrom', dateFrom);
-      if (dateTo) params.append('dateTo', dateTo);
-
-      const response = await apiClient.get(`/api/expenses/stats?${params.toString()}`);
-      if (response.success) {
-        setStats(response.data.summary);
-      }
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
+  const getMonthName = (month: number) => {
+    const monthNames = [
+      'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+    ];
+    return monthNames[month - 1];
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Bu masrafı silmek istediğinize emin misiniz?')) return;
-
-    try {
-      const response = await apiClient.delete(`/api/expenses/${id}`);
-      if (response.success) {
-        toast.success('Masraf başarıyla silindi');
-        loadExpenses();
-        loadStats();
-      }
-    } catch (error: any) {
-      toast.error(error.error || 'Masraf silinirken hata oluştu');
-    }
+  const formatCurrency = (amount: number) => {
+    return `₺${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`;
   };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'COMPLETED': return 'bg-green-100 text-green-800';
-      case 'PENDING': return 'bg-yellow-100 text-yellow-800';
-      case 'CANCELLED': return 'bg-red-100 text-red-800';
-      case 'FAILED': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'COMPLETED': return 'Ödendi';
-      case 'PENDING': return 'Beklemede';
-      case 'CANCELLED': return 'İptal';
-      case 'FAILED': return 'Başarısız';
-      default: return status;
-    }
-  };
-
-  const filteredExpenses = expenses.filter(expense => {
-    const matchesSearch = expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         expense.category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (expense.supplier?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
-    return matchesSearch;
-  });
 
   return (
     <div className="p-6">
@@ -189,241 +98,260 @@ export default function ExpensesPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Masraf Listesi</h1>
-            <p className="text-muted-foreground">Tüm masrafları görüntüleyin ve yönetin</p>
+            <h1 className="text-3xl font-bold">Masraf Yönetimi</h1>
+            <p className="text-muted-foreground">Masraf fişleri ve analizleri</p>
           </div>
-          
-          <Button 
-            asChild
-            className="bg-orange-500 hover:bg-orange-600"
-          >
-            <a href="/expenses/new">
+          <div className="flex gap-2">
+            <Button
+              onClick={() => router.push('/expenses/new')}
+              variant="outline"
+            >
               <Plus className="w-4 h-4 mr-2" />
-              Yeni Masraf
-            </a>
-          </Button>
-        </div>
-
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Toplam Masraf</CardTitle>
-              <DollarSign className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">₺{stats.totalAmount.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.totalExpenses} kayıt
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Ortalama Masraf</CardTitle>
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">₺{stats.averageExpense.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                Kayıt başına
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Toplam Kayıt</CardTitle>
-              <Clock className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalExpenses}</div>
-              <p className="text-xs text-muted-foreground">
-                Masraf kaydı
-              </p>
-            </CardContent>
-          </Card>
+              Tekil Masraf Fişi
+            </Button>
+            <Button
+              onClick={() => router.push('/expenses/batch/new')}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Çoklu Masraf Fişi
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle>Filtreler</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Dönem Seçimi
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Masraf ara..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Yıl</label>
+                <Select
+                  value={selectedYear.toString()}
+                  onValueChange={(value) => setSelectedYear(parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => {
+                      const year = currentDate.getFullYear() - 2 + i;
+                      return (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
-              
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tip" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tüm Tipler</SelectItem>
-                  <SelectItem value="FIXED">Sabit Gider</SelectItem>
-                  <SelectItem value="VARIABLE">Değişken Gider</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Durum" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tüm Durumlar</SelectItem>
-                  <SelectItem value="PENDING">Beklemede</SelectItem>
-                  <SelectItem value="COMPLETED">Ödendi</SelectItem>
-                  <SelectItem value="CANCELLED">İptal</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                placeholder="Başlangıç"
-              />
-              
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                placeholder="Bitiş"
-              />
-              
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setSearchTerm('');
-                  setCategoryFilter('all');
-                  setTypeFilter('all');
-                  setStatusFilter('all');
-                  setDateFrom('');
-                  setDateTo('');
-                  setCurrentPage(1);
-                }}
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                Temizle
-              </Button>
+
+              <div>
+                <label className="text-sm font-medium">Ay</label>
+                <Select
+                  value={selectedMonth?.toString() || 'all'}
+                  onValueChange={(value) => setSelectedMonth(value === 'all' ? null : parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tüm Yıl</SelectItem>
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const month = i + 1;
+                      return (
+                        <SelectItem key={month} value={month.toString()}>
+                          {getMonthName(month)}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Expenses List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Masraf Kayıtları</CardTitle>
-            <CardDescription>
-              Toplam {totalItems} kayıt bulundu
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Yükleniyor...
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Toplam Masraf Fişi</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalBatches}</div>
+              <p className="text-xs text-muted-foreground">
+                {selectedMonth ? getMonthName(selectedMonth) : 'Yıllık'} fiş sayısı
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Toplam Tutar</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {formatCurrency(stats.totalAmount)}
               </div>
-            ) : filteredExpenses.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Masraf kaydı bulunamadı
+              <p className="text-xs text-muted-foreground">
+                {selectedMonth ? getMonthName(selectedMonth) : 'Yıllık'} toplam masraf
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Ortalama Fiş Tutarı</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                {formatCurrency(stats.averageBatchAmount)}
               </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredExpenses.map((expense) => (
-                  <div
-                    key={expense.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+              <p className="text-xs text-muted-foreground">
+                Fiş başına ortalama tutar
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer" 
+                onClick={() => router.push('/expenses/batch')}>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-orange-500" />
+                  Masraf Fişleri
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              </CardTitle>
+              <CardDescription>
+                Tüm masraf girişleri (toplu ve tekil) ve fiş yönetimi
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Toplam {stats.totalBatches} fiş
+                </div>
+                <Button variant="outline" size="sm">
+                  Görüntüle
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow cursor-pointer" 
+                onClick={() => router.push('/expenses/hierarchy')}>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-blue-500" />
+                  Masraf Hiyerarşisi
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              </CardTitle>
+              <CardDescription>
+                Kategori ve masraf kalemlerini yönetin
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Kategori ve kalem yönetimi
+                </div>
+                <Button variant="outline" size="sm">
+                  Yönet
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Monthly Breakdown */}
+        {!selectedMonth && stats.monthlyStats.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Aylık Dağılım ({selectedYear})
+              </CardTitle>
+              <CardDescription>
+                Ay bazında masraf analizi
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {stats.monthlyStats.map((monthStat) => (
+                  <div 
+                    key={monthStat.month}
+                    className="p-4 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                    onClick={() => setSelectedMonth(monthStat.month)}
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h4 className="font-medium">{expense.description}</h4>
-                        <Badge 
-                          variant="outline" 
-                          className={expense.category.type === 'FIXED' ? 'border-red-200 text-red-700' : 'border-green-200 text-green-700'}
-                        >
-                          {expense.category.name}
-                        </Badge>
-                        <Badge className={getStatusColor(expense.paymentStatus)}>
-                          {getStatusText(expense.paymentStatus)}
-                        </Badge>
-                        {expense.isRecurring && (
-                          <Badge variant="secondary">
-                            <Clock className="w-3 h-3 mr-1" />
-                            Periyodik
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>₺{expense.amount.toLocaleString()}</span>
-                        <span>{format(new Date(expense.date), 'dd MMMM yyyy', { locale: tr })}</span>
-                        {expense.supplier && (
-                          <span>{expense.supplier.name}</span>
-                        )}
-                        {expense.invoiceNumber && (
-                          <span>Fatura: {expense.invoiceNumber}</span>
-                        )}
-                      </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">{getMonthName(monthStat.month)}</h4>
+                      <Badge variant="outline">{monthStat.batchCount} fiş</Badge>
                     </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
-                        <a href={`/expenses/edit/${expense.id}`}>
-                          <Edit className="h-4 w-4" />
-                        </a>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(expense.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <div className="text-lg font-bold text-green-600">
+                      {formatCurrency(monthStat.totalAmount)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Ortalama: {formatCurrency(monthStat.batchCount > 0 ? monthStat.totalAmount / monthStat.batchCount : 0)}
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-            
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6">
-                <p className="text-sm text-muted-foreground">
-                  Sayfa {currentPage} / {totalPages} (Toplam {totalItems} kayıt)
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                  >
-                    Önceki
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                  >
-                    Sonraki
-                  </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Create New Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Yeni Masraf Girişi</CardTitle>
+            <CardDescription>
+              Masraf türüne göre uygun giriş yöntemini seçin
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Button
+                onClick={() => router.push('/expenses/batch/new')}
+                className="h-auto p-6 flex-col items-start bg-orange-500 hover:bg-orange-600"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="w-5 h-5" />
+                  <span className="font-semibold">Çoklu Masraf Fişi</span>
                 </div>
-              </div>
-            )}
+                <div className="text-sm text-left opacity-90">
+                  Çoklu masraf girişi için Excel benzeri interface
+                </div>
+              </Button>
+
+              <Button
+                onClick={() => router.push('/expenses/new')}
+                variant="outline"
+                className="h-auto p-6 flex-col items-start"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Plus className="w-5 h-5" />
+                  <span className="font-semibold">Tekil Masraf</span>
+                </div>
+                <div className="text-sm text-left text-muted-foreground">
+                  Tek kalemli masraf fişi oluştur
+                </div>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

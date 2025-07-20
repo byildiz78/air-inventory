@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -16,65 +15,115 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Save, Calculator, Calendar, DollarSign } from 'lucide-react';
+import { ArrowLeft, Save, Package, FileText, DollarSign } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'react-hot-toast';
 
-interface ExpenseCategory {
+interface ExpenseMainCategory {
   id: string;
   name: string;
-  type: 'FIXED' | 'VARIABLE';
-  description: string | null;
+  code: string;
+  color: string;
+  subCategories: ExpenseSubCategory[];
 }
 
+interface ExpenseSubCategory {
+  id: string;
+  name: string;
+  code: string;
+  mainCategory: ExpenseMainCategory;
+  items: ExpenseItem[];
+}
+
+interface ExpenseItem {
+  id: string;
+  name: string;
+  code: string;
+  defaultAmount: number | null;
+  isRecurring: boolean;
+  recurringPeriod: string | null;
+  subCategory: ExpenseSubCategory;
+}
 
 export default function NewExpensePage() {
   const router = useRouter();
-  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+  const [hierarchy, setHierarchy] = useState<ExpenseMainCategory[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingHierarchy, setLoadingHierarchy] = useState(true);
   
   const [formData, setFormData] = useState({
-    categoryId: '',
+    expenseItemId: '',
     description: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
-    isRecurring: false,
-    recurringPeriod: '',
-    recurringEndDate: '',
-    invoiceNumber: '',
     paymentStatus: 'COMPLETED',
     paymentDate: new Date().toISOString().split('T')[0],
-    notes: '',
-    attachmentUrl: ''
+    invoiceNumber: '',
+    notes: ''
   });
 
+  const [selectedExpenseItem, setSelectedExpenseItem] = useState<ExpenseItem | null>(null);
+
   useEffect(() => {
-    loadCategories();
+    loadHierarchy();
   }, []);
 
-  const loadCategories = async () => {
+  const loadHierarchy = async () => {
     try {
-      const response = await apiClient.get('/api/expenses/categories?isActive=true');
+      setLoadingHierarchy(true);
+      const response = await apiClient.get('/api/expenses/hierarchy?includeItems=true');
       if (response.success) {
-        setCategories(response.data);
+        setHierarchy(response.data);
       }
     } catch (error) {
-      console.error('Error loading categories:', error);
-      toast.error('Kategoriler yüklenirken hata oluştu');
+      console.error('Error loading hierarchy:', error);
+      toast.error('Masraf yapısı yüklenirken hata oluştu');
+    } finally {
+      setLoadingHierarchy(false);
     }
   };
 
+  const handleExpenseItemChange = (expenseItemId: string) => {
+    setFormData({ ...formData, expenseItemId });
+    
+    // Find the selected expense item
+    let foundItem: ExpenseItem | null = null;
+    for (const mainCat of hierarchy) {
+      for (const subCat of mainCat.subCategories) {
+        const item = subCat.items.find(item => item.id === expenseItemId);
+        if (item) {
+          foundItem = {
+            ...item,
+            subCategory: {
+              ...subCat,
+              mainCategory: mainCat
+            }
+          };
+          break;
+        }
+      }
+      if (foundItem) break;
+    }
+
+    setSelectedExpenseItem(foundItem);
+    
+    if (foundItem) {
+      setFormData(prev => ({
+        ...prev,
+        expenseItemId,
+        description: foundItem.name,
+        amount: foundItem.defaultAmount?.toString() || '',
+        paymentStatus: foundItem.isRecurring ? 'COMPLETED' : 'PENDING',
+        paymentDate: foundItem.isRecurring ? new Date().toISOString().split('T')[0] : ''
+      }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Small delay to ensure all onChange events have fired
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    console.log('Form validation - formData:', formData);
-    
-    if (!formData.categoryId || formData.categoryId === '') {
-      toast.error('Kategori seçilmelidir');
+    if (!formData.expenseItemId) {
+      toast.error('Masraf kalemi seçilmelidir');
       return;
     }
     
@@ -98,8 +147,8 @@ export default function NewExpensePage() {
       return;
     }
 
-    if (formData.isRecurring && !formData.recurringPeriod) {
-      toast.error('Periyodik giderler için periyot seçilmelidir');
+    if (formData.paymentStatus === 'COMPLETED' && !formData.paymentDate) {
+      toast.error('Ödeme tarihi girilmelidir');
       return;
     }
 
@@ -107,40 +156,70 @@ export default function NewExpensePage() {
       setLoading(true);
       
       const submitData = {
-        ...formData,
+        expenseItemId: formData.expenseItemId,
         description: formData.description.trim(),
         amount: parseFloat(formData.amount),
-        recurringEndDate: formData.isRecurring && formData.recurringEndDate ? formData.recurringEndDate : null,
-        paymentDate: formData.paymentStatus === 'COMPLETED' && formData.paymentDate ? formData.paymentDate : null,
-        invoiceNumber: formData.invoiceNumber || null,
-        notes: formData.notes || null,
-        attachmentUrl: formData.attachmentUrl || null
+        date: formData.date,
+        paymentStatus: formData.paymentStatus,
+        paymentDate: formData.paymentStatus === 'COMPLETED' ? formData.paymentDate : null,
+        invoiceNumber: formData.invoiceNumber.trim() || null,
+        notes: formData.notes.trim() || null
       };
 
-      console.log('Submitting data:', submitData);
-      const token = localStorage.getItem('token');
-      console.log('Auth token:', token);
-      console.log('Token exists:', !!token);
-      console.log('Token length:', token?.length);
-      
-      const response = await apiClient.post('/api/expenses', submitData);
-      console.log('API Response:', response);
+      // Create as a single-item batch
+      const batchData = {
+        name: `${formData.description} - ${new Date(formData.date).toLocaleDateString('tr-TR')}`,
+        description: `Tekil masraf girişi: ${formData.description}`,
+        periodYear: new Date(formData.date).getFullYear(),
+        periodMonth: new Date(formData.date).getMonth() + 1,
+        items: [submitData]
+      };
+
+      const response = await apiClient.post('/api/expenses/batches', batchData);
       
       if (response.success) {
-        toast.success('Masraf başarıyla oluşturuldu');
-        router.push('/expenses');
+        toast.success('Tekil masraf fişi başarıyla oluşturuldu');
+        router.push('/expenses/batch');
       } else {
-        toast.error(response.error || 'Masraf oluşturulurken hata oluştu');
+        toast.error(response.error || 'Masraf kaydedilemedi');
       }
     } catch (error: any) {
-      console.error('Error submitting expense:', error);
-      toast.error(error.error || error.message || 'Masraf oluşturulurken hata oluştu');
+      console.error('Error saving expense:', error);
+      toast.error('Masraf kaydedilemedi');
     } finally {
       setLoading(false);
     }
   };
 
-  const selectedCategory = categories.find(c => c.id === formData.categoryId);
+  const getAllExpenseItems = (): ExpenseItem[] => {
+    const allItems: ExpenseItem[] = [];
+    hierarchy.forEach(mainCat => {
+      mainCat.subCategories.forEach(subCat => {
+        subCat.items.forEach(item => {
+          allItems.push({
+            ...item,
+            subCategory: {
+              ...subCat,
+              mainCategory: mainCat
+            }
+          });
+        });
+      });
+    });
+    return allItems;
+  };
+
+  if (loadingHierarchy) {
+    return (
+      <div className="p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center py-8 text-muted-foreground">
+            Masraf yapısı yükleniyor...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -156,59 +235,127 @@ export default function NewExpensePage() {
             Geri
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Yeni Masraf</h1>
-            <p className="text-muted-foreground">Yeni bir masraf kaydı oluşturun</p>
+            <h1 className="text-3xl font-bold">Yeni Tekil Masraf Fişi</h1>
+            <p className="text-muted-foreground">Tek kalemli masraf fişi oluşturun</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
+          {/* Expense Item Selection */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Calculator className="w-5 h-5" />
-                Temel Bilgiler
+                <Package className="w-5 h-5" />
+                Masraf Kalemi Seçimi
               </CardTitle>
               <CardDescription>
-                Masrafın temel bilgilerini girin
+                Masraf kalemini hiyerarşiden seçin
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="expenseItem">Masraf Kalemi *</Label>
+                <Select
+                  value={formData.expenseItemId}
+                  onValueChange={handleExpenseItemChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Masraf kalemi seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {hierarchy.map((mainCat) => (
+                      <div key={mainCat.id}>
+                        {/* Main Category Header */}
+                        <div className="px-2 py-1 text-sm font-semibold text-muted-foreground bg-muted/50 flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: mainCat.color }}
+                          />
+                          {mainCat.name}
+                        </div>
+                        {/* Sub Categories and Items */}
+                        {mainCat.subCategories.map((subCat) => (
+                          <div key={subCat.id}>
+                            <div className="px-4 py-1 text-xs text-muted-foreground bg-muted/25">
+                              → {subCat.name}
+                            </div>
+                            {subCat.items.map((item) => (
+                              <SelectItem key={item.id} value={item.id} className="pl-8">
+                                <div className="flex items-center justify-between w-full">
+                                  <span>{item.name}</span>
+                                  <div className="flex gap-2 ml-4">
+                                    {item.defaultAmount && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        ₺{item.defaultAmount.toLocaleString('tr-TR')}
+                                      </Badge>
+                                    )}
+                                    {item.isRecurring && (
+                                      <Badge variant="outline" className="text-xs">
+                                        Tekrarlı
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedExpenseItem && (
+                <div className="p-4 bg-muted/30 rounded-lg">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div 
+                      className="w-4 h-4 rounded-full" 
+                      style={{ backgroundColor: selectedExpenseItem.subCategory.mainCategory.color }}
+                    />
+                    <span className="font-medium">
+                      {selectedExpenseItem.subCategory.mainCategory.name} → {selectedExpenseItem.subCategory.name}
+                    </span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Kod: {selectedExpenseItem.code}
+                  </div>
+                  {selectedExpenseItem.defaultAmount && (
+                    <div className="text-sm text-green-600 font-medium">
+                      Önerilen tutar: ₺{selectedExpenseItem.defaultAmount.toLocaleString('tr-TR')}
+                    </div>
+                  )}
+                  {selectedExpenseItem.isRecurring && (
+                    <div className="text-sm text-blue-600">
+                      Tekrarlı masraf ({selectedExpenseItem.recurringPeriod})
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Expense Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Masraf Detayları
+              </CardTitle>
+              <CardDescription>
+                Masraf bilgilerini girin
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="categoryId">Kategori *</Label>
-                  <Select
-                    value={formData.categoryId}
-                    onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Kategori seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          <div className="flex items-center gap-2">
-                            <span>{category.name}</span>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${
-                                category.type === 'FIXED' 
-                                  ? 'border-red-200 text-red-700' 
-                                  : 'border-green-200 text-green-700'
-                              }`}
-                            >
-                              {category.type === 'FIXED' ? 'Sabit' : 'Değişken'}
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedCategory && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {selectedCategory.description || `${selectedCategory.type === 'FIXED' ? 'Sabit' : 'Değişken'} gider kategorisi`}
-                    </p>
-                  )}
+                  <Label htmlFor="description">Açıklama *</Label>
+                  <Input
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Masraf açıklaması"
+                  />
                 </div>
 
                 <div>
@@ -223,116 +370,19 @@ export default function NewExpensePage() {
                     placeholder="0.00"
                   />
                 </div>
-              </div>
 
-              <div>
-                <Label htmlFor="description">Açıklama *</Label>
-                <Textarea
-                  key="description-textarea"
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => {
-                    const newValue = e.target.value;
-                    console.log('Description changed:', newValue);
-                    setFormData(prev => ({ ...prev, description: newValue }));
-                  }}
-                  onBlur={(e) => {
-                    console.log('Description blur:', e.target.value);
-                    setFormData(prev => ({ ...prev, description: e.target.value }));
-                  }}
-                  placeholder="Masraf açıklaması"
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="date">Tarih *</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recurring Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Periyodik Ayarlar
-              </CardTitle>
-              <CardDescription>
-                Bu masraf düzenli tekrar ediyorsa ayarları yapın
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="isRecurring">Periyodik Masraf</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Bu masraf düzenli aralıklarla tekrar ediyor mu?
-                  </p>
+                  <Label htmlFor="date">Masraf Tarihi *</Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  />
                 </div>
-                <Switch
-                  id="isRecurring"
-                  checked={formData.isRecurring}
-                  onCheckedChange={(checked) => 
-                    setFormData({ ...formData, isRecurring: checked, recurringPeriod: checked ? formData.recurringPeriod : '' })
-                  }
-                />
-              </div>
 
-              {formData.isRecurring && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="recurringPeriod">Periyot *</Label>
-                    <Select
-                      value={formData.recurringPeriod}
-                      onValueChange={(value) => setFormData({ ...formData, recurringPeriod: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Periyot seçin" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="MONTHLY">Aylık</SelectItem>
-                        <SelectItem value="QUARTERLY">Üç Aylık</SelectItem>
-                        <SelectItem value="YEARLY">Yıllık</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="recurringEndDate">Bitiş Tarihi</Label>
-                    <Input
-                      id="recurringEndDate"
-                      type="date"
-                      value={formData.recurringEndDate}
-                      onChange={(e) => setFormData({ ...formData, recurringEndDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Payment Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5" />
-                Ödeme Bilgileri
-              </CardTitle>
-              <CardDescription>
-                Ödeme durumu ve fatura bilgileri
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="paymentStatus">Ödeme Durumu</Label>
+                  <Label htmlFor="paymentStatus">Ödeme Durumu *</Label>
                   <Select
                     value={formData.paymentStatus}
                     onValueChange={(value) => setFormData({ ...formData, paymentStatus: value })}
@@ -359,16 +409,16 @@ export default function NewExpensePage() {
                     />
                   </div>
                 )}
-              </div>
 
-              <div>
-                <Label htmlFor="invoiceNumber">Fatura Numarası</Label>
-                <Input
-                  id="invoiceNumber"
-                  value={formData.invoiceNumber}
-                  onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
-                  placeholder="Fatura numarası (opsiyonel)"
-                />
+                <div>
+                  <Label htmlFor="invoiceNumber">Fatura Numarası</Label>
+                  <Input
+                    id="invoiceNumber"
+                    value={formData.invoiceNumber}
+                    onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
+                    placeholder="Fatura numarası"
+                  />
+                </div>
               </div>
 
               <div>
@@ -377,14 +427,39 @@ export default function NewExpensePage() {
                   id="notes"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Ek notlar (opsiyonel)"
+                  placeholder="Ek notlar..."
                   rows={3}
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Submit Button */}
+          {/* Summary */}
+          {formData.amount && parseFloat(formData.amount) > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5" />
+                  Özet
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between text-lg">
+                  <span>Toplam Tutar:</span>
+                  <span className="font-bold text-green-600">
+                    ₺{parseFloat(formData.amount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {selectedExpenseItem && (
+                  <div className="text-sm text-muted-foreground mt-2">
+                    {selectedExpenseItem.subCategory.mainCategory.name} → {selectedExpenseItem.subCategory.name} → {selectedExpenseItem.name}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Submit Buttons */}
           <div className="flex items-center gap-4">
             <Button
               type="submit"
@@ -396,7 +471,7 @@ export default function NewExpensePage() {
               ) : (
                 <>
                   <Save className="w-4 h-4 mr-2" />
-                  Masrafı Kaydet
+                  Tekil Masraf Fişi Oluştur
                 </>
               )}
             </Button>

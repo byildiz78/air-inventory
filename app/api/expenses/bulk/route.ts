@@ -97,15 +97,22 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         }
 
         // Verify category exists
-        const category = await prisma.expenseCategory.findUnique({
-          where: { id: data.categoryId }
+        const expenseItem = await prisma.expenseItem.findUnique({
+          where: { id: data.categoryId }, // Using categoryId as expenseItemId for backward compatibility
+          include: {
+            subCategory: {
+              include: {
+                mainCategory: true
+              }
+            }
+          }
         });
 
-        if (!category) {
+        if (!expenseItem) {
           return NextResponse.json(
             {
               success: false,
-              error: 'Category not found'
+              error: 'Expense item not found'
             },
             { status: 404 }
           );
@@ -113,7 +120,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
 
         result = await prisma.expense.updateMany({
           where: { id: { in: expenseIds } },
-          data: { categoryId: data.categoryId }
+          data: { expenseItemId: data.categoryId } // Map categoryId to expenseItemId for new structure
         });
 
         for (const expenseId of expenseIds) {
@@ -122,8 +129,8 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
             'expense',
             expenseId,
             { 
-              before: { categoryId: 'previous' }, 
-              after: { categoryId: data.categoryId, categoryName: category.name } 
+              before: { expenseItemId: 'previous' }, 
+              after: { expenseItemId: data.categoryId, expenseItemName: expenseItem.name } 
             },
             request
           );
@@ -135,7 +142,15 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         const expensesToDelete = await prisma.expense.findMany({
           where: { id: { in: expenseIds } },
           include: {
-            category: { select: { name: true } },
+            expenseItem: { 
+              include: {
+                subCategory: {
+                  include: {
+                    mainCategory: true
+                  }
+                }
+              }
+            },
             supplier: { select: { name: true } }
           }
         });
@@ -152,7 +167,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
             {
               description: expense.description,
               amount: expense.amount,
-              categoryName: expense.category.name
+              expenseItemName: expense.expenseItem.name
             },
             request
           );

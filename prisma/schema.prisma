@@ -40,6 +40,7 @@ model User {
   currentAccountTransactions CurrentAccountTransaction[]
   productions        Production[]
   expenses           Expense[]
+  expenseBatches     ExpenseBatch[]
 
   @@map("users")
 }
@@ -1028,32 +1029,152 @@ model Production {
 }
 
 // ================================
-// EXPENSE MANAGEMENT
+// EXPENSE MANAGEMENT (NEW HIERARCHICAL STRUCTURE)
 // ================================
 
-model ExpenseCategory {
-  id          String      @id @default(cuid())
-  name        String      @unique
-  type        ExpenseType
+// Ana Kategoriler: Sabit Giderler, Değişken Giderler, Personel Giderleri, Özet
+model ExpenseMainCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique // "Sabit Giderler", "Değişken Giderler", "Personel Giderleri", "Özet"
+  code        String   @unique // "FIXED", "VARIABLE", "PERSONNEL", "SUMMARY"
   description String?
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  color       String   @default("#3B82F6") // UI için renk
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   // Relations
+  subCategories ExpenseSubCategory[]
+  
+  @@map("expense_main_categories")
+}
+
+// Alt Kategoriler: Her ana kategorinin altında ~20 alt kategori
+model ExpenseSubCategory {
+  id             String   @id @default(cuid())
+  mainCategoryId String
+  name           String   // "Kira & Kıra", "Elektrik & Su", "Personel Maaşları"
+  code           String   // "RENT", "UTILITIES", "SALARIES"
+  description    String?
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  mainCategory   ExpenseMainCategory @relation(fields: [mainCategoryId], references: [id])
+  items          ExpenseItem[]
+  
+  @@unique([mainCategoryId, code])
+  @@map("expense_sub_categories")
+}
+
+// Masraf Kalemleri: Her alt kategorinin altında belirli masraf kalemleri
+model ExpenseItem {
+  id            String   @id @default(cuid())
+  subCategoryId String
+  name          String   // "Mağaza Kirası", "Elektrik Faturası", "Müdür Maaşı"
+  code          String   // "STORE_RENT", "ELECTRICITY_BILL", "MANAGER_SALARY"
+  description   String?
+  
+  // Varsayılan Değerler
+  defaultAmount Float?   // Varsayılan tutar (şablonlar için)
+  
+  // Periyodik Ayarlar
+  isRecurring   Boolean  @default(false)
+  recurringPeriod RecurringPeriod?
+  
+  // Durum
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  subCategory   ExpenseSubCategory @relation(fields: [subCategoryId], references: [id])
+  expenses      Expense[]
+  batchItems    ExpenseBatchItem[]
+  
+  @@unique([subCategoryId, code])
+  @@map("expense_items")
+}
+
+// Masraf Fişleri: Toplu masraf girişi için batch sistemi
+model ExpenseBatch {
+  id          String   @id @default(cuid())
+  batchNumber String   @unique // "EB-2024-01-001"
+  name        String   // "Ocak 2024 Sabit Giderler"
+  description String?
+  
+  // Tarih Bilgileri
+  periodYear  Int      // 2024
+  periodMonth Int      // 1 (Ocak)
+  entryDate   DateTime @default(now())
+  
+  // Durum
+  status      ExpenseBatchStatus @default(DRAFT)
+  totalAmount Float    @default(0)
+  
+  // Onay Bilgileri
+  approvedBy  String?
+  approvedAt  DateTime?
+  
+  // Audit
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User              @relation(fields: [userId], references: [id])
+  items       ExpenseBatchItem[]
   expenses    Expense[]
   
-  @@map("expense_categories")
+  @@map("expense_batches")
 }
 
-enum ExpenseType {
-  FIXED     // Sabit Giderler (Kira, Maaş, vb.)
-  VARIABLE  // Değişken Giderler (Elektrik, Malzeme, vb.)
+enum ExpenseBatchStatus {
+  DRAFT       // Taslak
+  SUBMITTED   // Gönderildi
+  APPROVED    // Onaylandı
+  REJECTED    // Reddedildi
+  PROCESSED   // İşlendi (masraflar oluşturuldu)
 }
 
+// Masraf Fişi Kalemleri: Fiş içindeki bireysel masraf kalemleri
+model ExpenseBatchItem {
+  id           String   @id @default(cuid())
+  batchId      String
+  expenseItemId String
+  
+  // Gider Bilgileri
+  description  String
+  amount       Float
+  
+  // Ödeme Bilgileri
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentDate   DateTime?
+  invoiceNumber String?
+  
+  // Ek Bilgiler
+  notes        String?
+  attachmentUrl String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  batch        ExpenseBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  expenseItem  ExpenseItem  @relation(fields: [expenseItemId], references: [id])
+  
+  @@map("expense_batch_items")
+}
+
+// Masraflar: Hem tekil hem de toplu girişten oluşabilir
 model Expense {
   id              String          @id @default(cuid())
-  categoryId      String
+  expenseItemId   String          // Yeni hiyerarşik yapı
+  batchId         String?         // Toplu girişten geliyorsa
   
   // Gider Bilgileri
   description     String
@@ -1083,7 +1204,8 @@ model Expense {
   updatedAt       DateTime        @updatedAt
   
   // Relations
-  category        ExpenseCategory @relation(fields: [categoryId], references: [id])
+  expenseItem     ExpenseItem     @relation(fields: [expenseItemId], references: [id])
+  batch           ExpenseBatch?   @relation(fields: [batchId], references: [id])
   supplier        Supplier?       @relation(fields: [supplierId], references: [id])
   user            User           @relation(fields: [userId], references: [id])
   
@@ -1094,4 +1216,26 @@ enum RecurringPeriod {
   MONTHLY
   QUARTERLY
   YEARLY
+}
+
+// ================================
+// LEGACY EXPENSE TABLES (DEPRECATED)
+// ================================
+
+// Eski ExpenseCategory tablosu - silinecek
+model ExpenseCategory {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  type        ExpenseType
+  description String?
+  isActive    Boolean     @default(false) // Artık kullanılmıyor
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  @@map("expense_categories_deprecated")
+}
+
+enum ExpenseType {
+  FIXED     // Sabit Giderler (Kira, Maaş, vb.)
+  VARIABLE  // Değişken Giderler (Elektrik, Malzeme, vb.)
 }

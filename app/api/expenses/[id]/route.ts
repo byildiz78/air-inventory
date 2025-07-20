@@ -11,7 +11,16 @@ export const GET = AuthMiddleware.withAuth(async (
     const expense = await prisma.expense.findUnique({
       where: { id: params.id },
       include: {
-        category: true,
+        expenseItem: {
+          include: {
+            subCategory: {
+              include: {
+                mainCategory: true
+              }
+            }
+          }
+        },
+        batch: true,
         supplier: {
           select: {
             id: true,
@@ -63,7 +72,7 @@ export const PUT = AuthMiddleware.withAuth(async (
   try {
     const body = await request.json();
     const {
-      categoryId,
+      expenseItemId,
       description,
       amount,
       date,
@@ -82,7 +91,15 @@ export const PUT = AuthMiddleware.withAuth(async (
     const currentExpense = await prisma.expense.findUnique({
       where: { id: params.id },
       include: {
-        category: true,
+        expenseItem: {
+          include: {
+            subCategory: {
+              include: {
+                mainCategory: true
+              }
+            }
+          }
+        },
         supplier: true
       }
     });
@@ -108,17 +125,17 @@ export const PUT = AuthMiddleware.withAuth(async (
       );
     }
 
-    // Verify category exists if being changed
-    if (categoryId && categoryId !== currentExpense.categoryId) {
-      const category = await prisma.expenseCategory.findUnique({
-        where: { id: categoryId }
+    // Verify expense item exists if being changed
+    if (expenseItemId && expenseItemId !== currentExpense.expenseItemId) {
+      const expenseItem = await prisma.expenseItem.findUnique({
+        where: { id: expenseItemId }
       });
 
-      if (!category) {
+      if (!expenseItem) {
         return NextResponse.json(
           {
             success: false,
-            error: 'Category not found'
+            error: 'Expense item not found'
           },
           { status: 404 }
         );
@@ -146,7 +163,7 @@ export const PUT = AuthMiddleware.withAuth(async (
     const updatedExpense = await prisma.expense.update({
       where: { id: params.id },
       data: {
-        ...(categoryId && { categoryId }),
+        ...(expenseItemId && { expenseItemId }),
         ...(description && { description }),
         ...(amount !== undefined && { amount: parseFloat(amount.toString()) }),
         ...(date && { date: new Date(date) }),
@@ -165,7 +182,15 @@ export const PUT = AuthMiddleware.withAuth(async (
         ...(attachmentUrl !== undefined && { attachmentUrl })
       },
       include: {
-        category: true,
+        expenseItem: {
+          include: {
+            subCategory: {
+              include: {
+                mainCategory: true
+              }
+            }
+          }
+        },
         supplier: {
           select: {
             id: true,
@@ -185,14 +210,14 @@ export const PUT = AuthMiddleware.withAuth(async (
         before: {
           description: currentExpense.description,
           amount: currentExpense.amount,
-          categoryName: currentExpense.category.name,
+          expenseItemName: currentExpense.expenseItem.name,
           supplierName: currentExpense.supplier?.name || null,
           paymentStatus: currentExpense.paymentStatus
         },
         after: {
           description: updatedExpense.description,
           amount: updatedExpense.amount,
-          categoryName: updatedExpense.category.name,
+          expenseItemName: updatedExpense.expenseItem.name,
           supplierName: updatedExpense.supplier?.name || null,
           paymentStatus: updatedExpense.paymentStatus
         }
@@ -225,7 +250,15 @@ export const DELETE = AuthMiddleware.withAuth(async (
     const expense = await prisma.expense.findUnique({
       where: { id: params.id },
       include: {
-        category: true,
+        expenseItem: {
+          include: {
+            subCategory: {
+              include: {
+                mainCategory: true
+              }
+            }
+          }
+        },
         supplier: {
           select: {
             id: true,
@@ -259,7 +292,7 @@ export const DELETE = AuthMiddleware.withAuth(async (
       {
         description: expense.description,
         amount: expense.amount,
-        categoryName: expense.category.name,
+        expenseItemName: expense.expenseItem.name,
         supplierName: expense.supplier?.name || null
       },
       request

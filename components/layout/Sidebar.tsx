@@ -129,9 +129,9 @@ const navigation = [
     current: false,
     badge: null,
     children: [
-      { name: 'Masraf Kategorileri', href: '/expenses/categories' },
-      { name: 'Masraf Girişi', href: '/expenses/new' },
-      { name: 'Masraf Listesi', href: '/expenses' },
+      { name: 'Analiz', href: '/expenses' },
+      { name: 'Masraf Kalemleri Yönetim', href: '/expenses/hierarchy' },
+      { name: 'Masraf Fişleri', href: '/expenses/batch' },
       { name: 'Aylık Analiz', href: '/expenses/analysis' },
     ],
   },
