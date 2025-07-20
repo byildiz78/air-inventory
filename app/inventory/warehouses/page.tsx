@@ -32,6 +32,7 @@ import { WarehouseList } from './components/WarehouseList';
 import { StockDistribution } from './components/StockDistribution';
 import { WarehouseStats } from './components/WarehouseStats';
 import { StockDataTable } from './components/StockDataTable';
+import { apiClient } from '@/lib/api-client';
 
 export default function WarehousesPage() {
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -68,36 +69,32 @@ export default function WarehousesPage() {
     try {
       setLoading(true);
       
-      // Fetch data from API
-      const [warehousesResponse, transfersResponse, materialsResponse, usersResponse, stocksResponse] = await Promise.all([
-        fetch('/api/warehouses'),
-        fetch('/api/warehouses/transfers'),
-        fetch('/api/materials'),
-        fetch('/api/users'),
-        fetch('/api/reports/inventory/current-stock'),
+      // Fetch data from API using authenticated client
+      const [warehousesResult, transfersResult, materialsResult, usersResult, stocksResult] = await Promise.all([
+        apiClient.get('/api/warehouses'),
+        apiClient.get('/api/warehouses/transfers'),
+        apiClient.get('/api/materials'),
+        apiClient.get('/api/users'),
+        apiClient.get('/api/reports/inventory/current-stock'),
       ]);
       
-      if (warehousesResponse.ok) {
-        const warehousesResult = await warehousesResponse.json();
+      if (warehousesResult.success) {
         setWarehouses(warehousesResult.data || []);
       }
       
-      if (transfersResponse.ok) {
-        const transfersResult = await transfersResponse.json();
+      if (transfersResult.success) {
         setTransfers(transfersResult.data || []);
       }
       
-      if (usersResponse.ok) {
-        const usersResult = await usersResponse.json();
+      if (usersResult.success) {
         setUsers(usersResult.data || []);
       }
       
       // Load material stocks data first to get unitConversion info
       let enrichedMaterials = [];
-      if (stocksResponse.ok) {
-        const stocksResult = await stocksResponse.json();
+      if (stocksResult.success) {
         console.log('📊 Stock API Response:', stocksResult);
-        if (stocksResult.success && stocksResult.data) {
+        if (stocksResult.data) {
           // Convert the material stocks data to the format expected by the components
           const allMaterialStocks: any[] = [];
           
@@ -138,13 +135,12 @@ export default function WarehousesPage() {
           }));
         }
       } else {
-        console.error('❌ Failed to load stocks:', stocksResponse.status);
+        console.error('❌ Failed to load stocks:', stocksResult.error);
         setMaterialStocks([]);
       }
       
       // Load and merge materials data
-      if (materialsResponse.ok) {
-        const materialsResult = await materialsResponse.json();
+      if (materialsResult.success) {
         const basicMaterials = materialsResult.data || [];
         
         // If we have enriched materials from stocks, use them, otherwise use basic materials
@@ -181,24 +177,17 @@ export default function WarehousesPage() {
     try {
       setLoading(true);
       
-      const response = await fetch(`/api/warehouses/transfers/${transferId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: newStatus,
-          userId: '1' // Current user
-        }),
+      const response = await apiClient.patch(`/api/warehouses/transfers/${transferId}`, {
+        status: newStatus,
+        userId: '1' // Current user
       });
       
-      if (response.ok) {
+      if (response.success) {
         await loadData();
         setViewingTransfer(null);
         setIsTransferDetailOpen(false);
       } else {
-        const error = await response.json();
-        alert(error.error || 'Transfer durumu güncellenirken hata oluştu');
+        alert(response.error || 'Transfer durumu güncellenirken hata oluştu');
       }
     } catch (error) {
       console.error('Error updating transfer status:', error);
@@ -213,17 +202,14 @@ export default function WarehousesPage() {
       try {
         setLoading(true);
         
-        const response = await fetch(`/api/warehouses/transfers/${transferId}`, {
-          method: 'DELETE',
-        });
+        const response = await apiClient.delete(`/api/warehouses/transfers/${transferId}`);
         
-        if (response.ok) {
+        if (response.success) {
           await loadData();
           setViewingTransfer(null);
           setIsTransferDetailOpen(false);
         } else {
-          const error = await response.json();
-          alert(error.error || 'Transfer silinirken hata oluştu');
+          alert(response.error || 'Transfer silinirken hata oluştu');
         }
       } catch (error) {
         console.error('Error deleting transfer:', error);
@@ -296,29 +282,22 @@ export default function WarehousesPage() {
     }
 
     try {
-      const response = await fetch('/api/warehouses', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: warehouseForm.name,
-          description: warehouseForm.description,
-          location: warehouseForm.location,
-          type: warehouseForm.type,
-          capacity: warehouseForm.capacity ? Number(warehouseForm.capacity) : undefined,
-          minTemperature: warehouseForm.minTemperature ? Number(warehouseForm.minTemperature) : undefined,
-          maxTemperature: warehouseForm.maxTemperature ? Number(warehouseForm.maxTemperature) : undefined,
-        }),
+      const response = await apiClient.post('/api/warehouses', {
+        name: warehouseForm.name,
+        description: warehouseForm.description,
+        location: warehouseForm.location,
+        type: warehouseForm.type,
+        capacity: warehouseForm.capacity ? Number(warehouseForm.capacity) : undefined,
+        minTemperature: warehouseForm.minTemperature ? Number(warehouseForm.minTemperature) : undefined,
+        maxTemperature: warehouseForm.maxTemperature ? Number(warehouseForm.maxTemperature) : undefined,
       });
 
-      if (response.ok) {
+      if (response.success) {
         await loadData();
         setIsAddWarehouseOpen(false);
         resetWarehouseForm();
       } else {
-        const error = await response.json();
-        alert(error.error || 'Depo eklenirken hata oluştu');
+        alert(response.error || 'Depo eklenirken hata oluştu');
       }
     } catch (error) {
       console.error('Error adding warehouse:', error);
@@ -335,29 +314,22 @@ export default function WarehousesPage() {
     }
 
     try {
-      const response = await fetch(`/api/warehouses/${editingWarehouse.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: warehouseForm.name,
-          description: warehouseForm.description,
-          location: warehouseForm.location,
-          type: warehouseForm.type,
-          capacity: warehouseForm.capacity ? Number(warehouseForm.capacity) : undefined,
-          minTemperature: warehouseForm.minTemperature ? Number(warehouseForm.minTemperature) : undefined,
-          maxTemperature: warehouseForm.maxTemperature ? Number(warehouseForm.maxTemperature) : undefined,
-        }),
+      const response = await apiClient.put(`/api/warehouses/${editingWarehouse.id}`, {
+        name: warehouseForm.name,
+        description: warehouseForm.description,
+        location: warehouseForm.location,
+        type: warehouseForm.type,
+        capacity: warehouseForm.capacity ? Number(warehouseForm.capacity) : undefined,
+        minTemperature: warehouseForm.minTemperature ? Number(warehouseForm.minTemperature) : undefined,
+        maxTemperature: warehouseForm.maxTemperature ? Number(warehouseForm.maxTemperature) : undefined,
       });
 
-      if (response.ok) {
+      if (response.success) {
         await loadData();
         setEditingWarehouse(null);
         resetWarehouseForm();
       } else {
-        const error = await response.json();
-        alert(error.error || 'Depo güncellenirken hata oluştu');
+        alert(response.error || 'Depo güncellenirken hata oluştu');
       }
     } catch (error) {
       console.error('Error updating warehouse:', error);
@@ -371,15 +343,12 @@ export default function WarehousesPage() {
     }
 
     try {
-      const response = await fetch(`/api/warehouses/${warehouseId}`, {
-        method: 'DELETE',
-      });
+      const response = await apiClient.delete(`/api/warehouses/${warehouseId}`);
 
-      if (response.ok) {
+      if (response.success) {
         await loadData();
       } else {
-        const error = await response.json();
-        alert(error.error || 'Depo silinirken hata oluştu');
+        alert(response.error || 'Depo silinirken hata oluştu');
       }
     } catch (error) {
       console.error('Error deleting warehouse:', error);
@@ -408,32 +377,24 @@ export default function WarehousesPage() {
     reason: string;
     transferDate: string;
   }) => {
-    const materialResponse = await fetch(`/api/materials/${data.materialId}`);
-    const materialData = await materialResponse.json();
+    const materialData = await apiClient.get(`/api/materials/${data.materialId}`);
     const selectedMaterial = materialData.success ? materialData.data : null;
 
-    const response = await fetch('/api/warehouses/transfers', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        fromWarehouseId: data.fromWarehouseId,
-        toWarehouseId: data.toWarehouseId,
-        materialId: data.materialId,
-        unitId: selectedMaterial?.consumptionUnitId || '2', // Use consumption unit
-        quantity: Number(data.quantity),
-        reason: data.reason,
-        userId: '1', // default user
-        transferDate: data.transferDate
-      }),
+    const response = await apiClient.post('/api/warehouses/transfers', {
+      fromWarehouseId: data.fromWarehouseId,
+      toWarehouseId: data.toWarehouseId,
+      materialId: data.materialId,
+      unitId: selectedMaterial?.consumptionUnitId || '2', // Use consumption unit
+      quantity: Number(data.quantity),
+      reason: data.reason,
+      userId: '1', // default user
+      transferDate: data.transferDate
     });
 
-    if (response.ok) {
+    if (response.success) {
       await loadData();
     } else {
-      const error = await response.json();
-      throw new Error(error.error || 'Transfer oluşturulurken hata oluştu');
+      throw new Error(response.error || 'Transfer oluşturulurken hata oluştu');
     }
   };
 

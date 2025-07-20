@@ -28,6 +28,7 @@ import {
   Percent
 } from 'lucide-react';
 import Link from 'next/link';
+import { apiClient } from '@/lib/api-client';
 
 interface InvoiceItem {
   id: string;
@@ -134,24 +135,14 @@ export default function EditInvoicePage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [materialsRes, suppliersRes, currentAccountsRes, unitsRes, taxesRes, warehousesRes, invoiceRes] = await Promise.all([
-        fetch('/api/materials'),
-        fetch('/api/suppliers'),
-        fetch('/api/current-accounts?type=SUPPLIER'),
-        fetch('/api/units'),
-        fetch('/api/taxes?activeOnly=true'),
-        fetch('/api/warehouses'),
-        fetch(`/api/invoices/${invoiceId}`)
-      ]);
-
       const [materialsData, suppliersData, currentAccountsData, unitsData, taxesData, warehousesData, invoiceData] = await Promise.all([
-        materialsRes.json(),
-        suppliersRes.json(),
-        currentAccountsRes.json(),
-        unitsRes.json(),
-        taxesRes.json(),
-        warehousesRes.json(),
-        invoiceRes.json()
+        apiClient.get('/api/materials'),
+        apiClient.get('/api/suppliers'),
+        apiClient.get('/api/current-accounts?type=SUPPLIER'),
+        apiClient.get('/api/units'),
+        apiClient.get('/api/taxes?activeOnly=true'),
+        apiClient.get('/api/warehouses'),
+        apiClient.get(`/api/invoices/${invoiceId}`)
       ]);
 
       setMaterials(materialsData.data || []);
@@ -162,6 +153,7 @@ export default function EditInvoicePage() {
       setWarehouses(warehousesData.data || []);
       
       if (invoiceData.success) {
+        console.log('Raw invoice data from API:', invoiceData.data);
         setInvoiceForm(invoiceData.data);
       } else {
         console.error('Failed to load invoice:', invoiceData.error);
@@ -252,25 +244,18 @@ export default function EditInvoicePage() {
       // Recalculate totals before saving
       const totals = calculateInvoiceTotals();
       
-      const response = await fetch(`/api/invoices/${invoiceId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...invoiceForm,
-          currentAccountId: invoiceForm.currentAccountId || invoiceForm.supplierId,
-          subtotalAmount: totals.subtotal,
-          totalDiscountAmount: totals.totalDiscount,
-          totalTaxAmount: totals.totalTax,
-          totalAmount: totals.total,
-          items: invoiceForm.items
-        }),
+      const response = await apiClient.put(`/api/invoices/${invoiceId}`, {
+        ...invoiceForm,
+        currentAccountId: invoiceForm.currentAccountId || invoiceForm.supplierId,
+        subtotalAmount: totals.subtotal,
+        totalDiscountAmount: totals.totalDiscount,
+        totalTaxAmount: totals.totalTax,
+        totalAmount: totals.total,
+        items: invoiceForm.items
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Invoice updated successfully:', result);
+      if (response.success) {
+        console.log('Invoice updated successfully:', response.data);
         
         // Show success message (you could use a toast notification here)
         alert('Fatura başarıyla güncellendi!');
@@ -278,9 +263,8 @@ export default function EditInvoicePage() {
         // Optionally redirect or refresh
         window.location.href = `/invoices/${invoiceId}`;
       } else {
-        const error = await response.json();
-        console.error('Failed to update invoice:', error);
-        alert(error.error || 'Fatura güncellenirken hata oluştu');
+        console.error('Failed to update invoice:', response.error);
+        alert(response.error || 'Fatura güncellenirken hata oluştu');
       }
     } catch (error) {
       console.error('Error updating invoice:', error);
@@ -347,6 +331,10 @@ export default function EditInvoicePage() {
     );
   }
 
+  // Debug log to see the invoice data
+  console.log('Invoice data loaded:', invoiceForm);
+  console.log('Invoice items:', invoiceForm.items);
+
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -368,9 +356,7 @@ export default function EditInvoicePage() {
             </div>
             
             <div className="flex gap-2">
-              <Button variant="outline">
-                Taslak Kaydet
-              </Button>
+            
               <Button 
                 className="bg-orange-500 hover:bg-orange-600" 
                 onClick={handleSave}
@@ -389,7 +375,7 @@ export default function EditInvoicePage() {
                 <ShoppingCart className="w-4 h-4 text-blue-600" />
                 <span className="text-sm font-medium text-muted-foreground">Kalem Sayısı</span>
               </div>
-              <div className="text-2xl font-bold text-blue-600">{invoiceForm?.items.length || 0}</div>
+              <div className="text-2xl font-bold text-blue-600">{invoiceForm?.items?.length || 0}</div>
             </div>
             
             <div className="text-center">
@@ -551,7 +537,7 @@ export default function EditInvoicePage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {invoiceForm.items.map((item, index) => {
+              {(invoiceForm.items || []).map((item, index) => {
                 const material = getMaterialById(item.materialId);
                 const unit = getUnitById(item.unitId);
                 const warehouse = getWarehouseById(item.warehouseId);
@@ -622,7 +608,7 @@ export default function EditInvoicePage() {
                 );
               })}
               
-              {invoiceForm.items.length === 0 && (
+              {(!invoiceForm.items || invoiceForm.items.length === 0) && (
                 <div className="text-center py-8 text-muted-foreground">
                   <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>Henüz ürün eklenmemiş</p>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,11 +16,9 @@ interface AddCurrentAccountModalProps {
 export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     type: 'SUPPLIER',
-    supplierId: '',
     contactName: '',
     phone: '',
     email: '',
@@ -31,23 +29,6 @@ export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModa
     isActive: true
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      loadSuppliers();
-    }
-  }, [isOpen]);
-
-  const loadSuppliers = async () => {
-    try {
-      const response = await fetch('/api/suppliers');
-      const data = await response.json();
-      if (data.success) {
-        setSuppliers(data.data);
-      }
-    } catch (error) {
-      console.error('Error loading suppliers:', error);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +49,6 @@ export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModa
         body: JSON.stringify({
           name: formData.name,
           type: formData.type,
-          supplierId: formData.supplierId || null,
           contactName: formData.contactName || null,
           phone: formData.phone || null,
           email: formData.email || null,
@@ -105,7 +85,6 @@ export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModa
     setFormData({
       name: '',
       type: 'SUPPLIER',
-      supplierId: '',
       contactName: '',
       phone: '',
       email: '',
@@ -117,34 +96,6 @@ export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModa
     });
   };
 
-  const handleSupplierChange = (supplierId: string) => {
-    if (supplierId === 'manual') {
-      setFormData(prev => ({
-        ...prev,
-        supplierId: '',
-        name: '',
-        contactName: '',
-        phone: '',
-        email: '',
-        address: '',
-        taxNumber: ''
-      }));
-    } else {
-      const supplier = suppliers.find((s: any) => s.id === supplierId);
-      if (supplier) {
-        setFormData(prev => ({
-          ...prev,
-          supplierId: supplierId,
-          name: supplier.name,
-          contactName: supplier.contactName || '',
-          phone: supplier.phone || '',
-          email: supplier.email || '',
-          address: supplier.address || '',
-          taxNumber: supplier.taxNumber || ''
-        }));
-      }
-    }
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -158,7 +109,7 @@ export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModa
         <DialogHeader>
           <DialogTitle>Yeni Cari Hesap Ekle</DialogTitle>
           <DialogDescription>
-            Yeni bir cari hesap oluşturun. Mevcut bir tedarikçi seçebilir veya manuel olarak girebilirsiniz.
+Yeni bir cari hesap oluşturun.
           </DialogDescription>
         </DialogHeader>
         
@@ -181,27 +132,6 @@ export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModa
               </Select>
             </div>
 
-            {formData.type === 'SUPPLIER' && (
-              <div>
-                <Label htmlFor="supplierId">Tedarikçi Seç</Label>
-                <Select
-                  value={formData.supplierId}
-                  onValueChange={handleSupplierChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tedarikçi seçin (isteğe bağlı)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">Manuel Giriş</SelectItem>
-                    {suppliers.map((supplier: any) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
           </div>
 
           <div>

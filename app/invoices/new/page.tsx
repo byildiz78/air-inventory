@@ -29,6 +29,7 @@ import {
   Percent
 } from 'lucide-react';
 import Link from 'next/link';
+import { AddCurrentAccountModal } from '@/app/current-accounts/components/AddCurrentAccountModal';
 // API çağrıları kullanıldığı için servis importlarına gerek yok
 // Prisma tiplerini doğrudan kullanmak yerine kendi tiplerini tanımlıyoruz
 type Material = {
@@ -39,16 +40,6 @@ type Material = {
   defaultTaxId?: string;
   defaultWarehouseId?: string;
   currentStock?: number;
-};
-
-type Supplier = {
-  id: string;
-  name: string;
-  contactName?: string;
-  phone?: string;
-  email?: string;
-  taxNumber?: string;
-  address?: string;
 };
 
 type CurrentAccount = {
@@ -127,7 +118,6 @@ export default function NewInvoicePage() {
   const searchParams = useSearchParams();
   const invoiceType = searchParams.get('type') || 'purchase';
   const [materials, setMaterials] = useState<MaterialWithRelations[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [currentAccounts, setCurrentAccounts] = useState<CurrentAccount[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [taxes, setTaxes] = useState<TaxWithRate[]>([]);
@@ -149,18 +139,6 @@ export default function NewInvoicePage() {
   // Add item modal
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
   const [materialSearch, setMaterialSearch] = useState('');
-  
-  // Add supplier modal
-  const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
-  const [addingSupplier, setAddingSupplier] = useState(false);
-  const [newSupplier, setNewSupplier] = useState({
-    name: '',
-    contactName: '',
-    phone: '',
-    email: '',
-    address: '',
-    taxNumber: ''
-  });
 
   useEffect(() => {
     loadData();
@@ -171,9 +149,8 @@ export default function NewInvoicePage() {
       setLoading(true);
       
       // Tüm verileri paralel olarak yükle
-      const [materialsRes, suppliersRes, currentAccountsRes, unitsRes, taxesRes, warehousesRes, currentUserRes] = await Promise.all([
+      const [materialsRes, currentAccountsRes, unitsRes, taxesRes, warehousesRes, currentUserRes] = await Promise.all([
         apiClient.get('/api/materials'),
-        apiClient.get('/api/suppliers'),
         apiClient.get('/api/current-accounts?type=SUPPLIER'),
         apiClient.get('/api/units'),
         apiClient.get('/api/taxes'),
@@ -183,7 +160,6 @@ export default function NewInvoicePage() {
       
       console.log('API Responses:', {
         materials: materialsRes,
-        suppliers: suppliersRes,
         currentAccounts: currentAccountsRes,
         units: unitsRes,
         taxes: taxesRes,
@@ -198,14 +174,6 @@ export default function NewInvoicePage() {
       } else {
         console.error('Materials data format error:', materialsRes);
         setMaterials([]);
-      }
-      
-      if (suppliersRes.success && Array.isArray(suppliersRes.data)) {
-        setSuppliers(suppliersRes.data);
-        console.log('Suppliers set:', suppliersRes.data.length, 'items');
-      } else {
-        console.error('Suppliers data format error:', suppliersRes);
-        setSuppliers([]);
       }
       
       if (currentAccountsRes.success && Array.isArray(currentAccountsRes.data)) {
@@ -238,90 +206,18 @@ export default function NewInvoicePage() {
     }
   };
 
-  // Helper validation functions
-  const isValidEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
-  };
-  
-  const isValidPhone = (phone: string): boolean => {
-    const phoneRegex = /^[\d\s\-\(\)\+]{10,}$/;
-    return phoneRegex.test(phone.trim());
-  };
 
-  const handleAddSupplier = async () => {
-    // Form validation
-    if (!newSupplier.name.trim()) {
-      alert('Tedarikçi adı zorunludur!');
-      return;
-    }
-    
-    if (newSupplier.name.trim().length < 2) {
-      alert('Tedarikçi adı en az 2 karakter olmalıdır!');
-      return;
-    }
-    
-    if (newSupplier.email && !isValidEmail(newSupplier.email)) {
-      alert('Geçerli bir e-posta adresi giriniz!');
-      return;
-    }
-    
-    if (newSupplier.phone && !isValidPhone(newSupplier.phone)) {
-      alert('Geçerli bir telefon numarası giriniz!');
-      return;
-    }
-
+  const handleCurrentAccountAdded = async () => {
+    // Reload current accounts after adding a new one
     try {
-      setAddingSupplier(true);
-      
-      const result = await apiClient.post('/api/suppliers', {
-        name: newSupplier.name.trim(),
-        contactName: newSupplier.contactName.trim() || null,
-        phone: newSupplier.phone.trim() || null,
-        email: newSupplier.email.trim() || null,
-        address: newSupplier.address.trim() || null,
-        taxNumber: newSupplier.taxNumber.trim() || null,
-      });
-
-      if (result.success) {
-          // Yeni tedarikçiyi liste başına ekle
-          setSuppliers(prev => [result.data, ...prev]);
-          
-          // Yeni tedarikçi oluşturuldu
-          
-          // Form temizle ve modal kapat
-          setNewSupplier({
-            name: '',
-            contactName: '',
-            phone: '',
-            email: '',
-            address: '',
-            taxNumber: ''
-          });
-          setIsAddSupplierOpen(false);
-          
-          alert('Tedarikçi başarıyla eklendi!');
-        } else {
-          alert(result.error || 'Tedarikçi eklenirken bir hata oluştu');
-        }
+      const currentAccountsRes = await apiClient.get('/api/current-accounts?type=SUPPLIER');
+      if (currentAccountsRes.success && Array.isArray(currentAccountsRes.data)) {
+        setCurrentAccounts(currentAccountsRes.data);
+        console.log('Current accounts reloaded:', currentAccountsRes.data.length, 'accounts');
+      }
     } catch (error) {
-      console.error('Tedarikçi ekleme hatası:', error);
-      alert('Tedarikçi eklenirken bir hata oluştu');
-    } finally {
-      setAddingSupplier(false);
+      console.error('Error reloading current accounts:', error);
     }
-  };
-
-  const resetSupplierForm = () => {
-    setNewSupplier({
-      name: '',
-      contactName: '',
-      phone: '',
-      email: '',
-      address: '',
-      taxNumber: ''
-    });
-    setIsAddSupplierOpen(false);
   };
 
   const addItem = (materialId: string) => {
@@ -463,7 +359,6 @@ export default function NewInvoicePage() {
   const getUnitById = (id: string) => units.find(u => u.id === id);
   const getWarehouseById = (id: string) => warehouses.find(w => w.id === id);
   const getTaxById = (id: string) => taxes.find(t => t.id === id);
-  const getSupplierById = (id: string) => suppliers.find(s => s.id === id);
 
   const filteredMaterials = materials.filter(material => 
     material.name.toLowerCase().includes(materialSearch.toLowerCase()) &&
@@ -523,9 +418,7 @@ export default function NewInvoicePage() {
             </div>
             
             <div className="flex gap-2">
-              <Button variant="outline" type="button">
-                Taslak Kaydet
-              </Button>
+            
               <Button 
                 className="bg-orange-500 hover:bg-orange-600" 
                 type="button"
@@ -636,16 +529,7 @@ export default function NewInvoicePage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setIsAddSupplierOpen(true)}
-                        className="shrink-0"
-                        title={invoiceForm.type === 'PURCHASE' ? 'Yeni tedarikçi ekle' : 'Yeni müşteri ekle'}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
+                      <AddCurrentAccountModal onAccountAdded={handleCurrentAccountAdded} />
                     </div>
                   </div>
                   
@@ -1053,133 +937,6 @@ export default function NewInvoicePage() {
           </CardContent>
         </Card>
       </div>
-      
-      {/* Add Supplier Modal */}
-      <Dialog open={isAddSupplierOpen} onOpenChange={setIsAddSupplierOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>
-              {invoiceForm.type === 'PURCHASE' ? 'Yeni Tedarikçi Ekle' : 'Yeni Müşteri Ekle'}
-            </DialogTitle>
-            <DialogDescription>
-              {invoiceForm.type === 'PURCHASE' 
-                ? 'Yeni tedarikçi bilgilerini girin. Eklendikten sonra otomatik olarak seçilecektir.'
-                : 'Yeni müşteri bilgilerini girin. Eklendikten sonra otomatik olarak seçilecektir.'
-              }
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="supplierName">
-                  {invoiceForm.type === 'PURCHASE' ? 'Tedarikçi Adı' : 'Müşteri Adı'} *
-                </Label>
-                <Input
-                  id="supplierName"
-                  value={newSupplier.name}
-                  onChange={(e) => setNewSupplier(prev => ({ ...prev, name: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !addingSupplier && newSupplier.name.trim()) {
-                      handleAddSupplier();
-                    }
-                  }}
-                  placeholder={invoiceForm.type === 'PURCHASE' ? 'Tedarikçi adı' : 'Müşteri adı'}
-                  className="mt-1"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="contactName">İletişim Kişisi</Label>
-                <Input
-                  id="contactName"
-                  value={newSupplier.contactName}
-                  onChange={(e) => setNewSupplier(prev => ({ ...prev, contactName: e.target.value }))}
-                  placeholder="İletişim kişisi"
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="phone">Telefon</Label>
-                <Input
-                  id="phone"
-                  value={newSupplier.phone}
-                  onChange={(e) => setNewSupplier(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="Telefon numarası"
-                  className="mt-1"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="email">E-posta</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newSupplier.email}
-                  onChange={(e) => setNewSupplier(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="E-posta adresi"
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="address">Adres</Label>
-              <Textarea
-                id="address"
-                value={newSupplier.address}
-                onChange={(e) => setNewSupplier(prev => ({ ...prev, address: e.target.value }))}
-                placeholder="Adres bilgisi"
-                className="mt-1"
-                rows={2}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="taxNumber">Vergi Numarası</Label>
-              <Input
-                id="taxNumber"
-                value={newSupplier.taxNumber}
-                onChange={(e) => setNewSupplier(prev => ({ ...prev, taxNumber: e.target.value }))}
-                placeholder="Vergi numarası"
-                className="mt-1"
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={resetSupplierForm}
-              disabled={addingSupplier}
-            >
-              İptal
-            </Button>
-            <Button
-              type="button"
-              onClick={handleAddSupplier}
-              disabled={addingSupplier || !newSupplier.name.trim()}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {addingSupplier ? (
-                <>
-                  <span className="animate-spin mr-2">⏳</span>
-                  Ekleniyor...
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4 mr-2" />
-                  {invoiceForm.type === 'PURCHASE' ? 'Tedarikçi Ekle' : 'Müşteri Ekle'}
-                </>
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

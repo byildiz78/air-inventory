@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,11 +17,9 @@ interface EditCurrentAccountModalProps {
 
 export function EditCurrentAccountModal({ account, onClose, onAccountUpdated }: EditCurrentAccountModalProps) {
   const [saving, setSaving] = useState(false);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: account.name || '',
     type: account.type || 'SUPPLIER',
-    supplierId: account.supplierId || '',
     contactName: account.contactName || '',
     phone: account.phone || '',
     email: account.email || '',
@@ -31,21 +29,6 @@ export function EditCurrentAccountModal({ account, onClose, onAccountUpdated }: 
     isActive: account.isActive
   });
 
-  useEffect(() => {
-    loadSuppliers();
-  }, []);
-
-  const loadSuppliers = async () => {
-    try {
-      const response = await fetch('/api/suppliers');
-      const data = await response.json();
-      if (data.success) {
-        setSuppliers(data.data);
-      }
-    } catch (error) {
-      console.error('Error loading suppliers:', error);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +49,6 @@ export function EditCurrentAccountModal({ account, onClose, onAccountUpdated }: 
         body: JSON.stringify({
           name: formData.name,
           type: formData.type,
-          supplierId: formData.supplierId || null,
           contactName: formData.contactName || null,
           phone: formData.phone || null,
           email: formData.email || null,
@@ -97,28 +79,6 @@ export function EditCurrentAccountModal({ account, onClose, onAccountUpdated }: 
     }
   };
 
-  const handleSupplierChange = (supplierId: string) => {
-    if (supplierId === 'manual') {
-      setFormData(prev => ({
-        ...prev,
-        supplierId: ''
-      }));
-    } else {
-      const supplier = suppliers.find((s: any) => s.id === supplierId);
-      if (supplier) {
-        setFormData(prev => ({
-          ...prev,
-          supplierId: supplierId,
-          name: supplier.name,
-          contactName: supplier.contactName || '',
-          phone: supplier.phone || '',
-          email: supplier.email || '',
-          address: supplier.address || '',
-          taxNumber: supplier.taxNumber || ''
-        }));
-      }
-    }
-  };
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -149,27 +109,6 @@ export function EditCurrentAccountModal({ account, onClose, onAccountUpdated }: 
               </Select>
             </div>
 
-            {formData.type === 'SUPPLIER' && (
-              <div>
-                <Label htmlFor="supplierId">Tedarikçi Seç</Label>
-                <Select
-                  value={formData.supplierId}
-                  onValueChange={handleSupplierChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tedarikçi seçin (isteğe bağlı)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">Manuel Giriş</SelectItem>
-                    {suppliers.map((supplier: any) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
           </div>
 
           <div>
