@@ -200,14 +200,16 @@ export const PUT = AuthMiddleware.withAuth(async (
       'expense_batch',
       batchId,
       {
-        name: updatedBatch.name,
-        totalAmount: updatedBatch.totalAmount,
-        itemCount: items.length
-      },
-      {
-        name: existingBatch.name,
-        totalAmount: existingBatch.totalAmount,
-        itemCount: existingBatch.items.length
+        before: {
+          name: existingBatch.name,
+          totalAmount: existingBatch.totalAmount,
+          itemCount: existingBatch.items.length
+        },
+        after: {
+          name: updatedBatch.name,
+          totalAmount: updatedBatch.totalAmount,
+          itemCount: items.length
+        }
       },
       request
     );

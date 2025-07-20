@@ -261,8 +261,8 @@ export default function LoginPage() {
               </div>
 
               <div className="text-xs text-center text-gray-500">
-                <p>Email: demo@robotpos.com</p>
-                <p>Şifre: demo123</p>
+                <p>Email: admin@robotpos.com</p>
+                <p>Şifre: 123456</p>
               </div>
             </CardFooter>
           </form>

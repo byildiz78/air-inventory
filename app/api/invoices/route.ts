@@ -610,31 +610,50 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
 export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
+    console.log('📥 Invoice creation request:', JSON.stringify(body, null, 2));
     
     // Validate required fields
     if (!body.invoiceNumber || !body.type || !body.date || !body.userId) {
+      const missingFields = [];
+      if (!body.invoiceNumber) missingFields.push('invoiceNumber');
+      if (!body.type) missingFields.push('type');
+      if (!body.date) missingFields.push('date');
+      if (!body.userId) missingFields.push('userId');
+      
+      console.log('❌ Missing required fields:', missingFields);
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields',
+          error: `Missing required fields: ${missingFields.join(', ')}`,
         },
         { status: 400 }
       );
     }
 
-    // Check if invoice number already exists
+    // Check if invoice number already exists and generate new one if needed
+    let invoiceNumber = body.invoiceNumber;
     const existingInvoice = await prisma.invoice.findUnique({
       where: { invoiceNumber: body.invoiceNumber }
     });
 
     if (existingInvoice) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invoice number already exists',
-        },
-        { status: 400 }
-      );
+      console.log('⚠️ Invoice number already exists, generating new number...');
+      
+      // Extract prefix and base number
+      const prefix = body.invoiceNumber.split('-').slice(0, -1).join('-'); // ALF-2025
+      const lastNumber = parseInt(body.invoiceNumber.split('-').pop() || '0');
+      
+      // Find the next available number
+      let counter = lastNumber + 1;
+      let newInvoiceNumber = `${prefix}-${counter}`;
+      
+      while (await prisma.invoice.findUnique({ where: { invoiceNumber: newInvoiceNumber } })) {
+        counter++;
+        newInvoiceNumber = `${prefix}-${counter}`;
+      }
+      
+      invoiceNumber = newInvoiceNumber;
+      console.log('✅ Generated new invoice number:', invoiceNumber);
     }
 
     // Debug log
@@ -648,18 +667,20 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
     let finalCurrentAccountId: string | null = null;
     
     if (body.currentAccountId) {
+      console.log('🔍 Validating currentAccountId:', body.currentAccountId);
       // Validate provided currentAccountId
       const currentAccount = await prisma.currentAccount.findUnique({
         where: { id: body.currentAccountId }
       });
       if (!currentAccount) {
+        console.log('❌ Current account not found:', body.currentAccountId);
         return NextResponse.json(
           { success: false, error: `Selected account not found: ${body.currentAccountId}` },
           { status: 400 }
         );
       }
       finalCurrentAccountId = body.currentAccountId;
-      console.log('Using provided current account:', currentAccount.name);
+      console.log('✅ Using provided current account:', currentAccount.name);
     } else if (body.supplierId) {
       // Fallback to supplier - find or create current account
       const supplier = await prisma.supplier.findUnique({
@@ -708,19 +729,75 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
     }
 
     // Additional validation before transaction
-    console.log('Pre-transaction validation...');
+    console.log('🔍 Pre-transaction validation...');
     
     // Validate userId exists
     const userExists = await prisma.user.findUnique({
       where: { id: body.userId }
     });
     if (!userExists) {
+      console.log('❌ User not found:', body.userId);
       return NextResponse.json(
         { success: false, error: `User not found: ${body.userId}` },
         { status: 400 }
       );
     }
-    console.log('User validated:', userExists.name);
+    console.log('✅ User validated:', userExists.name);
+
+    // Validate items if provided
+    if (body.items && body.items.length > 0) {
+      console.log('🔍 Validating invoice items...');
+      for (const item of body.items) {
+        // Check material exists
+        const material = await prisma.material.findUnique({
+          where: { id: item.materialId }
+        });
+        if (!material) {
+          console.log('❌ Material not found:', item.materialId);
+          return NextResponse.json(
+            { success: false, error: `Material not found: ${item.materialId}` },
+            { status: 400 }
+          );
+        }
+
+        // Check unit exists
+        const unit = await prisma.unit.findUnique({
+          where: { id: item.unitId }
+        });
+        if (!unit) {
+          console.log('❌ Unit not found:', item.unitId);
+          return NextResponse.json(
+            { success: false, error: `Unit not found: ${item.unitId}` },
+            { status: 400 }
+          );
+        }
+
+        // Check warehouse exists
+        const warehouse = await prisma.warehouse.findUnique({
+          where: { id: item.warehouseId }
+        });
+        if (!warehouse) {
+          console.log('❌ Warehouse not found:', item.warehouseId);
+          return NextResponse.json(
+            { success: false, error: `Warehouse not found: ${item.warehouseId}` },
+            { status: 400 }
+          );
+        }
+
+        // Check tax exists
+        const tax = await prisma.tax.findUnique({
+          where: { id: item.taxId }
+        });
+        if (!tax) {
+          console.log('❌ Tax not found:', item.taxId);
+          return NextResponse.json(
+            { success: false, error: `Tax not found: ${item.taxId}` },
+            { status: 400 }
+          );
+        }
+      }
+      console.log('✅ All invoice items validated');
+    }
     
     // Validate supplierId if provided (legacy support)
     if (body.supplierId && body.supplierId !== '') {
@@ -737,11 +814,12 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
     }
 
     // Create the invoice in a transaction with its items
+    console.log('🚀 Starting database transaction...');
     const result = await prisma.$transaction(async (tx: any) => {
 
       // Create the invoice
-      console.log('Creating invoice with data:', {
-        invoiceNumber: body.invoiceNumber,
+      console.log('📝 Creating invoice with data:', {
+        invoiceNumber: invoiceNumber,
         type: body.type,
         supplierId: body.supplierId || null,
         currentAccountId: finalCurrentAccountId,
@@ -751,7 +829,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
       
       const invoice = await tx.invoice.create({
         data: {
-          invoiceNumber: body.invoiceNumber,
+          invoiceNumber: invoiceNumber,
           type: body.type,
           supplierId: (body.supplierId && body.supplierId !== '') ? body.supplierId : null, // Keep for backward compatibility
           currentAccountId: finalCurrentAccountId,
@@ -843,7 +921,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
                 warehouseId: item.warehouseId,
                 type: body.type === 'PURCHASE' ? 'IN' : 'OUT',
                 quantity: consumptionQuantity, // Use consumption quantity
-                reason: `${body.type === 'PURCHASE' ? 'Alış' : 'Satış'} Faturası: ${body.invoiceNumber}`,
+                reason: `${body.type === 'PURCHASE' ? 'Alış' : 'Satış'} Faturası: ${invoiceNumber}`,
                 unitCost: consumptionUnitCost, // Use consumption unit cost
                 totalCost: item.totalAmount,
                 stockBefore: stockBefore,
@@ -877,8 +955,8 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
               amount: body.totalAmount || 0,
               balanceBefore: currentBalance,
               balanceAfter: newBalance,
-              description: `Alış Faturası: ${body.invoiceNumber}`,
-              referenceNumber: body.invoiceNumber,
+              description: `Alış Faturası: ${invoiceNumber}`,
+              referenceNumber: invoiceNumber,
               transactionDate: new Date(body.date),
               userId: body.userId
             }
