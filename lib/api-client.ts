@@ -53,10 +53,14 @@ class ApiClient {
     // Determine if this is a cross-origin request
     const isAbsoluteUrl = url.startsWith('http://') || url.startsWith('https://');
 
+    const authHeaders = this.getAuthHeaders();
+    console.log('ApiClient request:', method, url);
+    console.log('Auth headers:', authHeaders);
+
     const config: RequestInit = {
       method,
       headers: {
-        ...this.getAuthHeaders(),
+        ...authHeaders,
         ...headers,
       },
       // Include credentials for both same-origin and cross-origin requests
