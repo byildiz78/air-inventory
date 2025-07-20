@@ -19,6 +19,7 @@ import {
   ShoppingCart
 } from 'lucide-react';
 import Link from 'next/link';
+import { apiClient } from '@/lib/api-client';
 import { 
   BarChart, 
   Bar, 
@@ -98,33 +99,21 @@ export default function RecipeUsageReportPage() {
       setLoading(true);
       setError(null);
       
-      // Fetch all data from APIs
+      // Fetch all data from APIs using authenticated client
       const [recipesResponse, salesResponse, recipeMappingsResponse] = await Promise.all([
-        fetch('/api/recipes?includeIngredients=true'),
-        fetch('/api/sales'),
-        fetch('/api/recipe-mappings')
-      ]);
-      
-      // Check if responses are ok
-      if (!recipesResponse.ok || !salesResponse.ok || !recipeMappingsResponse.ok) {
-        throw new Error('Failed to fetch data from APIs');
-      }
-      
-      // Parse JSON responses
-      const [recipesData, salesData, recipeMappingsData] = await Promise.all([
-        recipesResponse.json(),
-        salesResponse.json(),
-        recipeMappingsResponse.json()
+        apiClient.get('/api/recipes?includeIngredients=true'),
+        apiClient.get('/api/sales'),
+        apiClient.get('/api/recipe-mappings')
       ]);
       
       // Check if API responses are successful
-      if (!recipesData.success || !salesData.success || !recipeMappingsData.success) {
+      if (!recipesResponse.success || !salesResponse.success || !recipeMappingsResponse.success) {
         throw new Error('API responded with error');
       }
       
-      setRecipes(recipesData.data || []);
-      setSales(salesData.data || []);
-      setRecipeMappings(recipeMappingsData.data || []);
+      setRecipes(recipesResponse.data || []);
+      setSales(salesResponse.data || []);
+      setRecipeMappings(recipeMappingsResponse.data || []);
     } catch (error) {
       console.error('Recipe usage data loading error:', error);
       setError(error instanceof Error ? error.message : 'Failed to load data');
