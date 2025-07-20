@@ -39,7 +39,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
     // Check if code already exists within the sub category
     const existingItem = await prisma.expenseItem.findFirst({
       where: { 
-        code: { equals: code, mode: 'insensitive' },
+        code: { equals: code },
         subCategoryId 
       }
     });

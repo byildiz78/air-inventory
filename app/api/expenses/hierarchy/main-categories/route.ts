@@ -22,7 +22,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
 
     // Check if code already exists
     const existingCategory = await prisma.expenseMainCategory.findFirst({
-      where: { code: { equals: code, mode: 'insensitive' } }
+      where: { code: { equals: code } }
     });
 
     if (existingCategory) {

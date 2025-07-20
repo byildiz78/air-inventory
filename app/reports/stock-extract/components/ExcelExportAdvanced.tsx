@@ -140,7 +140,7 @@ export const exportToAdvancedExcel = (data: StockExtractData) => {
   const groupedData = groupDataHierarchically(data.records);
   
   // Add hierarchical data with proper formatting
-  Object.entries(groupedData.warehouses).forEach(([warehouseId, warehouse]) => {
+  Object.entries(groupedData.warehouses).forEach(([warehouseId, warehouse]: [string, any]) => {
     const warehouseStartRow = currentRow;
     
     // Warehouse Row
@@ -175,7 +175,7 @@ export const exportToAdvancedExcel = (data: StockExtractData) => {
     currentRow++;
     
     // Main Categories
-    Object.entries(warehouse.mainCategories).forEach(([mainCatId, mainCat]) => {
+    Object.entries(warehouse.mainCategories).forEach(([mainCatId, mainCat]: [string, any]) => {
       const mainCategoryStartRow = currentRow;
       
       const mainCategoryTotals = calculateMainCategoryTotals(mainCat, isAmountReport);
@@ -207,7 +207,7 @@ export const exportToAdvancedExcel = (data: StockExtractData) => {
       currentRow++;
       
       // Sub Categories
-      Object.entries(mainCat.subCategories).forEach(([subCatId, subCat]) => {
+      Object.entries(mainCat.subCategories).forEach(([subCatId, subCat]: [string, any]) => {
         const subCategoryStartRow = currentRow;
         
         excelData.push([
@@ -227,7 +227,7 @@ export const exportToAdvancedExcel = (data: StockExtractData) => {
         currentRow++;
         
         // Materials
-        Object.entries(subCat.materials).forEach(([materialId, material]) => {
+        Object.entries(subCat.materials).forEach(([materialId, material]: [string, any]) => {
           const materialStartRow = currentRow;
           
           // Material records

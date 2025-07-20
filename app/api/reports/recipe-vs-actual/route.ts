@@ -171,7 +171,11 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
             }
           }
         },
-        salesItem: true
+        mappings: {
+          include: {
+            salesItem: true
+          }
+        }
       }
     });
 
@@ -185,16 +189,17 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
       }
     };
 
-    if (salesItemIds && salesItemIds.length > 0) {
-      productionFilter.salesItemId = { in: salesItemIds };
+    if (recipeIds && recipeIds.length > 0) {
+      productionFilter.recipeId = { in: recipeIds };
     } else if (recipes.length > 0) {
-      productionFilter.salesItemId = { in: recipes.map(r => r.salesItemId).filter(Boolean) };
+      productionFilter.recipeId = { in: recipes.map(r => r.id) };
     }
 
     const productions = await prisma.production.findMany({
       where: productionFilter,
       include: {
-        salesItem: true
+        recipe: true,
+        material: true
       }
     });
 
@@ -203,16 +208,16 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
     const results: RecipeVsActualData[] = [];
 
     for (const recipe of recipes) {
-      if (!recipe.salesItem) continue;
+      if (!recipe.mappings || recipe.mappings.length === 0) continue;
 
-      // Get production count for this sales item
-      const relatedProductions = productions.filter(p => p.salesItemId === recipe.salesItemId);
+      // Get production count for this recipe
+      const relatedProductions = productions.filter(p => p.recipeId === recipe.id);
       const productionCount = relatedProductions.reduce((sum, p) => sum + p.quantity, 0);
 
       if (productionCount === 0) continue; // Skip if no production
 
       // Calculate expected usage based on recipe
-      const expectedUsage = calculateExpectedUsage(recipe.ingredients, productionCount, recipe.yield);
+      const expectedUsage = calculateExpectedUsage(recipe.ingredients, productionCount, recipe.servingSize);
       
       // Get all material IDs for this recipe
       const materialIds = recipe.ingredients.map(ing => ing.materialId);
@@ -276,19 +281,22 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
         };
       });
 
-      const totalCostVariance = totalActualCost - (totalRecipeCost * productionCount / recipe.yield);
-      const expectedTotalCost = totalRecipeCost * productionCount / recipe.yield;
+      const totalCostVariance = totalActualCost - (totalRecipeCost * productionCount / recipe.servingSize);
+      const expectedTotalCost = totalRecipeCost * productionCount / recipe.servingSize;
       const totalCostVariancePercentage = expectedTotalCost > 0 ? (totalCostVariance / expectedTotalCost) * 100 : 0;
 
       const recipeEfficiency = expectedTotalCost > 0 ? (totalActualCost / expectedTotalCost) * 100 : 0;
       const wastePercentage = Math.max(0, recipeEfficiency - 100);
 
+      // Get the first mapped salesItem (recipes can have multiple mappings)
+      const primaryMapping = recipe.mappings[0];
+      
       results.push({
-        salesItemId: recipe.salesItemId,
-        salesItemName: recipe.salesItem.name,
+        salesItemId: primaryMapping.salesItem.id,
+        salesItemName: primaryMapping.salesItem.name,
         recipeId: recipe.id,
         recipeName: recipe.name,
-        recipeYield: recipe.yield,
+        recipeYield: recipe.servingSize,
         recipeIngredients,
         totalRecipeCost,
         productionCount,

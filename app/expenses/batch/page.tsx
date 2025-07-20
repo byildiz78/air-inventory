@@ -114,7 +114,10 @@ export default function ExpenseBatchListPage() {
       
       if (response.success) {
         setBatches(response.data);
-        setPagination(response.pagination);
+        setPagination(response.pagination ? {
+          ...response.pagination,
+          hasPreviousPage: response.pagination.hasPrevPage
+        } : null);
       } else {
         toast.error('Masraf fişleri yüklenirken hata oluştu');
       }

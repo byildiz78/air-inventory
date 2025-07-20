@@ -218,7 +218,7 @@ export function ExportButtons({ data, filters, onExport }: ExportButtonsProps) {
     const groupedData = groupDataHierarchically(data.records);
     
     // Add data rows with proper hierarchy
-    Object.entries(groupedData.warehouses).forEach(([warehouseId, warehouse]) => {
+    Object.entries(groupedData.warehouses).forEach(([warehouseId, warehouse]: [string, any]) => {
       // Warehouse Row
       const warehouseTotals = calculateWarehouseTotals(warehouse, isAmountReport);
       excelData.push([
@@ -237,7 +237,7 @@ export function ExportButtons({ data, filters, onExport }: ExportButtonsProps) {
       ]);
       
       // Main Categories
-      Object.entries(warehouse.mainCategories).forEach(([mainCatId, mainCat]) => {
+      Object.entries(warehouse.mainCategories).forEach(([mainCatId, mainCat]: [string, any]) => {
         const mainCategoryTotals = calculateMainCategoryTotals(mainCat, isAmountReport);
         excelData.push([
           `  📁 ${mainCat.name}`, // Main category with indentation
@@ -255,15 +255,15 @@ export function ExportButtons({ data, filters, onExport }: ExportButtonsProps) {
         ]);
         
         // Sub Categories
-        Object.entries(mainCat.subCategories).forEach(([subCatId, subCat]) => {
+        Object.entries(mainCat.subCategories).forEach(([subCatId, subCat]: [string, any]) => {
           excelData.push([
             `    📂 ${subCat.name}`, // Sub category with more indentation
             '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'
           ]);
           
           // Materials
-          Object.entries(subCat.materials).forEach(([materialId, material]) => {
-            material.records.forEach(record => {
+          Object.entries(subCat.materials).forEach(([materialId, material]: [string, any]) => {
+            material.records.forEach((record: any) => {
               excelData.push([
                 `      📦 ${material.name}`, // Material with most indentation
                 record.unitAbbreviation,

@@ -183,7 +183,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
 
     const expense = await prisma.expense.create({
       data: {
-        categoryId,
+        expenseItemId: categoryId,
         description,
         amount: parseFloat(amount.toString()),
         date: new Date(date),
@@ -198,7 +198,15 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         userId
       },
       include: {
-        category: true
+        expenseItem: {
+          include: {
+            subCategory: {
+              include: {
+                mainCategory: true
+              }
+            }
+          }
+        }
       }
     });
 

@@ -372,7 +372,7 @@ export default function ProfitLossPage() {
                   </span>
                 </div>
                 <Separator />
-                {filters.reportType === 'detailed' && data.operatingExpenses.detailedBreakdown ? (
+                {data.operatingExpenses.detailedBreakdown ? (
                   <div className="space-y-4">
                     {data.operatingExpenses.detailedBreakdown.map((mainCat, mainIndex) => (
                       <div key={mainIndex} className="space-y-2">

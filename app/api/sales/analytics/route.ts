@@ -70,12 +70,13 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
     const itemSales = new Map<string, { name: string; quantity: number; revenue: number }>();
     
     sales.forEach(sale => {
-      const existing = itemSales.get(sale.salesItemId);
+      const salesItemId = sale.salesItemId || sale.id; // Use sale.id as fallback if salesItemId is null
+      const existing = itemSales.get(salesItemId);
       if (existing) {
         existing.quantity += sale.quantity;
         existing.revenue += sale.totalPrice;
       } else {
-        itemSales.set(sale.salesItemId, {
+        itemSales.set(salesItemId, {
           name: sale.itemName,
           quantity: sale.quantity,
           revenue: sale.totalPrice

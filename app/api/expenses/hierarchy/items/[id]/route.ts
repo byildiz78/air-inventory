@@ -63,7 +63,7 @@ export const PUT = AuthMiddleware.withAuth(async (
     // Check if code already exists within the sub category (excluding current item)
     const duplicateItem = await prisma.expenseItem.findFirst({
       where: { 
-        code: { equals: code, mode: 'insensitive' },
+        code: { equals: code },
         subCategoryId,
         id: { not: itemId }
       }
@@ -103,17 +103,19 @@ export const PUT = AuthMiddleware.withAuth(async (
         userId,
         'expense_item',
         itemId,
-        { 
-          name, 
-          code: updatedItem.code, 
-          subCategoryName: subCategory.name,
-          mainCategoryName: subCategory.mainCategory.name
-        },
-        { 
-          name: existingItem.name, 
-          code: existingItem.code,
-          subCategoryName: existingItem.subCategory.name,
-          mainCategoryName: existingItem.subCategory.mainCategory.name
+        {
+          before: { 
+            name: existingItem.name, 
+            code: existingItem.code,
+            subCategoryName: existingItem.subCategory.name,
+            mainCategoryName: existingItem.subCategory.mainCategory.name
+          },
+          after: { 
+            name, 
+            code: updatedItem.code, 
+            subCategoryName: subCategory.name,
+            mainCategoryName: subCategory.mainCategory.name
+          }
         },
         request
       );

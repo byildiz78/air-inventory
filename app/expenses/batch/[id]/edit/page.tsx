@@ -161,9 +161,20 @@ export default function EditExpenseBatchPage({ params }: { params: { id: string 
           expenseItemId: item.expenseItem.id,
           expenseItem: {
             ...item.expenseItem,
+            defaultAmount: null,
+            isRecurring: false,
+            recurringPeriod: null,
+            sortOrder: 0,
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
             subCategory: {
               ...item.expenseItem.subCategory,
-              mainCategory: item.expenseItem.subCategory.mainCategory
+              mainCategory: {
+                ...item.expenseItem.subCategory.mainCategory,
+                subCategories: [] // Add missing subCategories array for ExpenseMainCategory
+              },
+              items: [] // Add missing items array for ExpenseSubCategory
             }
           },
           description: item.description,

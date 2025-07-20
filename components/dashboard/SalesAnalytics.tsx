@@ -214,7 +214,7 @@ export function SalesAnalytics({ timeRange = 'week' }: SalesAnalyticsProps) {
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium">{item.name}</p>
+                      <p className="font-medium">{item.itemName}</p>
                       <p className="text-sm text-gray-600">{formatNumber(item.quantity)} adet</p>
                     </div>
                   </div>

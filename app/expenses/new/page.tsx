@@ -111,10 +111,10 @@ export default function NewExpensePage() {
       setFormData(prev => ({
         ...prev,
         expenseItemId,
-        description: foundItem.name,
-        amount: foundItem.defaultAmount?.toString() || '',
-        paymentStatus: foundItem.isRecurring ? 'COMPLETED' : 'PENDING',
-        paymentDate: foundItem.isRecurring ? new Date().toISOString().split('T')[0] : ''
+        description: foundItem!.name,
+        amount: foundItem!.defaultAmount?.toString() || '',
+        paymentStatus: foundItem!.isRecurring ? 'COMPLETED' : 'PENDING',
+        paymentDate: foundItem!.isRecurring ? new Date().toISOString().split('T')[0] : ''
       }));
     }
   };

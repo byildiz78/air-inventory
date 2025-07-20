@@ -215,7 +215,7 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
           m => m.materialId === material.id && m.warehouseId === warehouse.id
         );
         const openingQty = openingMovements.reduce((sum, m) => sum + m.quantity, 0);
-        const openingAmount = openingMovements.reduce((sum, m) => sum + (m.quantity * m.unitCost), 0);
+        const openingAmount = openingMovements.reduce((sum, m) => sum + (m.quantity * (m.unitCost || 0)), 0);
 
         // Calculate period movements by type
         const movements = periodMovements.filter(
@@ -233,7 +233,7 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
         // Classify and sum movements
         movements.forEach(movement => {
           const qty = movement.quantity;
-          const amount = movement.quantity * movement.unitCost;
+          const amount = movement.quantity * (movement.unitCost || 0);
           
           console.log(`🔍 Processing movement: type=${movement.type}, invoiceId=${movement.invoiceId}, qty=${qty}`);
 

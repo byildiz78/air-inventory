@@ -466,7 +466,7 @@ export async function seedExpenses() {
           periodYear: batch.periodYear,
           periodMonth: batch.periodMonth,
           entryDate: batch.entryDate,
-          status: batch.status,
+          status: batch.status as any,
           totalAmount: batch.totalAmount,
           userId: '1' // Admin user
         }
