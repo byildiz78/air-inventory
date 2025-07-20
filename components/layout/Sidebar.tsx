@@ -149,6 +149,8 @@ const navigation = [
       { name: 'Reçete Kullanım', href: '/reports/recipes/usage' },
       { name: 'Finansal Raporlar', href: '/reports/financial' },
       { name: 'Kârlılık Raporu', href: '/reports/financial/profit' },
+      { name: 'Stok Ekstre Raporu', href: '/reports/stock-extract' },
+      { name: 'Kar/Zarar Raporu', href: '/reports/profit-loss' },
     ],
   }
 ];
