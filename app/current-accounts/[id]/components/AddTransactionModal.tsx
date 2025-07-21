@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -29,12 +31,12 @@ export function AddTransactionModal({ currentAccount, onTransactionAdded }: AddT
     e.preventDefault();
     
     if (!formData.amount || parseFloat(formData.amount) === 0) {
-      alert('Geçerli bir tutar giriniz');
+      notify.error(MESSAGES.ERROR.INVALID_AMOUNT);
       return;
     }
 
     if (!formData.description.trim()) {
-      alert('Açıklama giriniz');
+      notify.error(MESSAGES.VALIDATION.DESCRIPTION_REQUIRED);
       return;
     }
 
@@ -62,15 +64,15 @@ export function AddTransactionModal({ currentAccount, onTransactionAdded }: AddT
           setIsOpen(false);
           resetForm();
         } else {
-          alert(result.error || 'Hareket eklenirken hata oluştu');
+          notify.error(result.error || MESSAGES.ERROR.TRANSACTION_CREATE_ERROR);
         }
       } else {
         const error = await response.json();
-        alert(error.error || 'Hareket eklenirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.TRANSACTION_CREATE_ERROR);
       }
     } catch (error) {
       console.error('Error adding transaction:', error);
-      alert('Hareket eklenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.TRANSACTION_CREATE_ERROR);
     } finally {
       setSaving(false);
     }

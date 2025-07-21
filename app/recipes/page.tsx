@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
@@ -12,12 +12,23 @@ import { RecipeCard } from './components/RecipeCard';
 import { RecipeDetail } from './components/RecipeDetail';
 import { RecipeStats } from './components/RecipeStats';
 import { RecipeFilters } from './components/RecipeFilters';
+import { RecipeListView } from './components/RecipeListView';
+import { ViewToggle } from './components/ViewToggle';
+import { Pagination } from './components/Pagination';
+import { useViewMode, ViewMode } from './hooks/useViewMode';
 
 export default function RecipesPage() {
   const [recipes, setRecipes] = useState<RecipeWithRelations[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // View mode hook
+  const { viewMode, toggleViewMode } = useViewMode();
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -68,22 +79,40 @@ export default function RecipesPage() {
     }
   };
 
-  // Filter recipes
-  const filteredRecipes = recipes.filter(recipe => {
-    const matchesSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || recipe.category === selectedCategory;
-    
-    let matchesProfitability = true;
-    if (profitabilityFilter === 'high') {
-      matchesProfitability = (recipe.profitMargin || 0) >= 40;
-    } else if (profitabilityFilter === 'medium') {
-      matchesProfitability = (recipe.profitMargin || 0) >= 20 && (recipe.profitMargin || 0) < 40;
-    } else if (profitabilityFilter === 'low') {
-      matchesProfitability = (recipe.profitMargin || 0) < 20;
-    }
+  // Filter and paginate recipes
+  const { filteredRecipes, paginatedRecipes, totalPages } = useMemo(() => {
+    const filtered = recipes.filter(recipe => {
+      const matchesSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || recipe.category === selectedCategory;
+      
+      let matchesProfitability = true;
+      if (profitabilityFilter === 'high') {
+        matchesProfitability = (recipe.profitMargin || 0) >= 40;
+      } else if (profitabilityFilter === 'medium') {
+        matchesProfitability = (recipe.profitMargin || 0) >= 20 && (recipe.profitMargin || 0) < 40;
+      } else if (profitabilityFilter === 'low') {
+        matchesProfitability = (recipe.profitMargin || 0) < 20;
+      }
 
-    return matchesSearch && matchesCategory && matchesProfitability;
-  });
+      return matchesSearch && matchesCategory && matchesProfitability;
+    });
+
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginated = filtered.slice(startIndex, endIndex);
+
+    return {
+      filteredRecipes: filtered,
+      paginatedRecipes: paginated,
+      totalPages
+    };
+  }, [recipes, searchTerm, selectedCategory, profitabilityFilter, currentPage, itemsPerPage]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, profitabilityFilter]);
 
   const getMaterialById = (id: string) => materials.find(m => m.id === id);
   const getUnitById = (id: string) => units.find(u => u.id === id);
@@ -279,30 +308,56 @@ export default function RecipesPage() {
         {/* Quick Stats */}
         <RecipeStats recipes={recipes} categories={categories} />
 
-        {/* Filters */}
-        <RecipeFilters
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          selectedCategory={selectedCategory}
-          onCategoryChange={setSelectedCategory}
-          profitabilityFilter={profitabilityFilter}
-          onProfitabilityChange={setProfitabilityFilter}
-          categories={categories}
-        />
-
-        {/* Recipes List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRecipes.map((recipe) => (
-            <RecipeCard
-              key={recipe.id}
-              recipe={recipe}
-              onViewDetails={handleViewDetails}
-              onEdit={openEditModal}
-              onCopy={handleCopyRecipe}
-              getProfitabilityBadge={getProfitabilityBadge}
-            />
-          ))}
+        {/* Filters and View Toggle */}
+        <div className="flex flex-col lg:flex-row justify-between gap-4">
+          <RecipeFilters
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
+            profitabilityFilter={profitabilityFilter}
+            onProfitabilityChange={setProfitabilityFilter}
+            categories={categories}
+          />
+          <ViewToggle viewMode={viewMode} onToggle={toggleViewMode} />
         </div>
+
+        {/* Recipes Display */}
+        {viewMode === ViewMode.LIST ? (
+          <RecipeListView
+            recipes={paginatedRecipes}
+            onViewDetails={handleViewDetails}
+            onEdit={openEditModal}
+            onCopy={handleCopyRecipe}
+            getProfitabilityBadge={getProfitabilityBadge}
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedRecipes.map((recipe) => (
+              <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                onViewDetails={handleViewDetails}
+                onEdit={openEditModal}
+                onCopy={handleCopyRecipe}
+                getProfitabilityBadge={getProfitabilityBadge}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={itemsPerPage}
+          totalItems={filteredRecipes.length}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={(newItemsPerPage) => {
+            setItemsPerPage(newItemsPerPage);
+            setCurrentPage(1);
+          }}
+        />
 
         {/* Recipe Detail Modal */}
         <Dialog open={isRecipeDetailOpen} onOpenChange={setIsRecipeDetailOpen}>

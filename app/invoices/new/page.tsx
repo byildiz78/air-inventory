@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -200,7 +202,7 @@ export default function NewInvoicePage() {
       
     } catch (error) {
       console.error('Veri yükleme hatası:', error);
-      alert('Veriler yüklenirken bir hata oluştu!');
+      notify.error('Veriler yüklenirken bir hata oluştu!');
     } finally {
       setLoading(false);
     }
@@ -303,7 +305,7 @@ export default function NewInvoicePage() {
     e.preventDefault();
     
     if (!invoiceForm.invoiceNumber || !invoiceForm.currentAccountId || !currentUser) {
-      alert('Lütfen zorunlu alanları doldurun!');
+      notify.error(MESSAGES.ERROR.REQUIRED_FIELDS);
       console.error('Form validation failed:', { 
         invoiceNumber: invoiceForm.invoiceNumber, 
         currentAccountId: invoiceForm.currentAccountId, 
@@ -313,7 +315,7 @@ export default function NewInvoicePage() {
     }
     
     if (invoiceForm.items.length === 0) {
-      alert('Faturaya en az bir kalem eklemelisiniz!');
+      notify.error('Faturaya en az bir kalem eklemelisiniz!');
       return;
     }
     
@@ -341,15 +343,15 @@ export default function NewInvoicePage() {
       console.log('API yanıtı:', result);
       
       if (result && result.success && result.data && result.data.id) {
-        alert('Fatura başarıyla kaydedildi!');
+        notify.success(MESSAGES.SUCCESS.INVOICE_CREATED);
         window.location.href = `/invoices/${result.data.id}`;
       } else {
         console.error('API başarılı yanıt döndürmedi:', result);
-        alert('Fatura kaydedilirken bir hata oluştu!');
+        notify.error(MESSAGES.ERROR.INVOICE_CREATE_ERROR);
       }
     } catch (error) {
       console.error('Fatura kaydetme hatası:', error);
-      alert(`Fatura kaydedilirken bir hata oluştu: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
+      notify.error(`${MESSAGES.ERROR.INVOICE_CREATE_ERROR}: ${error instanceof Error ? error.message : MESSAGES.ERROR.UNKNOWN_ERROR}`);
     } finally {
       setLoading(false);
     }

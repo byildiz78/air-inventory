@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -128,23 +131,24 @@ export default function CategoriesPage() {
     const materialCount = materials.filter(m => m.categoryId === id).length;
     
     if (materialCount > 0) {
-      alert(`Bu kategori silinemez. ${materialCount} malzeme bu kategoriye bağlı.`);
+      notify.error(`Bu kategori silinemez. ${materialCount} malzeme bu kategoriye bağlı.`);
       return;
     }
 
-    if (confirm('Bu kategoriyi silmek istediğinizden emin misiniz?')) {
-      try {
-        const response = await fetch(`/api/categories/${id}`, {
-          method: 'DELETE',
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to delete category');
-        }
-        await loadData();
-      } catch (error) {
-        console.error('Error deleting category:', error);
+    const confirmed = await confirm.delete('Bu kategoriyi silmek istediğinizden emin misiniz?');
+    if (!confirmed) return;
+    
+    try {
+      const response = await fetch(`/api/categories/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete category');
       }
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting category:', error);
     }
   };
 

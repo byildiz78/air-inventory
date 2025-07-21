@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -183,40 +186,43 @@ export default function WarehousesPage() {
       });
       
       if (response.success) {
+        notify.success('Transfer durumu başarıyla güncellendi');
         await loadData();
         setViewingTransfer(null);
         setIsTransferDetailOpen(false);
       } else {
-        alert(response.error || 'Transfer durumu güncellenirken hata oluştu');
+        notify.error(response.error || 'Transfer durumu güncellenirken hata oluştu');
       }
     } catch (error) {
       console.error('Error updating transfer status:', error);
-      alert('Transfer durumu güncellenirken hata oluştu');
+      notify.error('Transfer durumu güncellenirken hata oluştu');
     } finally {
       setLoading(false);
     }
   };
 
   const handleTransferDelete = async (transferId: string) => {
-    if (confirm('Bu transferi silmek istediğinizden emin misiniz?')) {
-      try {
-        setLoading(true);
-        
-        const response = await apiClient.delete(`/api/warehouses/transfers/${transferId}`);
-        
-        if (response.success) {
-          await loadData();
-          setViewingTransfer(null);
-          setIsTransferDetailOpen(false);
-        } else {
-          alert(response.error || 'Transfer silinirken hata oluştu');
-        }
-      } catch (error) {
-        console.error('Error deleting transfer:', error);
-        alert('Transfer silinirken hata oluştu');
-      } finally {
-        setLoading(false);
+    const confirmed = await confirm.delete('Bu transferi silmek istediğinizden emin misiniz?');
+    if (!confirmed) return;
+    
+    try {
+      setLoading(true);
+      
+      const response = await apiClient.delete(`/api/warehouses/transfers/${transferId}`);
+      
+      if (response.success) {
+        notify.success('Transfer başarıyla silindi');
+        await loadData();
+        setViewingTransfer(null);
+        setIsTransferDetailOpen(false);
+      } else {
+        notify.error(response.error || 'Transfer silinirken hata oluştu');
       }
+    } catch (error) {
+      console.error('Error deleting transfer:', error);
+      notify.error('Transfer silinirken hata oluştu');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -277,7 +283,7 @@ export default function WarehousesPage() {
     e.preventDefault();
     
     if (!warehouseForm.name.trim()) {
-      alert('Depo adı gereklidir');
+      notify.error(MESSAGES.VALIDATION.WAREHOUSE_REQUIRED);
       return;
     }
 
@@ -293,15 +299,16 @@ export default function WarehousesPage() {
       });
 
       if (response.success) {
+        notify.success(MESSAGES.SUCCESS.WAREHOUSE_CREATED);
         await loadData();
         setIsAddWarehouseOpen(false);
         resetWarehouseForm();
       } else {
-        alert(response.error || 'Depo eklenirken hata oluştu');
+        notify.error(response.error || MESSAGES.ERROR.OPERATION_FAILED);
       }
     } catch (error) {
       console.error('Error adding warehouse:', error);
-      alert('Depo eklenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.OPERATION_FAILED);
     }
   };
 
@@ -309,7 +316,7 @@ export default function WarehousesPage() {
     e.preventDefault();
     
     if (!editingWarehouse || !warehouseForm.name.trim()) {
-      alert('Depo adı gereklidir');
+      notify.error(MESSAGES.VALIDATION.WAREHOUSE_REQUIRED);
       return;
     }
 
@@ -325,34 +332,35 @@ export default function WarehousesPage() {
       });
 
       if (response.success) {
+        notify.success(MESSAGES.SUCCESS.WAREHOUSE_UPDATED);
         await loadData();
         setEditingWarehouse(null);
         resetWarehouseForm();
       } else {
-        alert(response.error || 'Depo güncellenirken hata oluştu');
+        notify.error(response.error || MESSAGES.ERROR.OPERATION_FAILED);
       }
     } catch (error) {
       console.error('Error updating warehouse:', error);
-      alert('Depo güncellenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.OPERATION_FAILED);
     }
   };
 
   const handleDeleteWarehouse = async (warehouseId: string) => {
-    if (!confirm('Bu depoyu silmek istediğinizden emin misiniz?')) {
-      return;
-    }
+    const confirmed = await confirm.delete('Bu depoyu silmek istediğinizden emin misiniz?');
+    if (!confirmed) return;
 
     try {
       const response = await apiClient.delete(`/api/warehouses/${warehouseId}`);
 
       if (response.success) {
+        notify.success(MESSAGES.SUCCESS.WAREHOUSE_DELETED);
         await loadData();
       } else {
-        alert(response.error || 'Depo silinirken hata oluştu');
+        notify.error(response.error || MESSAGES.ERROR.OPERATION_FAILED);
       }
     } catch (error) {
       console.error('Error deleting warehouse:', error);
-      alert('Depo silinirken hata oluştu');
+      notify.error(MESSAGES.ERROR.OPERATION_FAILED);
     }
   };
 
@@ -432,10 +440,18 @@ export default function WarehousesPage() {
                 setIsAddWarehouseOpen(false);
                 setEditingWarehouse(null);
                 resetWarehouseForm();
+              } else if (!editingWarehouse) {
+                setIsAddWarehouseOpen(true);
               }
             }}>
               <DialogTrigger asChild>
-                <Button className="bg-orange-500 hover:bg-orange-600">
+                <Button 
+                  className="bg-orange-500 hover:bg-orange-600"
+                  onClick={() => {
+                    setIsAddWarehouseOpen(true);
+                    resetWarehouseForm();
+                  }}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Yeni Depo
                 </Button>
@@ -567,14 +583,32 @@ export default function WarehousesPage() {
         />
 
         {/* Main Content */}
-        <Tabs defaultValue="warehouses" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="warehouses">Depolar</TabsTrigger>
-            <TabsTrigger value="stocks">Stok Dağılımı</TabsTrigger>
-            <TabsTrigger value="transfers">Transferler</TabsTrigger>
+        <Tabs defaultValue="warehouses" className="space-y-5">
+          <TabsList className="grid w-full grid-cols-3 h-14 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-md">
+            <TabsTrigger 
+              value="warehouses" 
+              className="flex items-center gap-2 px-4 py-2.5 font-semibold text-sm transition-all duration-200 rounded-md data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-orange-400 hover:bg-white hover:shadow-sm dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+            >
+              <Building className="w-5 h-5" />
+              Depolar
+            </TabsTrigger>
+            <TabsTrigger 
+              value="stocks" 
+              className="flex items-center gap-2 px-4 py-2.5 font-semibold text-sm transition-all duration-200 rounded-md data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-blue-400 hover:bg-white hover:shadow-sm dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+            >
+              <Package className="w-5 h-5" />
+              Stok Dağılımı
+            </TabsTrigger>
+            <TabsTrigger 
+              value="transfers" 
+              className="flex items-center gap-2 px-4 py-2.5 font-semibold text-sm transition-all duration-200 rounded-md data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-green-400 hover:bg-white hover:shadow-sm dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+            >
+              <ArrowRightLeft className="w-5 h-5" />
+              Transferler
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="warehouses" className="space-y-4">
+          <TabsContent value="warehouses" className="space-y-4 bg-white dark:bg-slate-900 rounded-lg border-l-4 border-l-orange-500 border-r border-t border-b border-slate-200 dark:border-slate-700 p-6 shadow-sm">
             <WarehouseList
               warehouses={warehouses}
               getWarehouseTypeText={getWarehouseTypeText}
@@ -588,7 +622,7 @@ export default function WarehousesPage() {
             />
           </TabsContent>
 
-          <TabsContent value="stocks" className="space-y-4">
+          <TabsContent value="stocks" className="space-y-4 bg-white dark:bg-slate-900 rounded-lg border-l-4 border-l-blue-500 border-r border-t border-b border-slate-200 dark:border-slate-700 p-6 shadow-sm">
             <StockDataTable
               materials={materials}
               warehouses={warehouses}
@@ -600,7 +634,7 @@ export default function WarehousesPage() {
             />
           </TabsContent>
 
-          <TabsContent value="transfers" className="space-y-4">
+          <TabsContent value="transfers" className="space-y-4 bg-white dark:bg-slate-900 rounded-lg border-l-4 border-l-green-500 border-r border-t border-b border-slate-200 dark:border-slate-700 p-6 shadow-sm">
             <TransferList
               transfers={transfers}
               getMaterialById={getMaterialById}

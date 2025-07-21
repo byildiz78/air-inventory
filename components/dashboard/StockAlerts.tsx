@@ -124,7 +124,7 @@ export function StockAlerts({
             )}
             
             {showViewAllButton && alerts.length > 0 && (
-              <Link href="/inventory">
+              <Link href="/inventory/materials">
                 <Button variant="outline" className="w-full">
                   Stok Yönetimine Git
                 </Button>

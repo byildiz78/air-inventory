@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 
 interface AddPaymentModalProps {
   onPaymentAdded: () => void;
@@ -65,12 +67,12 @@ export function AddPaymentModal({ onPaymentAdded }: AddPaymentModalProps) {
     e.preventDefault();
     
     if (!formData.currentAccountId || !formData.amount || !formData.paymentDate) {
-      alert('Lütfen zorunlu alanları doldurun');
+      notify.error(MESSAGES.ERROR.REQUIRED_FIELDS);
       return;
     }
 
     if (parseFloat(formData.amount) <= 0) {
-      alert('Ödeme tutarı 0\'dan büyük olmalıdır');
+      notify.error(MESSAGES.VALIDATION.PAYMENT_AMOUNT_POSITIVE);
       return;
     }
 
@@ -98,19 +100,20 @@ export function AddPaymentModal({ onPaymentAdded }: AddPaymentModalProps) {
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
+          notify.success(MESSAGES.SUCCESS.PAYMENT_CREATED);
           onPaymentAdded();
           setIsOpen(false);
           resetForm();
         } else {
-          alert(result.error || 'Ödeme eklenirken hata oluştu');
+          notify.error(result.error || MESSAGES.ERROR.PAYMENT_CREATE_ERROR);
         }
       } else {
         const error = await response.json();
-        alert(error.error || 'Ödeme eklenirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.PAYMENT_CREATE_ERROR);
       }
     } catch (error) {
       console.error('Error adding payment:', error);
-      alert('Ödeme eklenirken hata oluştu');
+      notify.networkError();
     } finally {
       setSaving(false);
     }

@@ -26,7 +26,8 @@ import {
   ChevronRight,
   Building2,
   CreditCard,
-  Calculator
+  Calculator,
+  ArrowRightLeft
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -83,7 +84,6 @@ const navigation = [
     children: [
       { name: 'Alış Faturaları', href: '/invoices/purchases' },
       { name: 'Satış Faturaları', href: '/invoices/sales' },
-      { name: 'Fatura Oluştur', href: '/invoices/new' },
     ],
   },
   {
@@ -105,6 +105,7 @@ const navigation = [
     badge: 2,
     children: [
       { name: 'Depolar', href: '/inventory/warehouses' },
+      { name: 'Transferler', href: '/inventory/transfers' },
       { name: 'Depo Sayımı', href: '/inventory/stock-count' },
     ],
   },

@@ -16,6 +16,8 @@ import {
   ArrowRightLeft,
   Calculator
 } from 'lucide-react';
+import { confirm } from '@/lib/confirm';
+
 export default function UnitsPage() {
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +127,8 @@ export default function UnitsPage() {
   };
 
   const handleDeleteUnit = async (id: string) => {
-    if (confirm('Bu birimi silmek istediğinizden emin misiniz?')) {
+    const confirmed = await confirm.delete('Bu birimi silmek istediğinizden emin misiniz?');
+    if (confirmed) {
       try {
         const response = await fetch(`/api/units/${id}`, {
           method: 'DELETE',

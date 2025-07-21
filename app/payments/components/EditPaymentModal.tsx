@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -48,12 +50,12 @@ export function EditPaymentModal({ payment, onClose, onPaymentUpdated }: EditPay
     e.preventDefault();
     
     if (!formData.amount || !formData.paymentDate) {
-      alert('Lütfen zorunlu alanları doldurun');
+      notify.error(MESSAGES.ERROR.REQUIRED_FIELDS);
       return;
     }
 
     if (parseFloat(formData.amount) <= 0) {
-      alert('Ödeme tutarı 0\'dan büyük olmalıdır');
+      notify.error(MESSAGES.VALIDATION.PAYMENT_AMOUNT_POSITIVE);
       return;
     }
 
@@ -83,15 +85,15 @@ export function EditPaymentModal({ payment, onClose, onPaymentUpdated }: EditPay
           onPaymentUpdated();
           onClose();
         } else {
-          alert(result.error || 'Ödeme güncellenirken hata oluştu');
+          notify.error(result.error || MESSAGES.ERROR.PAYMENT_UPDATE_ERROR);
         }
       } else {
         const error = await response.json();
-        alert(error.error || 'Ödeme güncellenirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.PAYMENT_UPDATE_ERROR);
       }
     } catch (error) {
       console.error('Error updating payment:', error);
-      alert('Ödeme güncellenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.PAYMENT_UPDATE_ERROR);
     } finally {
       setSaving(false);
     }

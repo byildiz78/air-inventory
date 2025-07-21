@@ -10,6 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { 
   FileText, 
   Plus, 
@@ -257,18 +259,18 @@ export default function EditInvoicePage() {
       if (response.success) {
         console.log('Invoice updated successfully:', response.data);
         
-        // Show success message (you could use a toast notification here)
-        alert('Fatura başarıyla güncellendi!');
+        // Show success message
+        notify.success(MESSAGES.SUCCESS.INVOICE_UPDATED);
         
         // Optionally redirect or refresh
         window.location.href = `/invoices/${invoiceId}`;
       } else {
         console.error('Failed to update invoice:', response.error);
-        alert(response.error || 'Fatura güncellenirken hata oluştu');
+        notify.error(response.error || MESSAGES.ERROR.INVOICE_UPDATE_ERROR);
       }
     } catch (error) {
       console.error('Error updating invoice:', error);
-      alert('Fatura güncellenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.INVOICE_UPDATE_ERROR);
     } finally {
       setSaving(false);
     }

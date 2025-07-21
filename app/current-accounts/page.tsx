@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CurrentAccountList } from './components/CurrentAccountList';
 import { CurrentAccountStats } from './components/CurrentAccountStats';
 import { CurrentAccountFilters } from './components/CurrentAccountFilters';
 import { AddCurrentAccountModal } from './components/AddCurrentAccountModal';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 import { 
   Building2, 
   Plus,
@@ -25,12 +28,12 @@ export default function CurrentAccountsPage() {
     search: '',
     type: 'all',
     page: 1,
-    limit: 10
+    limit: 20
   });
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
-    limit: 10,
+    limit: 20,
     pages: 0
   });
 
@@ -75,6 +78,10 @@ export default function CurrentAccountsPage() {
     setFilters(prev => ({ ...prev, page }));
   };
 
+  const handleLimitChange = (limit: number) => {
+    setFilters(prev => ({ ...prev, limit, page: 1 }));
+  };
+
   const handleAccountAdded = () => {
     loadCurrentAccounts();
   };
@@ -88,7 +95,8 @@ export default function CurrentAccountsPage() {
   };
 
   const handleRecalculateBalances = async () => {
-    if (!confirm('Tüm cari hesap bakiyeleri yeniden hesaplanacak. Bu işlem biraz zaman alabilir. Devam etmek istiyor musunuz?')) {
+    const confirmed = await confirm.important(MESSAGES.CONFIRM.RECALCULATE_BALANCES, 'Bakiye Yeniden Hesaplama');
+    if (!confirmed) {
       return;
     }
 
@@ -105,14 +113,18 @@ export default function CurrentAccountsPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert(`Başarıyla tamamlandı!\n\n• ${data.data.updatedAccounts} cari hesap güncellendi\n• ${data.data.totalTransactionsProcessed} hareket işlendi\n• ${data.data.totalPaymentsProcessed} ödeme işlendi`);
+        notify.operationSuccess('Bakiye yeniden hesaplama', [
+          `${data.data.updatedAccounts} cari hesap güncellendi`,
+          `${data.data.totalTransactionsProcessed} hareket işlendi`,
+          `${data.data.totalPaymentsProcessed} ödeme işlendi`
+        ]);
         loadCurrentAccounts(); // Refresh the data
       } else {
-        alert(`Hata: ${data.error}`);
+        notify.error(`Hata: ${data.error}`);
       }
     } catch (error) {
       console.error('Error recalculating balances:', error);
-      alert('Bakiyeler yeniden hesaplanırken hata oluştu');
+      notify.error('Bakiyeler yeniden hesaplanırken hata oluştu');
     } finally {
       setRecalculating(false);
     }

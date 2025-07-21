@@ -20,6 +20,7 @@ import {
   X
 } from 'lucide-react';
 import Link from 'next/link';
+import { confirm } from '@/lib/confirm';
 
 // Mock modules and permissions data
 const mockModules = [
@@ -203,7 +204,8 @@ export default function PermissionsPage() {
   };
 
   const handleDeleteModule = async (id: string) => {
-    if (confirm('Bu modülü silmek istediğinizden emin misiniz? Tüm izinleri de silinecektir.')) {
+    const confirmed = await confirm.delete('Bu modülü silmek istediğinizden emin misiniz? Tüm izinleri de silinecektir.');
+    if (confirmed) {
       try {
         // In a real app, this would be an API call
         setModules(prev => prev.filter(module => module.id !== id));
@@ -214,7 +216,8 @@ export default function PermissionsPage() {
   };
 
   const handleDeletePermission = async (moduleId: string, permissionId: string) => {
-    if (confirm('Bu izni silmek istediğinizden emin misiniz?')) {
+    const confirmed = await confirm.delete('Bu izni silmek istediğinizden emin misiniz?');
+    if (confirmed) {
       try {
         // In a real app, this would be an API call
         setModules(prev => prev.map(module => 

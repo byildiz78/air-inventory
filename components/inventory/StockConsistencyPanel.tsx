@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { Progress } from '@/components/ui/progress';
 import { 
   AlertTriangle, 
@@ -49,7 +51,7 @@ export function StockConsistencyPanel() {
       setFixing(true);
       const result = await stockConsistencyService.fixAllStockInconsistencies();
       await loadConsistencyData(); // Reload data
-      alert(`${result.fixed}/${result.total} tutarsızlık düzeltildi`);
+      notify.success(`${result.fixed}/${result.total} tutarsızlık düzeltildi`);
     } catch (error) {
       console.error('Error fixing inconsistencies:', error);
     } finally {
@@ -62,7 +64,7 @@ export function StockConsistencyPanel() {
       setLoading(true);
       await stockConsistencyService.recalculateAverageCosts();
       await loadConsistencyData();
-      alert('Tüm ortalama maliyetler yeniden hesaplandı');
+      notify.success('Tüm ortalama maliyetler yeniden hesaplandı');
     } catch (error) {
       console.error('Error recalculating costs:', error);
     } finally {

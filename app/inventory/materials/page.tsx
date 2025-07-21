@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,13 @@ import {
 import { Material, Category, Supplier, Unit, Tax, Warehouse } from '@prisma/client';
 import { MaterialForm } from '@/components/inventory/MaterialForm';
 import { apiClient } from '@/lib/api-client';
+import { MaterialListView } from './components/MaterialListView';
+import { ViewToggle } from './components/ViewToggle';
+import { Pagination } from './components/Pagination';
+import { useViewMode, ViewMode } from './hooks/useViewMode';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 
 type MaterialWithRelations = Material & {
   category?: Category;
@@ -44,10 +51,17 @@ export default function MaterialsPage() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // View mode hook
+  const { viewMode, toggleViewMode } = useViewMode();
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
   const [stockFilter, setStockFilter] = useState<string>('all');
 
   // Modal states
@@ -83,27 +97,68 @@ export default function MaterialsPage() {
     }
   };
 
-  // Filter materials
-  const filteredMaterials = materials.filter(material => {
-    // Only show active materials unless specifically searching
-    if (!material.isActive && searchTerm === '') return false;
-    
-    const matchesSearch = material.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || material.categoryId === selectedCategory;
-    const matchesSupplier = selectedSupplier === 'all' || material.supplierId === selectedSupplier;
-    
-    let matchesStock = true;
-    if (stockFilter === 'low') {
-      // Calculate total stock from materialStocks
-      const totalStock = material.materialStocks?.reduce((sum, stock) => sum + stock.currentStock, 0) || 0;
-      matchesStock = totalStock <= material.minStockLevel;
-    } else if (stockFilter === 'normal') {
-      const totalStock = material.materialStocks?.reduce((sum, stock) => sum + stock.currentStock, 0) || 0;
-      matchesStock = totalStock > material.minStockLevel;
-    }
-
-    return matchesSearch && matchesCategory && matchesSupplier && matchesStock;
+  // Get main categories (parentId = null) and subcategories
+  const mainCategories = categories.filter(cat => !cat.parentId);
+  const subCategories = categories.filter(cat => {
+    if (selectedCategory === 'all') return false;
+    return cat.parentId === selectedCategory;
   });
+
+  // Filter and paginate materials
+  const { filteredMaterials, paginatedMaterials, totalPages } = useMemo(() => {
+    const filtered = materials.filter(material => {
+      // Only show active materials unless specifically searching
+      if (!material.isActive && searchTerm === '') return false;
+      
+      const matchesSearch = material.name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Category filtering logic
+      let matchesCategory = true;
+      if (selectedCategory !== 'all') {
+        const materialCategory = categories.find(cat => cat.id === material.categoryId);
+        if (selectedSubCategory !== 'all') {
+          // If subcategory is selected, match exact subcategory
+          matchesCategory = material.categoryId === selectedSubCategory;
+        } else {
+          // If only main category is selected, match materials in main category or its subcategories
+          matchesCategory = material.categoryId === selectedCategory || 
+                          (materialCategory && materialCategory.parentId === selectedCategory);
+        }
+      }
+      
+      let matchesStock = true;
+      if (stockFilter === 'low') {
+        const totalStock = material.materialStocks?.reduce((sum, stock) => sum + stock.currentStock, 0) || 0;
+        matchesStock = totalStock <= material.minStockLevel;
+      } else if (stockFilter === 'normal') {
+        const totalStock = material.materialStocks?.reduce((sum, stock) => sum + stock.currentStock, 0) || 0;
+        matchesStock = totalStock > material.minStockLevel;
+      }
+
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginated = filtered.slice(startIndex, endIndex);
+
+    return {
+      filteredMaterials: filtered,
+      paginatedMaterials: paginated,
+      totalPages
+    };
+  }, [materials, searchTerm, selectedCategory, selectedSubCategory, stockFilter, currentPage, itemsPerPage]);
+
+  // Reset subcategory when main category changes
+  useEffect(() => {
+    setSelectedSubCategory('all');
+  }, [selectedCategory]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, selectedSubCategory, stockFilter]);
 
 
   const getTotalStock = (material: MaterialWithRelations) => {
@@ -129,11 +184,12 @@ export default function MaterialsPage() {
       };
 
       await apiClient.post('/api/materials', processedData);
+      notify.success(MESSAGES.SUCCESS.MATERIAL_CREATED);
       await loadData();
       setIsAddMaterialOpen(false);
     } catch (error) {
       console.error('Error adding material:', error);
-      alert('Malzeme eklenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.MATERIAL_CREATE_ERROR);
     }
   };
 
@@ -150,33 +206,37 @@ export default function MaterialsPage() {
       };
 
       await apiClient.put(`/api/materials/${editingMaterial.id}`, processedData);
+      notify.success(MESSAGES.SUCCESS.MATERIAL_UPDATED);
       await loadData();
       setEditingMaterial(null);
     } catch (error) {
       console.error('Error updating material:', error);
-      alert('Malzeme güncellenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.MATERIAL_UPDATE_ERROR);
     }
   };
 
   const handleDeleteMaterial = async (id: string) => {
-    if (confirm('Bu malzemeyi silmek istediğinizden emin misiniz?')) {
-      try {
-        await apiClient.delete(`/api/materials/${id}`);
-        await loadData();
-      } catch (error) {
-        console.error('Error deleting material:', error);
-        alert('Malzeme silinirken hata oluştu');
-      }
+    const confirmed = await confirm.delete(MESSAGES.CONFIRM.DELETE_MATERIAL);
+    if (!confirmed) return;
+    
+    try {
+      await apiClient.delete(`/api/materials/${id}`);
+      notify.success(MESSAGES.SUCCESS.MATERIAL_DELETED);
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting material:', error);
+      notify.error(MESSAGES.ERROR.MATERIAL_DELETE_ERROR);
     }
   };
 
   const handleToggleActive = async (id: string) => {
     try {
       await apiClient.put(`/api/materials/${id}/toggle-active`);
+      notify.success(MESSAGES.SUCCESS.MATERIAL_STATUS_CHANGED);
       await loadData();
     } catch (error) {
       console.error('Error toggling material active status:', error);
-      alert('Malzeme durumu değiştirilirken hata oluştu');
+      notify.error(MESSAGES.ERROR.MATERIAL_STATUS_ERROR);
     }
   };
 
@@ -281,10 +341,13 @@ export default function MaterialsPage() {
           </Card>
         </div>
 
-        {/* Filters */}
+        {/* Filters and View Toggle */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Filtreler</CardTitle>
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+              <CardTitle className="text-lg">Filtreler</CardTitle>
+              <ViewToggle viewMode={viewMode} onToggle={toggleViewMode} />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -300,11 +363,11 @@ export default function MaterialsPage() {
               
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Kategori" />
+                  <SelectValue placeholder="Ana Kategori" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tüm Kategoriler</SelectItem>
-                  {categories.map(category => (
+                  {mainCategories.map(category => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
                     </SelectItem>
@@ -312,15 +375,19 @@ export default function MaterialsPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+              <Select 
+                value={selectedSubCategory} 
+                onValueChange={setSelectedSubCategory}
+                disabled={selectedCategory === 'all' || subCategories.length === 0}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Tedarikçi" />
+                  <SelectValue placeholder="Alt Kategori" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tüm Tedarikçiler</SelectItem>
-                  {suppliers.map(supplier => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name}
+                  <SelectItem value="all">Tüm Alt Kategoriler</SelectItem>
+                  {subCategories.map(subCategory => (
+                    <SelectItem key={subCategory.id} value={subCategory.id}>
+                      {subCategory.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -340,7 +407,7 @@ export default function MaterialsPage() {
           </CardContent>
         </Card>
 
-        {/* Materials List */}
+        {/* Materials Display */}
         <Card>
           <CardHeader>
             <CardTitle>Malzeme Listesi</CardTitle>
@@ -349,102 +416,125 @@ export default function MaterialsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {filteredMaterials.map((material) => {
-                const category = material.category;
-                const supplier = material.supplier;
-                const purchaseUnit = material.purchaseUnit;
-                const consumptionUnit = material.consumptionUnit;
-                const stockStatus = getStockStatus(material);
+            {viewMode === ViewMode.LIST ? (
+              <MaterialListView
+                materials={paginatedMaterials}
+                onEdit={setEditingMaterial}
+                onDelete={handleDeleteMaterial}
+                onToggleActive={handleToggleActive}
+                getTotalStock={getTotalStock}
+                getStockStatus={getStockStatus}
+              />
+            ) : (
+              <div className="space-y-3">
+                {paginatedMaterials.map((material) => {
+                  const category = material.category;
+                  const supplier = material.supplier;
+                  const consumptionUnit = material.consumptionUnit;
+                  const stockStatus = getStockStatus(material);
 
-                return (
-                  <div key={material.id} className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors ${!material.isActive ? 'opacity-60 bg-gray-50' : ''}`}>
-                    <div className="flex items-center gap-4">
-                      <div className={`w-4 h-4 rounded-full ${stockStatus.color}`} />
-                      <div>
-                        <h3 className="font-medium">
-                          {material.name}
-                          {!material.isActive && (
-                            <Badge variant="secondary" className="ml-2 text-xs">
-                              Pasif
-                            </Badge>
-                          )}
-                        </h3>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Tag className="w-3 h-3" />
-                            {category?.name}
-                          </span>
-                          {supplier && (
+                  return (
+                    <div key={material.id} className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors ${!material.isActive ? 'opacity-60 bg-gray-50' : ''}`}>
+                      <div className="flex items-center gap-4">
+                        <div className={`w-4 h-4 rounded-full ${stockStatus.color}`} />
+                        <div>
+                          <h3 className="font-medium">
+                            {material.name}
+                            {!material.isActive && (
+                              <Badge variant="secondary" className="ml-2 text-xs">
+                                Pasif
+                              </Badge>
+                            )}
+                          </h3>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
-                              <Building2 className="w-3 h-3" />
-                              {supplier.name}
+                              <Tag className="w-3 h-3" />
+                              {category?.name}
                             </span>
+                            {supplier && (
+                              <span className="flex items-center gap-1">
+                                <Building2 className="w-3 h-3" />
+                                {supplier.name}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <Scale className="w-3 h-3" />
+                              {consumptionUnit?.abbreviation}
+                            </span>
+                          </div>
+                          {material.description && (
+                            <p className="text-sm text-muted-foreground mt-1">{material.description}</p>
                           )}
-                          <span className="flex items-center gap-1">
-                            <Scale className="w-3 h-3" />
-                            {consumptionUnit?.abbreviation}
-                          </span>
-                        </div>
-                        {material.description && (
-                          <p className="text-sm text-muted-foreground mt-1">{material.description}</p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="font-medium">
-                          {getTotalStock(material)} {consumptionUnit?.abbreviation}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Min: {material.minStockLevel} {consumptionUnit?.abbreviation}
                         </div>
                       </div>
                       
-                      <div className="text-right">
-                        <div className="font-medium">₺{(material.averageCost || 0).toFixed(2)}</div>
-                        <div className="text-sm text-muted-foreground">Ort. maliyet</div>
-                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="font-medium">
+                            {getTotalStock(material)} {consumptionUnit?.abbreviation}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Min: {material.minStockLevel} {consumptionUnit?.abbreviation}
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="font-medium">₺{(material.averageCost || 0).toFixed(2)}</div>
+                          <div className="text-sm text-muted-foreground">Ort. maliyet</div>
+                        </div>
 
-                      <Badge variant={stockStatus.badge as any}>
-                        {stockStatus.status === 'critical' && 'Kritik'}
-                        {stockStatus.status === 'low' && 'Düşük'}
-                        {stockStatus.status === 'warning' && 'Uyarı'}
-                        {stockStatus.status === 'normal' && 'Normal'}
-                      </Badge>
+                        <Badge variant={stockStatus.badge as any}>
+                          {stockStatus.status === 'critical' && 'Kritik'}
+                          {stockStatus.status === 'low' && 'Düşük'}
+                          {stockStatus.status === 'warning' && 'Uyarı'}
+                          {stockStatus.status === 'normal' && 'Normal'}
+                        </Badge>
 
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleToggleActive(material.id)}
-                          className={material.isActive ? '' : 'opacity-50'}
-                        >
-                          {material.isActive ? 'Aktif' : 'Pasif'}
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => setEditingMaterial(material)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDeleteMaterial(material.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleToggleActive(material.id)}
+                            className={material.isActive ? '' : 'opacity-50'}
+                          >
+                            {material.isActive ? 'Aktif' : 'Pasif'}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setEditingMaterial(material)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDeleteMaterial(material.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={itemsPerPage}
+          totalItems={filteredMaterials.length}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={(newItemsPerPage) => {
+            setItemsPerPage(newItemsPerPage);
+            setCurrentPage(1);
+          }}
+        />
 
         {/* Edit Material Dialog */}
         <Dialog open={!!editingMaterial} onOpenChange={() => setEditingMaterial(null)}>

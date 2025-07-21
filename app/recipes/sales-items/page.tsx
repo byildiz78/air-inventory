@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -222,11 +225,11 @@ export default function SalesItemsPage() {
       } else {
         const errorData = await response.json();
         console.error('Error adding sales item:', errorData.error);
-        alert('Satış malı eklenirken hata: ' + errorData.error);
+        notify.error('Satış malı eklenirken hata: ' + errorData.error);
       }
     } catch (error) {
       console.error('Error adding sales item:', error);
-      alert('Satış malı eklenirken hata oluştu');
+      notify.error('Satış malı eklenirken hata oluştu');
     }
   };
   
@@ -257,11 +260,11 @@ export default function SalesItemsPage() {
       } else {
         const errorData = await response.json();
         console.error('Error updating sales item:', errorData.error);
-        alert('Satış malı güncellenirken hata: ' + errorData.error);
+        notify.error('Satış malı güncellenirken hata: ' + errorData.error);
       }
     } catch (error) {
       console.error('Error updating sales item:', error);
-      alert('Satış malı güncellenirken hata oluştu');
+      notify.error('Satış malı güncellenirken hata oluştu');
     }
   };
   
@@ -329,27 +332,28 @@ export default function SalesItemsPage() {
 
   // Delete handlers
   const handleDeleteItem = async (id: string) => {
-    if (confirm('Bu satış malını silmek istediğinizden emin misiniz?')) {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`/api/sales-items/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (response.ok) {
-          await loadData();
-        } else {
-          const errorData = await response.json();
-          console.error('Error deleting sales item:', errorData.error);
-          alert('Satış malı silinirken hata: ' + errorData.error);
+    const confirmed = await confirm.delete('Bu satış malını silmek istediğinizden emin misiniz?');
+    if (!confirmed) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/sales-items/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-      } catch (error) {
-        console.error('Error deleting sales item:', error);
-        alert('Satış malı silinirken hata oluştu');
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        const errorData = await response.json();
+        console.error('Error deleting sales item:', errorData.error);
+        notify.error('Satış malı silinirken hata: ' + errorData.error);
       }
+    } catch (error) {
+      console.error('Error deleting sales item:', error);
+      notify.error('Satış malı silinirken hata oluştu');
     }
   };
   
@@ -358,17 +362,18 @@ export default function SalesItemsPage() {
     const groupsInCategory = groups.filter(group => group.categoryId === id).length;
     
     if (itemsInCategory > 0 || groupsInCategory > 0) {
-      alert(`Bu kategori silinemez. ${itemsInCategory} satış malı ve ${groupsInCategory} grup bu kategoriye bağlı.`);
+      notify.error(`Bu kategori silinemez. ${itemsInCategory} satış malı ve ${groupsInCategory} grup bu kategoriye bağlı.`);
       return;
     }
     
-    if (confirm('Bu kategoriyi silmek istediğinizden emin misiniz?')) {
-      try {
-        await salesItemCategoryService.delete(id);
-        await loadData();
-      } catch (error) {
-        console.error('Error deleting category:', error);
-      }
+    const confirmed = await confirm.delete('Bu kategoriyi silmek istediğinizden emin misiniz?');
+    if (!confirmed) return;
+    
+    try {
+      await salesItemCategoryService.delete(id);
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting category:', error);
     }
   };
   
@@ -376,17 +381,18 @@ export default function SalesItemsPage() {
     const itemsInGroup = salesItems.filter(item => item.groupId === id).length;
     
     if (itemsInGroup > 0) {
-      alert(`Bu grup silinemez. ${itemsInGroup} satış malı bu gruba bağlı.`);
+      notify.error(`Bu grup silinemez. ${itemsInGroup} satış malı bu gruba bağlı.`);
       return;
     }
     
-    if (confirm('Bu grubu silmek istediğinizden emin misiniz?')) {
-      try {
-        await salesItemGroupService.delete(id);
-        await loadData();
-      } catch (error) {
-        console.error('Error deleting group:', error);
-      }
+    const confirmed = await confirm.delete('Bu grubu silmek istediğinizden emin misiniz?');
+    if (!confirmed) return;
+    
+    try {
+      await salesItemGroupService.delete(id);
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting group:', error);
     }
   };
 

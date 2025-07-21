@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -220,33 +223,34 @@ export default function SalesPage() {
       }
     } catch (error) {
       console.error('Sale creation error:', error);
-      alert('Satış kaydedilirken bir hata oluştu!');
+      notify.error(MESSAGES.ERROR.OPERATION_FAILED);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteSale = async (id: string) => {
-    if (confirm('Bu satışı silmek istediğinize emin misiniz?')) {
-      try {
-        setLoading(true);
-        
-        // API çağrısı ile satış sil
-        const result = await apiClient.delete(`/api/sales/${id}`);
-        
-        if (result.success) {
-          toast.success('Satış başarıyla silindi!');
-          loadData();
-        } else {
-          console.error('Sale deletion API error:', result.error);
-          toast.error(`Satış silinirken bir hata oluştu: ${result.error || 'Bilinmeyen hata'}`);
-        }
-      } catch (error) {
-        console.error('Sale deletion error:', error);
-        toast.error('Satış silinirken bir hata oluştu!');
-      } finally {
-        setLoading(false);
+    const confirmed = await confirm.delete('Bu satışı silmek istediğinize emin misiniz?');
+    if (!confirmed) return;
+    
+    try {
+      setLoading(true);
+      
+      // API çağrısı ile satış sil
+      const result = await apiClient.delete(`/api/sales/${id}`);
+      
+      if (result.success) {
+        toast.success('Satış başarıyla silindi!');
+        loadData();
+      } else {
+        console.error('Sale deletion API error:', result.error);
+        toast.error(`Satış silinirken bir hata oluştu: ${result.error || 'Bilinmeyen hata'}`);
       }
+    } catch (error) {
+      console.error('Sale deletion error:', error);
+      toast.error('Satış silinirken bir hata oluştu!');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -279,29 +283,30 @@ export default function SalesPage() {
   // Handle bulk stock processing
   const handleBulkStockProcessing = async () => {
     if (selectedSales.length === 0) {
-      alert('Lütfen işlem yapmak için en az bir satış seçin');
+      notify.error('Lütfen işlem yapmak için en az bir satış seçin');
       return;
     }
     
-    if (confirm(`${selectedSales.length} satış için stok düşümü yapmak istediğinizden emin misiniz?`)) {
-      try {
-        setLoading(true);
-        let successCount = 0;
-        
-        for (const saleId of selectedSales) {
-          const success = await salesService.processStockMovements(saleId);
-          if (success) successCount++;
-        }
-        
-        alert(`${successCount}/${selectedSales.length} satış için stok düşümü başarıyla yapıldı.`);
-        setSelectedSales([]);
-        await loadData();
-      } catch (error) {
-        console.error('Error processing stock movements:', error);
-        alert('Stok düşümü sırasında bir hata oluştu.');
-      } finally {
-        setLoading(false);
+    const confirmed = await confirm.bulk(`${selectedSales.length} satış için stok düşümü yapmak istediğinizden emin misiniz?`);
+    if (!confirmed) return;
+    
+    try {
+      setLoading(true);
+      let successCount = 0;
+      
+      for (const saleId of selectedSales) {
+        const success = await salesService.processStockMovements(saleId);
+        if (success) successCount++;
       }
+      
+      notify.success(`${successCount}/${selectedSales.length} satış için stok düşümü başarıyla yapıldı.`);
+      setSelectedSales([]);
+      await loadData();
+    } catch (error) {
+      console.error('Error processing stock movements:', error);
+      notify.error('Stok düşümü sırasında bir hata oluştu.');
+    } finally {
+      setLoading(false);
     }
   };
   

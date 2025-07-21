@@ -9,6 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings, Database, Users, Bell, Shield } from 'lucide-react';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -29,12 +31,12 @@ export default function SettingsPage() {
       console.log('Saving settings:', settings);
       setTimeout(() => {
         setIsLoading(false);
-        alert('Settings saved successfully!');
+        notify.success(MESSAGES.SUCCESS.SETTINGS_SAVED);
       }, 1000);
     } catch (error) {
       console.error('Error saving settings:', error);
       setIsLoading(false);
-      alert('Error saving settings');
+      notify.networkError();
     }
   };
 

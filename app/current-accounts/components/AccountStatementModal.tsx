@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -57,11 +59,11 @@ export function AccountStatementModal({ account, isOpen, onClose }: AccountState
         console.log('Statement data loaded:', data.data);
       } else {
         console.error('Error loading statement:', data.error);
-        alert(`Ekstre yüklenirken hata: ${data.error}`);
+        notify.error(`Ekstre yüklenirken hata: ${data.error}`);
       }
     } catch (error) {
       console.error('Error loading statement:', error);
-      alert('Ekstre yüklenirken hata oluştu');
+      notify.error('Ekstre yüklenirken hata oluştu');
     } finally {
       setLoading(false);
     }

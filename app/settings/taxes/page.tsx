@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -73,7 +76,7 @@ export default function TaxesPage() {
     e.preventDefault();
     
     if (!formData.name.trim() || formData.rate < 0) {
-      alert('Lütfen geçerli vergi adı ve oranı girin');
+      notify.error(MESSAGES.ERROR.REQUIRED_FIELDS);
       return;
     }
 
@@ -92,11 +95,11 @@ export default function TaxesPage() {
         resetForm();
       } else {
         const error = await response.json();
-        alert(error.error || 'Vergi oranı eklenirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.TAX_CREATE_ERROR);
       }
     } catch (error) {
       console.error('Error adding tax:', error);
-      alert('Vergi oranı eklenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.TAX_CREATE_ERROR);
     }
   };
 
@@ -105,7 +108,7 @@ export default function TaxesPage() {
     if (!editingTax) return;
     
     if (!formData.name.trim() || formData.rate < 0) {
-      alert('Lütfen geçerli vergi adı ve oranı girin');
+      notify.error(MESSAGES.ERROR.REQUIRED_FIELDS);
       return;
     }
 
@@ -124,37 +127,38 @@ export default function TaxesPage() {
         resetForm();
       } else {
         const error = await response.json();
-        alert(error.error || 'Vergi oranı güncellenirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.TAX_UPDATE_ERROR);
       }
     } catch (error) {
       console.error('Error updating tax:', error);
-      alert('Vergi oranı güncellenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.TAX_UPDATE_ERROR);
     }
   };
 
   const handleDeleteTax = async (id: string) => {
     const tax = taxes.find(t => t.id === id);
     if (tax?.isDefault) {
-      alert('Varsayılan vergi oranı silinemez. Önce başka bir oranı varsayılan yapın.');
+      notify.error('Varsayılan vergi oranı silinemez. Önce başka bir oranı varsayılan yapın.');
       return;
     }
 
-    if (confirm('Bu vergi oranını silmek istediğinizden emin misiniz?')) {
-      try {
-        const response = await fetch(`/api/taxes/${id}`, {
-          method: 'DELETE',
-        });
+    const confirmed = await confirm.delete('Bu vergi oranını silmek istediğinizden emin misiniz?');
+    if (!confirmed) return;
+    
+    try {
+      const response = await fetch(`/api/taxes/${id}`, {
+        method: 'DELETE',
+      });
 
-        if (response.ok) {
-          await loadData();
-        } else {
-          const error = await response.json();
-          alert(error.error || 'Vergi oranı silinirken hata oluştu');
-        }
-      } catch (error) {
-        console.error('Error deleting tax:', error);
-        alert('Vergi oranı silinirken hata oluştu');
+      if (response.ok) {
+        await loadData();
+      } else {
+        const error = await response.json();
+        notify.error(error.error || MESSAGES.ERROR.TAX_DELETE_ERROR);
       }
+    } catch (error) {
+      console.error('Error deleting tax:', error);
+      notify.error(MESSAGES.ERROR.TAX_DELETE_ERROR);
     }
   };
 
@@ -168,11 +172,11 @@ export default function TaxesPage() {
         await loadData();
       } else {
         const error = await response.json();
-        alert(error.error || 'Varsayılan vergi oranı ayarlanırken hata oluştu');
+        notify.error(error.error || 'Varsayılan vergi oranı ayarlanırken hata oluştu');
       }
     } catch (error) {
       console.error('Error setting default tax:', error);
-      alert('Varsayılan vergi oranı ayarlanırken hata oluştu');
+      notify.error('Varsayılan vergi oranı ayarlanırken hata oluştu');
     }
   };
 
@@ -186,11 +190,11 @@ export default function TaxesPage() {
         await loadData();
       } else {
         const error = await response.json();
-        alert(error.error || 'Vergi oranı durumu değiştirilirken hata oluştu');
+        notify.error(error.error || 'Vergi oranı durumu değiştirilirken hata oluştu');
       }
     } catch (error) {
       console.error('Error toggling tax active status:', error);
-      alert('Vergi oranı durumu değiştirilirken hata oluştu');
+      notify.error('Vergi oranı durumu değiştirilirken hata oluştu');
     }
   };
 

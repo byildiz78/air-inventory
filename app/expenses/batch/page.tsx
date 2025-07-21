@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'react-hot-toast';
+import { confirm } from '@/lib/confirm';
 
 interface ExpenseBatch {
   id: string;
@@ -160,9 +161,8 @@ export default function ExpenseBatchListPage() {
       return;
     }
 
-    if (!confirm(`"${batch.name}" adlı masraf fişini silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz.`)) {
-      return;
-    }
+    const confirmed = await confirm.delete(`"${batch.name}" adlı masraf fişini silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz.`);
+    if (!confirmed) return;
 
     try {
       const response = await apiClient.delete(`/api/expenses/batches/${batch.id}`);

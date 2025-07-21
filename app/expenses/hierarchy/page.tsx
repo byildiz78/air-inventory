@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'react-hot-toast';
+import { confirm } from '@/lib/confirm';
 
 interface ExpenseMainCategory {
   id: string;
@@ -207,9 +208,8 @@ export default function ExpenseHierarchyPage() {
   };
 
   const handleDeleteMainCategory = async (category: ExpenseMainCategory) => {
-    if (!confirm(`"${category.name}" ana kategorisini silmek istediğinizden emin misiniz?\n\nBu kategori altındaki tüm alt kategoriler ve masraf kalemleri de silinecektir.`)) {
-      return;
-    }
+    const confirmed = await confirm.delete(`"${category.name}" ana kategorisini silmek istediğinizden emin misiniz?\n\nBu kategori altındaki tüm alt kategoriler ve masraf kalemleri de silinecektir.`);
+    if (!confirmed) return;
 
     try {
       const response = await apiClient.delete(`/api/expenses/hierarchy/main-categories/${category.id}`);
@@ -272,9 +272,8 @@ export default function ExpenseHierarchyPage() {
   };
 
   const handleDeleteSubCategory = async (subCategory: ExpenseSubCategory) => {
-    if (!confirm(`"${subCategory.name}" alt kategorisini silmek istediğinizden emin misiniz?\n\nBu kategori altındaki tüm masraf kalemleri de silinecektir.`)) {
-      return;
-    }
+    const confirmed = await confirm.delete(`"${subCategory.name}" alt kategorisini silmek istediğinizden emin misiniz?\n\nBu kategori altındaki tüm masraf kalemleri de silinecektir.`);
+    if (!confirmed) return;
 
     try {
       const response = await apiClient.delete(`/api/expenses/hierarchy/sub-categories/${subCategory.id}`);
@@ -350,9 +349,8 @@ export default function ExpenseHierarchyPage() {
   };
 
   const handleDeleteItem = async (item: ExpenseItem) => {
-    if (!confirm(`"${item.name}" masraf kalemini silmek istediğinizden emin misiniz?`)) {
-      return;
-    }
+    const confirmed = await confirm.delete(`"${item.name}" masraf kalemini silmek istediğinizden emin misiniz?`);
+    if (!confirmed) return;
 
     try {
       const response = await apiClient.delete(`/api/expenses/hierarchy/items/${item.id}`);

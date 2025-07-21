@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 
 interface AddCurrentAccountModalProps {
   onAccountAdded: () => void;
@@ -34,7 +36,7 @@ export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModa
     e.preventDefault();
     
     if (!formData.name.trim()) {
-      alert('Cari hesap adı gereklidir');
+      notify.validationError('Cari hesap adı');
       return;
     }
 
@@ -63,19 +65,20 @@ export function AddCurrentAccountModal({ onAccountAdded }: AddCurrentAccountModa
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
+          notify.success(MESSAGES.SUCCESS.ACCOUNT_CREATED);
           onAccountAdded();
           setIsOpen(false);
           resetForm();
         } else {
-          alert(result.error || 'Cari hesap eklenirken hata oluştu');
+          notify.error(result.error || MESSAGES.ERROR.ACCOUNT_CREATE_ERROR);
         }
       } else {
         const error = await response.json();
-        alert(error.error || 'Cari hesap eklenirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.ACCOUNT_CREATE_ERROR);
       }
     } catch (error) {
       console.error('Error adding account:', error);
-      alert('Cari hesap eklenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.ACCOUNT_CREATE_ERROR);
     } finally {
       setSaving(false);
     }

@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -121,11 +124,11 @@ export default function UsersPage() {
         resetForm();
       } else {
         const error = await response.json();
-        alert(error.error || 'Kullanıcı eklenirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.USER_CREATE_ERROR);
       }
     } catch (error) {
       console.error('Error adding user:', error);
-      alert('Kullanıcı eklenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.USER_CREATE_ERROR);
     }
   };
 
@@ -152,31 +155,32 @@ export default function UsersPage() {
         resetForm();
       } else {
         const error = await response.json();
-        alert(error.error || 'Kullanıcı güncellenirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.USER_UPDATE_ERROR);
       }
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Kullanıcı güncellenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.USER_UPDATE_ERROR);
     }
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (confirm('Bu kullanıcıyı silmek istediğinizden emin misiniz?')) {
-      try {
-        const response = await fetch(`/api/users/${id}`, {
-          method: 'DELETE',
-        });
+    const confirmed = await confirm.delete(MESSAGES.CONFIRM.DELETE_USER);
+    if (!confirmed) return;
+    
+    try {
+      const response = await fetch(`/api/users/${id}`, {
+        method: 'DELETE',
+      });
 
-        if (response.ok) {
-          setUsers(prev => prev.filter(user => user.id !== id));
-        } else {
-          const error = await response.json();
-          alert(error.error || 'Kullanıcı silinirken hata oluştu');
-        }
-      } catch (error) {
-        console.error('Error deleting user:', error);
-        alert('Kullanıcı silinirken hata oluştu');
+      if (response.ok) {
+        setUsers(prev => prev.filter(user => user.id !== id));
+      } else {
+        const error = await response.json();
+        notify.error(error.error || MESSAGES.ERROR.USER_DELETE_ERROR);
       }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      notify.error(MESSAGES.ERROR.USER_DELETE_ERROR);
     }
   };
 
@@ -197,11 +201,11 @@ export default function UsersPage() {
         ));
       } else {
         const error = await response.json();
-        alert(error.error || 'Kullanıcı durumu değiştirilirken hata oluştu');
+        notify.error(error.error || 'Kullanıcı durumu değiştirilirken hata oluştu');
       }
     } catch (error) {
       console.error('Error toggling user status:', error);
-      alert('Kullanıcı durumu değiştirilirken hata oluştu');
+      notify.error('Kullanıcı durumu değiştirilirken hata oluştu');
     }
   };
 

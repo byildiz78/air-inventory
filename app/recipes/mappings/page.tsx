@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,7 +25,8 @@ import {
   DollarSign,
   Calculator,
   Calendar,
-  Users
+  Users,
+  Tag
 } from 'lucide-react';
 import { Recipe, RecipeIngredient, SalesItem } from '@prisma/client';
 
@@ -83,6 +87,7 @@ export default function RecipeMappingsPage() {
   // Search and filter
   const [searchTerm, setSearchTerm] = useState('');
   const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
+  const [mappingFilter, setMappingFilter] = useState<string>('all'); // all, mapped, unmapped
   
   // Modal states
   const [isAddMappingOpen, setIsAddMappingOpen] = useState(false);
@@ -176,17 +181,18 @@ export default function RecipeMappingsPage() {
       });
 
       if (response.ok) {
+        notify.success('Reçete eşleştirmesi başarıyla eklendi');
         await loadData();
         setIsAddMappingOpen(false);
         resetMappingForm();
       } else {
         const errorData = await response.json();
         console.error('Error adding mapping:', errorData.error);
-        alert('Eşleştirme eklenirken hata: ' + errorData.error);
+        notify.error('Eşleştirme eklenirken hata: ' + errorData.error);
       }
     } catch (error) {
       console.error('Error adding mapping:', error);
-      alert('Eşleştirme eklenirken hata oluştu');
+      notify.error('Eşleştirme eklenirken hata oluştu');
     }
   };
 
@@ -209,38 +215,41 @@ export default function RecipeMappingsPage() {
       });
 
       if (response.ok) {
+        notify.success('Reçete eşleştirmesi başarıyla güncellendi');
         await loadData();
         setEditingMapping(null);
         resetMappingForm();
       } else {
         const errorData = await response.json();
         console.error('Error updating mapping:', errorData.error);
-        alert('Eşleştirme güncellenirken hata: ' + errorData.error);
+        notify.error('Eşleştirme güncellenirken hata: ' + errorData.error);
       }
     } catch (error) {
       console.error('Error updating mapping:', error);
-      alert('Eşleştirme güncellenirken hata oluştu');
+      notify.error('Eşleştirme güncellenirken hata oluştu');
     }
   };
 
   const handleDeleteMapping = async (id: string) => {
-    if (confirm('Bu eşleştirmeyi silmek istediğinizden emin misiniz?')) {
-      try {
-        const response = await fetch(`/api/recipe-mappings/${id}`, {
-          method: 'DELETE',
-        });
+    const confirmed = await confirm.delete('Bu eşleştirmeyi silmek istediğinizden emin misiniz?');
+    if (!confirmed) return;
+    
+    try {
+      const response = await fetch(`/api/recipe-mappings/${id}`, {
+        method: 'DELETE',
+      });
 
-        if (response.ok) {
-          await loadData();
-        } else {
-          const errorData = await response.json();
-          console.error('Error deleting mapping:', errorData.error);
-          alert('Eşleştirme silinirken hata: ' + errorData.error);
-        }
-      } catch (error) {
-        console.error('Error deleting mapping:', error);
-        alert('Eşleştirme silinirken hata oluştu');
+      if (response.ok) {
+        notify.success('Reçete eşleştirmesi başarıyla silindi');
+        await loadData();
+      } else {
+        const errorData = await response.json();
+        console.error('Error deleting mapping:', errorData.error);
+        notify.error('Eşleştirme silinirken hata: ' + errorData.error);
       }
+    } catch (error) {
+      console.error('Error deleting mapping:', error);
+      notify.error('Eşleştirme silinirken hata oluştu');
     }
   };
 
@@ -263,9 +272,18 @@ export default function RecipeMappingsPage() {
   const getMappingsBySalesItem = (id: string) => mappings.filter(m => m.salesItemId === id);
   
   // Filter sales items
-  const filteredSalesItems = salesItems.filter(item => 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredSalesItems = salesItems.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    let matchesMapping = true;
+    if (mappingFilter === 'mapped') {
+      matchesMapping = getMappingsBySalesItem(item.id).length > 0;
+    } else if (mappingFilter === 'unmapped') {
+      matchesMapping = getMappingsBySalesItem(item.id).length === 0;
+    }
+    
+    return matchesSearch && matchesMapping;
+  });
   
   // Filter recipes for mapping
   const filteredRecipes = recipes.filter(recipe => 
@@ -378,63 +396,119 @@ export default function RecipeMappingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Satış malı ara..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Satış malı ara..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  <Select value={mappingFilter} onValueChange={setMappingFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Eşleştirme Durumu" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tümü</SelectItem>
+                      <SelectItem value="mapped">Eşleşmiş</SelectItem>
+                      <SelectItem value="unmapped">Eşleşmemiş</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
                   {filteredSalesItems.map(item => {
                     const itemMappingsCount = getMappingsBySalesItem(item.id).length;
                     const isSelected = selectedItem?.id === item.id;
+                    const hasMapping = itemMappingsCount > 0;
                     
                     return (
-                      <div 
+                      <Card 
                         key={item.id}
-                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        className={`cursor-pointer transition-all hover:shadow-md ${
                           isSelected 
-                            ? 'bg-orange-50 border-orange-300' 
-                            : 'hover:bg-gray-50'
+                            ? 'ring-2 ring-orange-300 bg-orange-50' 
+                            : hasMapping 
+                              ? 'border-green-200 bg-green-50/30'
+                              : 'border-gray-200 hover:border-orange-200'
                         }`}
                         onClick={() => setSelectedItem(item)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">{item.name}</h4>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              {item.menuCode && (
-                                <span>{item.menuCode}</span>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                                  hasMapping ? 'bg-green-500' : 'bg-gray-300'
+                                }`} />
+                                <h4 className="font-medium text-sm truncate">{item.name}</h4>
+                                {isSelected && (
+                                  <div className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0"></div>
+                                )}
+                              </div>
+                              
+                              {item.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                                  {item.description}
+                                </p>
                               )}
-                              {item.basePrice && (
-                                <span>₺{item.basePrice.toFixed(2)}</span>
+                              
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                {item.menuCode && (
+                                  <Badge variant="outline" className="text-xs px-1 py-0">
+                                    {item.menuCode}
+                                  </Badge>
+                                )}
+                                {item.category && (
+                                  <span className="flex items-center gap-1">
+                                    <Tag className="w-3 h-3" />
+                                    {item.category}
+                                  </span>
+                                )}
+                                {item.basePrice && (
+                                  <span className="flex items-center gap-1 font-medium text-green-600">
+                                    <DollarSign className="w-3 h-3" />
+                                    ₺{item.basePrice.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                              <Badge variant={hasMapping ? 'default' : 'secondary'} className="text-xs">
+                                <ChefHat className="w-3 h-3 mr-1" />
+                                {itemMappingsCount}
+                              </Badge>
+                              
+                              {!item.isActive && (
+                                <Badge variant="destructive" className="text-xs">
+                                  Pasif
+                                </Badge>
                               )}
                             </div>
                           </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Badge variant={itemMappingsCount > 0 ? 'default' : 'secondary'}>
-                              <ChefHat className="w-3 h-3 mr-1" />
-                              {itemMappingsCount}
-                            </Badge>
-                            {isSelected && (
-                              <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                        </CardContent>
+                      </Card>
                     );
                   })}
                   
                   {filteredSalesItems.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p>Satış malı bulunamadı.</p>
-                    </div>
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="text-center py-8 text-muted-foreground">
+                          <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                          <h3 className="font-medium mb-2">Satış malı bulunamadı</h3>
+                          <p className="text-sm">
+                            {mappingFilter === 'mapped' && 'Eşleşmiş satış malı bulunamadı.'}
+                            {mappingFilter === 'unmapped' && 'Eşleşmemiş satış malı bulunamadı.'}
+                            {mappingFilter === 'all' && 'Arama kriterlerine uygun satış malı yok.'}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
                   )}
                 </div>
               </CardContent>

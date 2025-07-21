@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -137,11 +139,11 @@ export default function InvoicesPage() {
         setIsStatusModalOpen(false);
         setSelectedInvoice(null);
       } else {
-        alert(result.error || 'Durum güncellenirken hata oluştu');
+        notify.error(result.error || 'Durum güncellenirken hata oluştu');
       }
     } catch (error: any) {
       console.error('Status update error:', error);
-      alert(error.error || 'Durum güncellenirken hata oluştu');
+      notify.error(error.error || 'Durum güncellenirken hata oluştu');
     } finally {
       setUpdatingStatus(false);
     }

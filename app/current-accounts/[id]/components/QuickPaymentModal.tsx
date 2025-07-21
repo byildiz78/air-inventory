@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { CreditCard } from 'lucide-react';
@@ -27,7 +29,7 @@ export function QuickPaymentModal({ currentAccount, onPaymentAdded }: QuickPayme
     e.preventDefault();
     
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      alert('Geçerli bir tutar giriniz');
+      notify.error(MESSAGES.ERROR.INVALID_AMOUNT);
       return;
     }
 
@@ -58,15 +60,15 @@ export function QuickPaymentModal({ currentAccount, onPaymentAdded }: QuickPayme
           setIsOpen(false);
           resetForm();
         } else {
-          alert(result.error || 'Ödeme eklenirken hata oluştu');
+          notify.error(result.error || MESSAGES.ERROR.PAYMENT_CREATE_ERROR);
         }
       } else {
         const error = await response.json();
-        alert(error.error || 'Ödeme eklenirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.PAYMENT_CREATE_ERROR);
       }
     } catch (error) {
       console.error('Error adding payment:', error);
-      alert('Ödeme eklenirken hata oluştu');
+      notify.error(MESSAGES.ERROR.PAYMENT_CREATE_ERROR);
     } finally {
       setSaving(false);
     }

@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'react-hot-toast';
+import { confirm } from '@/lib/confirm';
 
 interface ExpenseCategory {
   id: string;
@@ -120,7 +121,8 @@ export default function ExpenseCategoriesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Bu kategoriyi silmek istediğinize emin misiniz?')) return;
+    const confirmed = await confirm.delete('Bu kategoriyi silmek istediğinize emin misiniz?');
+    if (!confirmed) return;
 
     try {
       const response = await apiClient.delete(`/api/expenses/categories/${id}`);

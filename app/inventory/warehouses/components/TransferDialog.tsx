@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -100,19 +102,19 @@ export function TransferDialog({ warehouses, materials, onTransfer }: TransferDi
     e.preventDefault();
     
     if (!transferForm.fromWarehouseId || !transferForm.toWarehouseId || !transferForm.materialId || !transferForm.quantity) {
-      alert('Lütfen tüm gerekli alanları doldurun');
+      notify.error(MESSAGES.ERROR.REQUIRED_FIELDS);
       return;
     }
 
     // Validate quantity doesn't exceed available stock
     const quantity = Number(transferForm.quantity);
     if (quantity > availableStock) {
-      alert(`Transfer edilecek miktar mevcut stoktan fazla olamaz. Mevcut stok: ${availableStock} ${selectedMaterial?.consumptionUnit?.name || 'birim'}`);
+      notify.error(`Transfer edilecek miktar mevcut stoktan fazla olamaz. Mevcut stok: ${availableStock} ${selectedMaterial?.consumptionUnit?.name || 'birim'}`);
       return;
     }
 
     if (quantity <= 0) {
-      alert('Transfer miktarı 0\'dan büyük olmalıdır');
+      notify.error(MESSAGES.VALIDATION.QUANTITY_POSITIVE);
       return;
     }
 
@@ -122,7 +124,7 @@ export function TransferDialog({ warehouses, materials, onTransfer }: TransferDi
       resetForm();
     } catch (error) {
       console.error('Error creating transfer:', error);
-      alert('Transfer oluşturulurken hata oluştu');
+      notify.error(MESSAGES.ERROR.STOCK_TRANSFER_ERROR);
     }
   };
 

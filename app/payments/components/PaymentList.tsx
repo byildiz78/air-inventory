@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
+import { confirm } from '@/lib/confirm';
 import { 
   CreditCard, 
   Eye, 
@@ -87,9 +90,8 @@ export function PaymentList({
   };
 
   const handleDelete = async (paymentId: string) => {
-    if (!confirm('Bu ödemeyi silmek istediğinizden emin misiniz?')) {
-      return;
-    }
+    const confirmed = await confirm.delete(MESSAGES.CONFIRM.DELETE_PAYMENT);
+    if (!confirmed) return;
 
     try {
       setDeletingPayment(paymentId);
@@ -102,11 +104,11 @@ export function PaymentList({
         onPaymentDeleted();
       } else {
         const error = await response.json();
-        alert(error.error || 'Ödeme silinirken hata oluştu');
+        notify.error(error.error || MESSAGES.ERROR.PAYMENT_DELETE_ERROR);
       }
     } catch (error) {
       console.error('Delete error:', error);
-      alert('Ödeme silinirken hata oluştu');
+      notify.error(MESSAGES.ERROR.PAYMENT_DELETE_ERROR);
     } finally {
       setDeletingPayment(null);
     }

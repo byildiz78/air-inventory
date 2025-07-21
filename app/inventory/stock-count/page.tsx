@@ -8,6 +8,7 @@ import { materialService } from '@/lib/services/material-service';
 import { userService } from '@/lib/services/user-service';
 import { warehouseService } from '@/lib/services/warehouse-service';
 import { useToast } from '@/hooks/use-toast';
+import { confirm } from '@/lib/confirm';
 import { Play, Pause, CheckCircle, XCircle, Clock, HelpCircle } from 'lucide-react';
 import { StockCountStats } from './components/StockCountStats';
 import { StockCountList } from './components/StockCountList';
@@ -339,7 +340,8 @@ export default function StockCountPage() {
           confirmMessage = 'Durumu değiştirmek istediğinizden emin misiniz?';
       }
       
-      if (confirm(confirmMessage)) {
+      const confirmed = await confirm.ask(confirmMessage);
+      if (confirmed) {
         if (newStatus === 'CANCELLED') {
           const reason = prompt('İptal sebebini belirtin:');
           if (!reason) return;

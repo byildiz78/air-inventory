@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notifications';
+import { MESSAGES } from '@/lib/messages';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -157,7 +159,7 @@ export default function ProfilePage() {
         } : null);
         setEditing(false);
         toast.success('Profil bilgileri güncellendi');
-        alert('Profil bilgileri güncellendi'); // Fallback alert
+        notify.success(MESSAGES.SUCCESS.SETTINGS_SAVED); // Fallback alert
         console.log('Profile updated successfully');
       }
     } catch (error) {
@@ -200,7 +202,7 @@ export default function ProfilePage() {
           confirmPassword: ''
         });
         toast.success('Parola başarıyla değiştirildi');
-        alert('Parola başarıyla değiştirildi'); // Fallback alert
+        notify.success('Parola başarıyla değiştirildi'); // Fallback alert
         console.log('Password changed successfully');
       }
     } catch (error) {
