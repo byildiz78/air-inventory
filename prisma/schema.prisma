@@ -39,6 +39,7 @@ model User {
   payments           Payment[]
   currentAccountTransactions CurrentAccountTransaction[]
   productions        Production[]
+  openProductions    OpenProduction[] @relation("OpenProductionUser")
   expenses           Expense[]
   expenseBatches     ExpenseBatch[]
 
@@ -220,6 +221,8 @@ model Warehouse {
   stockAdjustments StockAdjustment[]
   stockMovements StockMovement[]
   productions   Production[]
+  openProductionsProduction OpenProduction[] @relation("ProductionWarehouse")
+  openProductionsConsumption OpenProduction[] @relation("ConsumptionWarehouse")
 
   @@map("warehouses")
 }
@@ -274,6 +277,8 @@ model Material {
   materialTransfers WarehouseTransfer[] @relation("MaterialTransfers")
   productions       Production[]
   salesItems        SalesItem[] // Yarı mamül ise otomatik oluşturulan satış malları
+  openProductionsProduced OpenProduction[] @relation("ProducedMaterial")
+  openProductionItemsConsumed OpenProductionItem[] @relation("ConsumedMaterial")
 
   @@map("materials")
 }
@@ -1026,6 +1031,71 @@ model Production {
   user             User      @relation(fields: [userId], references: [id])
 
   @@map("productions")
+}
+
+// ================================
+// OPEN PRODUCTION MANAGEMENT
+// ================================
+
+model OpenProduction {
+  id                      String   @id @default(cuid())
+  productionDate          DateTime
+  
+  // Produced Material Information
+  producedMaterialId      String
+  producedQuantity        Float    // Actual produced quantity
+  productionWarehouseId   String   // Where the finished product goes
+  
+  // Consumption Information
+  consumptionWarehouseId  String   // Where materials are taken from
+  
+  // Additional Information
+  notes                   String?
+  status                  OpenProductionStatus @default(PENDING)
+  totalCost               Float    @default(0)
+  
+  // Audit
+  userId                  String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  // Relations
+  producedMaterial        Material @relation("ProducedMaterial", fields: [producedMaterialId], references: [id])
+  productionWarehouse     Warehouse @relation("ProductionWarehouse", fields: [productionWarehouseId], references: [id])
+  consumptionWarehouse    Warehouse @relation("ConsumptionWarehouse", fields: [consumptionWarehouseId], references: [id])
+  user                    User @relation("OpenProductionUser", fields: [userId], references: [id])
+  items                   OpenProductionItem[]
+
+  @@map("open_productions")
+}
+
+enum OpenProductionStatus {
+  PENDING     // Beklemede
+  IN_PROGRESS // İşlemde
+  COMPLETED   // Tamamlandı
+  CANCELLED   // İptal edildi
+}
+
+model OpenProductionItem {
+  id                String   @id @default(cuid())
+  openProductionId  String
+  
+  // Material Information
+  materialId        String
+  quantity          Float    // Consumed quantity
+  unitCost          Float    @default(0)
+  totalCost         Float    @default(0)
+  
+  // Additional Information
+  notes             String?
+  
+  createdAt         DateTime @default(now())
+
+  // Relations
+  openProduction    OpenProduction @relation(fields: [openProductionId], references: [id], onDelete: Cascade)
+  material          Material @relation("ConsumedMaterial", fields: [materialId], references: [id])
+
+  @@map("open_production_items")
 }
 
 // ================================

@@ -95,11 +95,11 @@ export default function TaxesPage() {
         resetForm();
       } else {
         const error = await response.json();
-        notify.error(error.error || MESSAGES.ERROR.TAX_CREATE_ERROR);
+        notify.error(error.error || MESSAGES.ERROR.OPERATION_FAILED);
       }
     } catch (error) {
       console.error('Error adding tax:', error);
-      notify.error(MESSAGES.ERROR.TAX_CREATE_ERROR);
+      notify.error(MESSAGES.ERROR.OPERATION_FAILED);
     }
   };
 
@@ -127,11 +127,11 @@ export default function TaxesPage() {
         resetForm();
       } else {
         const error = await response.json();
-        notify.error(error.error || MESSAGES.ERROR.TAX_UPDATE_ERROR);
+        notify.error(error.error || MESSAGES.ERROR.OPERATION_FAILED);
       }
     } catch (error) {
       console.error('Error updating tax:', error);
-      notify.error(MESSAGES.ERROR.TAX_UPDATE_ERROR);
+      notify.error(MESSAGES.ERROR.OPERATION_FAILED);
     }
   };
 
@@ -154,11 +154,11 @@ export default function TaxesPage() {
         await loadData();
       } else {
         const error = await response.json();
-        notify.error(error.error || MESSAGES.ERROR.TAX_DELETE_ERROR);
+        notify.error(error.error || MESSAGES.ERROR.OPERATION_FAILED);
       }
     } catch (error) {
       console.error('Error deleting tax:', error);
-      notify.error(MESSAGES.ERROR.TAX_DELETE_ERROR);
+      notify.error(MESSAGES.ERROR.OPERATION_FAILED);
     }
   };
 

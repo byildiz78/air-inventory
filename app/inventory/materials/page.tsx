@@ -122,7 +122,7 @@ export default function MaterialsPage() {
         } else {
           // If only main category is selected, match materials in main category or its subcategories
           matchesCategory = material.categoryId === selectedCategory || 
-                          (materialCategory && materialCategory.parentId === selectedCategory);
+                          (materialCategory?.parentId === selectedCategory);
         }
       }
       

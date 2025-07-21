@@ -76,7 +76,7 @@ export function RecipeListView({
                       </div>
                     )}
                     
-                    {recipe.suggestedPrice !== undefined && (
+                    {recipe.suggestedPrice && (
                       <div className="text-sm">
                         <span className="text-muted-foreground">Önerilen Fiyat: </span>
                         <span className="font-medium text-green-600">

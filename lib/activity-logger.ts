@@ -46,7 +46,7 @@ export class ActivityLogger {
   /**
    * Log any activity
    */
-  private static async logActivity(
+  static async logActivity(
     userId: string,
     action: string,
     entityType: string,
@@ -131,4 +131,25 @@ export class ActivityLogger {
       }
     });
   }
+}
+
+/**
+ * Simple helper function for logging activities
+ */
+export async function logActivity({
+  userId,
+  action,
+  entityType,
+  entityId,
+  details,
+  request
+}: {
+  userId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  details?: any;
+  request?: any;
+}) {
+  return ActivityLogger.logActivity(userId, action, entityType, entityId, details, request);
 }
