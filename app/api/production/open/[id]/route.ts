@@ -166,7 +166,7 @@ export async function PUT(
         });
 
         const stockBefore = existingConsumptionStock?.currentStock || 0;
-        const stockAfter = stockBefore + (oldItem.quantity * 1000);
+        const stockAfter = stockBefore + oldItem.quantity;
 
         if (existingConsumptionStock) {
           await tx.materialStock.update({
@@ -177,8 +177,8 @@ export async function PUT(
               }
             },
             data: {
-              currentStock: { increment: oldItem.quantity * 1000 },
-              availableStock: { increment: oldItem.quantity * 1000 }
+              currentStock: { increment: oldItem.quantity },
+              availableStock: { increment: oldItem.quantity }
             }
           });
         } else {
@@ -186,8 +186,8 @@ export async function PUT(
             data: {
               materialId: oldItem.materialId,
               warehouseId: existingProduction.consumptionWarehouseId,
-              currentStock: oldItem.quantity * 1000,
-              availableStock: oldItem.quantity * 1000,
+              currentStock: oldItem.quantity,
+              availableStock: oldItem.quantity,
               averageCost: 0
             }
           });
@@ -201,7 +201,7 @@ export async function PUT(
             userId: user.userId,
             warehouseId: existingProduction.consumptionWarehouseId,
             type: 'IN',
-            quantity: oldItem.quantity * 1000,
+            quantity: oldItem.quantity,
             reason: `Açık üretim düzenleme (geri alma) - ${params.id}`,
             unitCost: oldItem.unitCost,
             totalCost: oldItem.totalCost,
@@ -223,7 +223,7 @@ export async function PUT(
 
       if (existingProductionStock) {
         const productionStockBefore = existingProductionStock.currentStock;
-        const productionStockAfter = productionStockBefore - (existingProduction.producedQuantity * 1000);
+        const productionStockAfter = productionStockBefore - existingProduction.producedQuantity;
 
         await tx.materialStock.update({
           where: {
@@ -233,8 +233,8 @@ export async function PUT(
             }
           },
           data: {
-            currentStock: { decrement: existingProduction.producedQuantity * 1000 },
-            availableStock: { decrement: existingProduction.producedQuantity * 1000 }
+            currentStock: { decrement: existingProduction.producedQuantity },
+            availableStock: { decrement: existingProduction.producedQuantity }
           }
         });
 
@@ -246,7 +246,7 @@ export async function PUT(
             userId: user.userId,
             warehouseId: existingProduction.productionWarehouseId,
             type: 'OUT',
-            quantity: -(existingProduction.producedQuantity * 1000),
+            quantity: -existingProduction.producedQuantity,
             reason: `Açık üretim düzenleme (geri alma) - ${params.id}`,
             unitCost: existingProduction.totalCost / existingProduction.producedQuantity,
             totalCost: -existingProduction.totalCost,
@@ -312,7 +312,7 @@ export async function PUT(
         });
 
         const newStockBefore = newConsumptionStock?.currentStock || 0;
-        const newStockAfter = newStockBefore - (item.quantity * 1000);
+        const newStockAfter = newStockBefore - item.quantity;
 
         if (newConsumptionStock) {
           await tx.materialStock.update({
@@ -323,8 +323,8 @@ export async function PUT(
               }
             },
             data: {
-              currentStock: { decrement: item.quantity * 1000 },
-              availableStock: { decrement: item.quantity * 1000 }
+              currentStock: { decrement: item.quantity },
+              availableStock: { decrement: item.quantity }
             }
           });
         }
@@ -337,7 +337,7 @@ export async function PUT(
             userId: user.userId,
             warehouseId: consumptionWarehouseId,
             type: 'OUT',
-            quantity: -(item.quantity * 1000),
+            quantity: -item.quantity,
             reason: `Açık üretim (düzenlenmiş) - ${params.id}`,
             unitCost: item.unitCost,
             totalCost: -item.totalCost,
@@ -358,7 +358,7 @@ export async function PUT(
       });
 
       const newProductionStockBefore = newProductionStock?.currentStock || 0;
-      const newProductionStockAfter = newProductionStockBefore + (producedQuantity * 1000);
+      const newProductionStockAfter = newProductionStockBefore + producedQuantity;
 
       if (newProductionStock) {
         await tx.materialStock.update({
@@ -369,8 +369,8 @@ export async function PUT(
             }
           },
           data: {
-            currentStock: { increment: producedQuantity * 1000 },
-            availableStock: { increment: producedQuantity * 1000 }
+            currentStock: { increment: producedQuantity },
+            availableStock: { increment: producedQuantity }
           }
         });
       } else {
@@ -378,8 +378,8 @@ export async function PUT(
           data: {
             materialId: producedMaterialId,
             warehouseId: productionWarehouseId,
-            currentStock: producedQuantity * 1000,
-            availableStock: producedQuantity * 1000,
+            currentStock: producedQuantity,
+            availableStock: producedQuantity,
             averageCost: totalCost / producedQuantity || 0
           }
         });
@@ -393,7 +393,7 @@ export async function PUT(
           userId: user.userId,
           warehouseId: productionWarehouseId,
           type: 'IN',
-          quantity: producedQuantity * 1000,
+          quantity: producedQuantity,
           reason: `Açık üretim (düzenlenmiş) - ${params.id}`,
           unitCost: totalCost / producedQuantity,
           totalCost: totalCost,
@@ -545,8 +545,8 @@ export async function DELETE(
               }
             },
             data: {
-              currentStock: { increment: item.quantity * 1000 },
-              availableStock: { increment: item.quantity * 1000 }
+              currentStock: { increment: item.quantity },
+              availableStock: { increment: item.quantity }
             }
           });
         } else {
@@ -554,8 +554,8 @@ export async function DELETE(
             data: {
               materialId: item.materialId,
               warehouseId: existingProduction.consumptionWarehouseId,
-              currentStock: item.quantity * 1000,
-              availableStock: item.quantity * 1000,
+              currentStock: item.quantity,
+              availableStock: item.quantity,
               averageCost: 0
             }
           });
@@ -581,8 +581,8 @@ export async function DELETE(
             }
           },
           data: {
-            currentStock: { decrement: existingProduction.producedQuantity * 1000 },
-            availableStock: { decrement: existingProduction.producedQuantity * 1000 }
+            currentStock: { decrement: existingProduction.producedQuantity },
+            availableStock: { decrement: existingProduction.producedQuantity }
           }
         });
       }

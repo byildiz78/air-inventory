@@ -81,7 +81,7 @@ export function TransferDetailDialog({
               </div>
               <div>
                 <span className="text-muted-foreground">Miktar:</span>
-                <div className="font-medium">{(transfer.quantity / 1000).toFixed(1)} kg</div>
+                <div className="font-medium">{transfer.quantity.toFixed(1)} kg</div>
               </div>
               <div>
                 <span className="text-muted-foreground">Kaynak Depo:</span>

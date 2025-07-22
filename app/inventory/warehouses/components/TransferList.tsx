@@ -395,7 +395,7 @@ export function TransferList({
                       <div className="text-right">
                         <div className="flex items-center gap-1 text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">
                           <Package className="w-4 h-4 text-slate-500" />
-                          <span>{(transfer.quantity / 1000).toFixed(1)} kg</span>
+                          <span>{transfer.quantity.toFixed(1)} kg</span>
                         </div>
                         
                         {transfer.totalCost && (

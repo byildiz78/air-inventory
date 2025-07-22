@@ -104,7 +104,7 @@ export function StockAlerts({
                   <div>
                     <p className="font-medium">{alert.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      Mevcut: {(alert.currentStock / 1000).toFixed(2)} kg | Min: {(alert.minStockLevel / 1000).toFixed(2)} kg
+                      Mevcut: {alert.currentStock.toFixed(2)} kg | Min: {alert.minStockLevel.toFixed(2)} kg
                       {alert.warehouseName && ` • ${alert.warehouseName}`}
                     </p>
                   </div>

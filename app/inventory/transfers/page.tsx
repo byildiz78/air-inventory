@@ -93,8 +93,9 @@ export default function TransfersPage() {
     if (!confirmed) return;
 
     try {
-      const response = await apiClient.put(`/api/warehouses/transfers/${transferId}`, {
+      const response = await apiClient.patch(`/api/warehouses/transfers/${transferId}`, {
         status: newStatus,
+        userId: 'system', // You might want to get this from auth context
       });
 
       if (response.success) {
