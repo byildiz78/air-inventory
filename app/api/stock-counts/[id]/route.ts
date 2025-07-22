@@ -11,6 +11,8 @@ export async function GET(request: NextRequest, { params }: Params) {
   try {
     const { id } = params;
 
+    console.log(`GET /api/stock-counts/${id} - Fetching stock count details`);
+    
     // Get stock count with related data
     const stockCount = await prisma.stockCount.findUnique({
       where: { id },
@@ -30,7 +32,14 @@ export async function GET(request: NextRequest, { params }: Params) {
         },
         items: {
           include: {
-            material: true
+            material: {
+              include: {
+                category: {
+                  include: { parent: true }
+                },
+                consumptionUnit: true
+              }
+            }
           }
         },
         adjustments: {
@@ -48,6 +57,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     });
 
     if (!stockCount) {
+      console.log(`Stock count ${id} not found`);
       return NextResponse.json(
         {
           success: false,
@@ -56,6 +66,14 @@ export async function GET(request: NextRequest, { params }: Params) {
         { status: 404 }
       );
     }
+
+    console.log(`Found stock count ${id} with ${stockCount.items.length} items`);
+    console.log('First 3 items from DB:', stockCount.items.slice(0, 3).map(item => ({
+      id: item.id,
+      materialId: item.materialId,
+      countedStock: item.countedStock,
+      isCompleted: item.isCompleted
+    })));
 
     // Format the response
     const formattedStockCount = {
@@ -77,12 +95,20 @@ export async function GET(request: NextRequest, { params }: Params) {
         id: item.id,
         materialId: item.materialId,
         materialName: item.material.name,
+        materialCode: item.material.code,
         systemStock: item.systemStock,
         countedStock: item.countedStock,
         difference: item.difference,
         reason: item.reason,
         countedAt: item.countedAt,
-        isCompleted: item.isCompleted
+        isCompleted: item.isCompleted,
+        isManuallyAdded: item.isManuallyAdded,
+        unitAbbreviation: item.material.consumptionUnit?.abbreviation || '',
+        categoryId: item.material.categoryId,
+        categoryName: item.material.category?.name,
+        subCategoryId: item.material.category?.parentId ? item.material.categoryId : null,
+        subCategoryName: item.material.category?.parentId ? item.material.category.name : null,
+        averageCost: item.material.averageCost || 0
       })),
       adjustments: stockCount.adjustments.map(adj => ({
         id: adj.id,

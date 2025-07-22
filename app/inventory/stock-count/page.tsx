@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Settings, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { stockCountService } from '@/lib/services/stock-count-service';
 import { materialService } from '@/lib/services/material-service';
 import { userService } from '@/lib/services/user-service';
@@ -15,6 +16,7 @@ import { StockCountList } from './components/StockCountList';
 import { NewCountDialog } from './components/NewCountDialog';
 import { StockCountDetail } from './components/StockCountDetail';
 import { ApprovalDialog } from './components/ApprovalDialog';
+import EnhancedStockCountPage from './enhanced-page';
 
 interface StockCount {
   id: string;
@@ -69,6 +71,9 @@ interface Material {
 
 export default function StockCountPage() {
   const { toast } = useToast();
+  
+  // Toggle between classic and enhanced version
+  const [useEnhancedVersion, setUseEnhancedVersion] = useState(false);
   
   // State for data
   const [stockCounts, setStockCounts] = useState<StockCount[]>([]);
@@ -435,13 +440,36 @@ export default function StockCountPage() {
     return users?.find(u => u.id === id);
   };
 
+  // If enhanced version is selected, render it
+  // Temporarily disabled to fix hooks error
+  // if (useEnhancedVersion) {
+  //   return <EnhancedStockCountPage onBackToClassic={() => setUseEnhancedVersion(false)} />;
+  // }
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Stok Sayımı</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold">Stok Sayımı</h1>
+            <Badge variant="outline" className="text-xs">
+              <Settings className="w-3 h-3 mr-1" />
+              Klasik
+            </Badge>
+          </div>
           <p className="text-muted-foreground">Depo bazlı fiziksel stok sayımı ve düzeltmeleri</p>
+          <div className="mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => window.location.href = '/inventory/stock-count/enhanced'}
+              className="text-blue-600 hover:text-blue-700 p-0 h-auto"
+            >
+              <Zap className="w-4 h-4 mr-1" />
+              Gelişmiş Sistemi Dene (Tarihteki Stok + Manuel Ürün Ekleme)
+            </Button>
+          </div>
         </div>
         
         <NewCountDialog

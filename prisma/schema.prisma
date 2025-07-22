@@ -346,17 +346,18 @@ enum WarehouseTransferStatus {
 // ================================
 
 model StockCount {
-  id          String           @id @default(cuid())
-  countNumber String           @unique
-  warehouseId String
-  status      StockCountStatus @default(PLANNING)
-  countDate   DateTime
-  countTime   String?          // "14:30" formatında
-  countedBy   String
-  approvedBy  String?
-  notes       String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id              String           @id @default(cuid())
+  countNumber     String           @unique
+  warehouseId     String
+  status          StockCountStatus @default(PLANNING)
+  countDate       DateTime
+  countTime       String?          // "14:30" formatında
+  cutoffDateTime  DateTime?        // Hesaplama için birleştirilmiş tarih-saat
+  countedBy       String
+  approvedBy      String?
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   // Relations
   warehouse    Warehouse         @relation(fields: [warehouseId], references: [id])
@@ -377,17 +378,18 @@ enum StockCountStatus {
 }
 
 model StockCountItem {
-  id           String    @id @default(cuid())
-  stockCountId String
-  materialId   String
-  systemStock  Float     @default(0) // Sistemdeki stok (gram)
-  countedStock Float     @default(0) // Sayılan stok (gram)
-  difference   Float     @default(0) // Fark (+ fazla, - eksik)
-  reason       String?   // Fark sebebi
-  countedAt    DateTime? // Sayım tarihi
-  isCompleted  Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  stockCountId    String
+  materialId      String
+  systemStock     Float     @default(0) // Sistemdeki stok (gram)
+  countedStock    Float     @default(0) // Sayılan stok (gram)
+  difference      Float     @default(0) // Fark (+ fazla, - eksik)
+  reason          String?   // Fark sebebi
+  countedAt       DateTime? // Sayım tarihi
+  isCompleted     Boolean   @default(false)
+  isManuallyAdded Boolean   @default(false) // Manuel eklenen ürün
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
   stockCount StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)

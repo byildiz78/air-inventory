@@ -4,10 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, ClipboardList, Clock, Play, XCircle } from 'lucide-react';
 
 interface StockCountStatsProps {
-  counts: any[];
+  stockCounts?: any[];
+  counts?: any[]; // Legacy support
 }
 
-export function StockCountStats({ counts }: StockCountStatsProps) {
+export function StockCountStats({ stockCounts, counts }: StockCountStatsProps) {
+  // Use stockCounts if available, fallback to counts for backward compatibility
+  const data = stockCounts || counts || [];
   return (
     <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
       <Card>
@@ -16,7 +19,7 @@ export function StockCountStats({ counts }: StockCountStatsProps) {
           <ClipboardList className="h-4 w-4 text-blue-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{counts.length}</div>
+          <div className="text-2xl font-bold">{data.length}</div>
           <p className="text-xs text-muted-foreground">Tüm sayımlar</p>
         </CardContent>
       </Card>
@@ -28,7 +31,7 @@ export function StockCountStats({ counts }: StockCountStatsProps) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-blue-600">
-            {counts.filter(c => c.status === 'IN_PROGRESS').length}
+            {data.filter(c => c.status === 'IN_PROGRESS').length}
           </div>
           <p className="text-xs text-muted-foreground">Aktif sayım</p>
         </CardContent>
@@ -41,7 +44,7 @@ export function StockCountStats({ counts }: StockCountStatsProps) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-orange-600">
-            {counts.filter(c => c.status === 'PENDING_APPROVAL').length}
+            {data.filter(c => c.status === 'PENDING_APPROVAL').length}
           </div>
           <p className="text-xs text-muted-foreground">Onay gerekli</p>
         </CardContent>
@@ -54,7 +57,7 @@ export function StockCountStats({ counts }: StockCountStatsProps) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-green-600">
-            {counts.filter(c => c.status === 'COMPLETED').length}
+            {data.filter(c => c.status === 'COMPLETED').length}
           </div>
           <p className="text-xs text-muted-foreground">Bu ay</p>
         </CardContent>
@@ -67,7 +70,7 @@ export function StockCountStats({ counts }: StockCountStatsProps) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-red-600">
-            {counts.filter(c => c.status === 'CANCELLED').length}
+            {data.filter(c => c.status === 'CANCELLED').length}
           </div>
           <p className="text-xs text-muted-foreground">Reddedilen</p>
         </CardContent>

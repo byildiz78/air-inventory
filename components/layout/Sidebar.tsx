@@ -107,7 +107,7 @@ const navigation = [
     children: [
       { name: 'Depolar', href: '/inventory/warehouses' },
       { name: 'Transferler', href: '/inventory/transfers' },
-      { name: 'Depo Sayımı', href: '/inventory/stock-count' },
+      { name: 'Depo Sayımı', href: '/inventory/stock-count/enhanced' },
     ],
   },
 

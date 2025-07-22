@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { HistoricalStockService } from '@/lib/services/historical-stock-service';
 
 export async function GET(request: NextRequest) {
   try {
