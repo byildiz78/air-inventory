@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Package, Tag, Barcode } from 'lucide-react';
+import { Plus, Package, Tag, Hash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -124,7 +124,7 @@ export function MaterialSearchResults({
                       
                       {material.barcode && (
                         <div className="flex items-center gap-1">
-                          <Barcode className="w-3 h-3" />
+                          <Hash className="w-3 h-3" />
                           <span>{material.barcode}</span>
                         </div>
                       )}

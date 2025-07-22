@@ -95,7 +95,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         id: item.id,
         materialId: item.materialId,
         materialName: item.material.name,
-        materialCode: item.material.code,
+        materialCode: null,
         systemStock: item.systemStock,
         countedStock: item.countedStock,
         difference: item.difference,

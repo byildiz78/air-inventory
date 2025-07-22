@@ -106,7 +106,7 @@ export async function POST(
       // Calculate new historical stock
       const historicalMaterials = await HistoricalStockService.calculateStockAtDateTime(
         stockCount.warehouseId,
-        cutoffDateTime
+        cutoffDateTime!
       );
       
       console.log('Historical materials calculated:', historicalMaterials.length, 'materials with positive stock');

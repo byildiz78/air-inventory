@@ -182,11 +182,9 @@ export function EnhancedStockCountDetail({
       });
       
       // Ensure countDate is in YYYY-MM-DD format
-      const countDateStr = stockCount.countDate instanceof Date 
-        ? stockCount.countDate.toISOString().split('T')[0]
-        : typeof stockCount.countDate === 'string' 
-          ? stockCount.countDate.split('T')[0]
-          : stockCount.countDate;
+      const countDateStr = typeof stockCount.countDate === 'string' 
+        ? stockCount.countDate.split('T')[0]
+        : stockCount.countDate;
         
       const response = await apiClient.post(`/api/stock-counts/${stockCount.id}/recalculate`, {
         countDate: countDateStr,
@@ -568,7 +566,7 @@ export function EnhancedStockCountDetail({
                     <SelectContent>
                       <SelectItem value="all">Tüm Kategoriler</SelectItem>
                       {availableCategories.map(category => (
-                        <SelectItem key={category.id} value={category.id}>
+                        <SelectItem key={category.id!} value={category.id!}>
                           {category.name}
                         </SelectItem>
                       ))}
@@ -581,7 +579,7 @@ export function EnhancedStockCountDetail({
                     <SelectContent>
                       <SelectItem value="all">Tüm Alt Kategoriler</SelectItem>
                       {availableSubCategories.map(category => (
-                        <SelectItem key={category.id} value={category.id}>
+                        <SelectItem key={category.id!} value={category.id!}>
                           {category.name}
                         </SelectItem>
                       ))}

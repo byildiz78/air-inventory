@@ -138,7 +138,7 @@ export async function POST(
       stockCountId: stockCountItem.stockCountId,
       materialId: stockCountItem.materialId,
       materialName: stockCountItem.material.name,
-      materialCode: stockCountItem.material.code,
+      materialCode: null,
       systemStock: stockCountItem.systemStock,
       countedStock: stockCountItem.countedStock,
       difference: stockCountItem.difference,
