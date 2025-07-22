@@ -61,7 +61,7 @@ export function OpenProductionDialog({
 }: OpenProductionDialogProps) {
   const [formData, setFormData] = useState({
     producedMaterialId: '',
-    producedQuantity: 1,
+    producedQuantity: 1 as string | number,
     productionWarehouseId: '',
     consumptionWarehouseId: '',
     notes: '',
@@ -178,13 +178,13 @@ export function OpenProductionDialog({
     const validItems = materialItems.filter(item => {
       if (!item.materialId) return false;
       const qty = typeof item.quantity === 'string' ? 
-        parseFloat(item.quantity.replace(',', '.')) : 
+        parseFloat((item.quantity as string).replace(',', '.')) : 
         item.quantity;
       return qty > 0;
     }).map(item => ({
       ...item,
       quantity: typeof item.quantity === 'string' ? 
-        parseFloat(item.quantity.replace(',', '.')) : 
+        parseFloat((item.quantity as string).replace(',', '.')) : 
         item.quantity
     }));
     
@@ -195,7 +195,7 @@ export function OpenProductionDialog({
 
     // Convert produced quantity
     const producedQty = typeof formData.producedQuantity === 'string' ? 
-      parseFloat(formData.producedQuantity.replace(',', '.')) : 
+      parseFloat((formData.producedQuantity as string).replace(',', '.')) : 
       formData.producedQuantity;
       
     if (!producedQty || producedQty <= 0) {

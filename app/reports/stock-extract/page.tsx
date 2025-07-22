@@ -18,7 +18,7 @@ import {
 import { StockExtractFilters } from './components/StockExtractFilters';
 import { StockExtractTable } from './components/StockExtractTable';
 import { StockSummary } from './components/StockSummary';
-import { ExportButtons } from './components/ExportButtons';
+import { ExportButtons, StockExtractData } from './components/ExportButtons';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'react-hot-toast';
 
@@ -58,19 +58,6 @@ interface StockMovementData {
   consumptionOUTAmount?: number;
   adjustmentOUTAmount?: number;
   closingStockAmount?: number;
-}
-
-interface StockExtractData {
-  period: { startDate: string; endDate: string };
-  reportType: 'quantity' | 'amount' | 'amount_with_vat';
-  records: StockMovementData[];
-  summary: {
-    totalMaterials: number;
-    totalWarehouses: number;
-    totalRecords: number;
-    reportType: string;
-    period: { startDate: string; endDate: string };
-  };
 }
 
 interface Filters {

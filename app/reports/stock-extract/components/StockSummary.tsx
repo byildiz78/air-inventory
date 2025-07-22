@@ -19,7 +19,7 @@ interface StockSummaryProps {
     reportType: string;
     period: { startDate: string; endDate: string };
   };
-  reportType: 'quantity' | 'amount';
+  reportType: 'quantity' | 'amount' | 'amount_with_vat';
 }
 
 export function StockSummary({ summary, reportType }: StockSummaryProps) {
@@ -30,7 +30,8 @@ export function StockSummary({ summary, reportType }: StockSummaryProps) {
   };
 
   const getReportTypeText = () => {
-    return reportType === 'quantity' ? 'Miktar Bazlı' : 'Tutar Bazlı';
+    return reportType === 'quantity' ? 'Miktar Bazlı' : 
+           reportType === 'amount' ? 'Tutar Bazlı' : 'Tutar Bazlı (KDV Dahil)';
   };
 
   const getReportTypeIcon = () => {

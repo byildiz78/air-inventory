@@ -42,7 +42,7 @@ interface StockMovementData {
 
 interface StockExtractData {
   period: { startDate: string; endDate: string };
-  reportType: 'quantity' | 'amount';
+  reportType: 'quantity' | 'amount' | 'amount_with_vat';
   records: StockMovementData[];
   summary: {
     totalMaterials: number;
@@ -54,7 +54,7 @@ interface StockExtractData {
 }
 
 export const exportToAdvancedExcel = (data: StockExtractData) => {
-  const isAmountReport = data.reportType === 'amount';
+  const isAmountReport = data.reportType === 'amount' || data.reportType === 'amount_with_vat';
   
   // Create workbook
   const workbook = XLSX.utils.book_new();

@@ -138,7 +138,7 @@ export async function GET() {
       return {
         id: material.id,
         name: material.name,
-        code: material.code,
+        code: (material as any).code || '',
         categoryId: material.categoryId,
         categoryName: material.category?.name,
         categoryColor: material.category?.color,

@@ -110,6 +110,22 @@ export default function RecipesPage() {
     }, 0);
   };
 
+  const calculateFormCostWithVAT = () => {
+    return recipeForm.ingredients.reduce((total, ingredient) => {
+      const material = getMaterialById(ingredient.materialId);
+      if (material && material.averageCost && ingredient.quantity > 0) {
+        const baseCost = material.averageCost * ingredient.quantity;
+        // Add VAT if material has defaultTax
+        if ((material as any).defaultTax?.rate) {
+          const vatMultiplier = 1 + ((material as any).defaultTax.rate / 100);
+          return total + (baseCost * vatMultiplier);
+        }
+        return total + baseCost;
+      }
+      return total;
+    }, 0);
+  };
+
   const categories = [...new Set(recipes.map(r => r.category).filter((c): c is string => Boolean(c)))];
 
   const openEditModal = (recipe: RecipeWithRelations) => {
@@ -253,6 +269,7 @@ export default function RecipesPage() {
                   resetForm();
                 }}
                 calculateFormCost={calculateFormCost}
+                calculateFormCostWithVAT={calculateFormCostWithVAT}
               />
             </DialogContent>
           </Dialog>
@@ -273,6 +290,7 @@ export default function RecipesPage() {
                   setSelectedRecipe(null);
                 }}
                 calculateFormCost={calculateFormCost}
+                calculateFormCostWithVAT={calculateFormCostWithVAT}
               />
             </DialogContent>
           </Dialog>

@@ -299,7 +299,7 @@ export const recipeService = {
 
             // Convert quantity to float (handle both comma and dot decimal separators)
             const quantityFloat = typeof ingredient.quantity === 'string' ? 
-              parseFloat(ingredient.quantity.replace(',', '.')) : 
+              parseFloat((ingredient.quantity as string).replace(',', '.')) : 
               ingredient.quantity;
 
             // Calculate cost for this ingredient

@@ -53,9 +53,9 @@ interface StockMovementData {
   closingStockAmount?: number;
 }
 
-interface StockExtractData {
+export interface StockExtractData {
   period: { startDate: string; endDate: string };
-  reportType: 'quantity' | 'amount';
+  reportType: 'quantity' | 'amount' | 'amount_with_vat';
   records: StockMovementData[];
   summary: {
     totalMaterials: number;
@@ -71,7 +71,7 @@ interface Filters {
   endDate: string;
   warehouseIds: string[];
   categoryIds: string[];
-  reportType: 'quantity' | 'amount';
+  reportType: 'quantity' | 'amount' | 'amount_with_vat';
 }
 
 interface ExportButtonsProps {
@@ -83,7 +83,7 @@ interface ExportButtonsProps {
 export function ExportButtons({ data, filters, onExport }: ExportButtonsProps) {
   
   const exportToCSV = () => {
-    const isAmountReport = data.reportType === 'amount';
+    const isAmountReport = data.reportType === 'amount' || data.reportType === 'amount_with_vat';
     
     // Prepare headers
     const headers = [
@@ -175,7 +175,7 @@ export function ExportButtons({ data, filters, onExport }: ExportButtonsProps) {
   };
 
   const exportToExcel = () => {
-    const isAmountReport = data.reportType === 'amount';
+    const isAmountReport = data.reportType === 'amount' || data.reportType === 'amount_with_vat';
     
     // Create workbook and worksheet
     const workbook = XLSX.utils.book_new();
@@ -193,7 +193,7 @@ export function ExportButtons({ data, filters, onExport }: ExportButtonsProps) {
       '', '', '', '', '', '', '', '', '', '', '', '', '', ''
     ]);
     excelData.push([
-      `Rapor Tipi: ${isAmountReport ? 'Tutar Bazlı' : 'Miktar Bazlı'}`,
+      `Rapor Tipi: ${data.reportType === 'quantity' ? 'Miktar Bazlı' : data.reportType === 'amount' ? 'Tutar Bazlı' : 'Tutar Bazlı (KDV Dahil)'}`,
       '', '', '', '', '', '', '', '', '', '', '', '', '', ''
     ]);
     excelData.push(['']); // Empty row
@@ -472,7 +472,8 @@ export function ExportButtons({ data, filters, onExport }: ExportButtonsProps) {
   };
 
   const generateFileName = (extension: string) => {
-    const reportType = data.reportType === 'quantity' ? 'Miktar' : 'Tutar';
+    const reportType = data.reportType === 'quantity' ? 'Miktar' : 
+                      data.reportType === 'amount' ? 'Tutar' : 'Tutar_KDV_Dahil';
     const startDate = data.period.startDate.replace(/-/g, '');
     const endDate = data.period.endDate.replace(/-/g, '');
     return `Stok_Ekstresi_${reportType}_${startDate}_${endDate}.${extension}`;

@@ -100,7 +100,7 @@ export default function NewRecipePage() {
     return recipeForm.ingredients.reduce((total, ingredient) => {
       const material = materials.find(m => m.id === ingredient.materialId);
       const qty = typeof ingredient.quantity === 'string' ? 
-        parseFloat(ingredient.quantity.replace(',', '.')) : 
+        parseFloat((ingredient.quantity as string).replace(',', '.')) : 
         ingredient.quantity;
       if (material && qty > 0) {
         return total + (material.averageCost * qty);

@@ -938,6 +938,9 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
               throw new Error(`Material not found: ${item.materialId}`);
             }
 
+            // Calculate discount-aware unit price
+            const discountedUnitPrice = calculateDiscountedUnitPrice(item);
+            
             // Calculate quantity in consumption unit
             const purchaseUnit = material.purchaseUnit;
             const consumptionUnit = material.consumptionUnit;

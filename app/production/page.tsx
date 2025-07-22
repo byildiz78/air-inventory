@@ -52,7 +52,7 @@ export default function ProductionPage() {
   const [productionForm, setProductionForm] = useState({
     materialId: '',
     recipeId: '',
-    quantity: 1,
+    quantity: 1 as string | number,
     warehouseId: '',
     notes: '',
     date: new Date().toISOString().split('T')[0],
@@ -197,7 +197,7 @@ export default function ProductionPage() {
       
       // Convert quantity from string to number
       const quantity = typeof productionForm.quantity === 'string' ? 
-        parseFloat(productionForm.quantity.replace(',', '.')) : 
+        parseFloat((productionForm.quantity as string).replace(',', '.')) : 
         productionForm.quantity;
         
       if (!quantity || quantity <= 0) {
