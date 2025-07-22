@@ -268,6 +268,22 @@ export default function WarehousesPage() {
     return stocks.reduce((total, stock) => total + (stock.currentStock * stock.averageCost), 0);
   };
 
+  const getWarehouseTotalValueWithVAT = (warehouseId: string) => {
+    const stocks = getWarehouseStocks(warehouseId);
+    return stocks.reduce((total, stock) => {
+      const material = getMaterialById(stock.materialId);
+      const baseValue = stock.currentStock * stock.averageCost;
+      
+      if (material?.defaultTax?.rate) {
+        const vatMultiplier = 1 + (material.defaultTax.rate / 100);
+        return total + (baseValue * vatMultiplier);
+      }
+      
+      // If no VAT rate, assume 20% VAT (general rate)
+      return total + (baseValue * 1.20);
+    }, 0);
+  };
+
   const getWarehouseUtilization = (warehouse: any) => {
     if (!warehouse.capacity) return 0;
     const stocks = getWarehouseStocks(warehouse.id);
@@ -579,6 +595,7 @@ export default function WarehousesPage() {
           transfers={transfers}
           materialStocks={materialStocks}
           getWarehouseTotalValue={getWarehouseTotalValue}
+          getWarehouseTotalValueWithVAT={getWarehouseTotalValueWithVAT}
           getWarehouseUtilization={getWarehouseUtilization}
         />
 
@@ -615,6 +632,7 @@ export default function WarehousesPage() {
               getWarehouseTypeColor={getWarehouseTypeColor}
               getWarehouseStocks={getWarehouseStocks}
               getWarehouseTotalValue={getWarehouseTotalValue}
+              getWarehouseTotalValueWithVAT={getWarehouseTotalValueWithVAT}
               getWarehouseUtilization={getWarehouseUtilization}
               onEditWarehouse={startEditWarehouse}
               onDeleteWarehouse={handleDeleteWarehouse}

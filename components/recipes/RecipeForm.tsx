@@ -104,8 +104,11 @@ export function RecipeForm({
   const calculateTotalCost = () => {
     return formData.ingredients.reduce((total: number, ingredient: any) => {
       const material = materials.find(m => m.id === ingredient.materialId);
-      if (material && ingredient.quantity > 0) {
-        return total + (material.averageCost * ingredient.quantity);
+      const qty = typeof ingredient.quantity === 'string' ? 
+        parseFloat(ingredient.quantity.replace(',', '.')) : 
+        ingredient.quantity;
+      if (material && qty > 0) {
+        return total + (material.averageCost * qty);
       }
       return total;
     }, 0);
@@ -118,6 +121,7 @@ export function RecipeForm({
   const suggestedPrice = (margin: number) => {
     return calculateCostPerServing() * (1 + margin / 100);
   };
+
 
   const getMaterialById = (id: string) => materials.find(m => m.id === id);
   const getUnitById = (id: string) => units.find(u => u.id === id);
@@ -361,10 +365,10 @@ export function RecipeForm({
                           <div className="col-span-2">
                             <Label className="text-xs">Miktar</Label>
                             <Input 
-                              type="number" 
-                              step="0.01"
-                              value={ingredient.quantity}
-                              onChange={(e) => updateIngredient(index, 'quantity', parseFloat(e.target.value) || 0)}
+                              type="text"
+                              value={ingredient.quantity || ''}
+                              onChange={(e) => updateIngredient(index, 'quantity', e.target.value)}
+                              placeholder="Örn: 1,5 veya 2.125"
                               className="mt-1"
                             />
                           </div>

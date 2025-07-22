@@ -12,6 +12,8 @@ export interface CurrentStockData {
   maxStockLevel: number;
   averageCost: number;
   totalValue: number;
+  totalValueWithVAT: number;
+  vatRate: number;
   stockStatus: 'normal' | 'warning' | 'low' | 'critical';
   stockRatio: number;
   urgency: 'low' | 'medium' | 'high' | 'critical';
@@ -41,6 +43,7 @@ export interface WarehouseStock {
 export interface CurrentStockSummary {
   totalMaterials: number;
   totalStockValue: number;
+  totalStockValueWithVAT: number;
   lowStockItems: number;
   criticalStockItems: number;
   normalStockItems: number;
@@ -50,7 +53,6 @@ export interface CurrentStockSummary {
 export interface CurrentStockFilters {
   searchTerm: string;
   categoryId: string;
-  supplierId: string;
   warehouseId: string;
   stockStatus: 'all' | 'normal' | 'warning' | 'low' | 'critical';
 }

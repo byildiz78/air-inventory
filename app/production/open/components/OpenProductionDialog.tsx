@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +18,9 @@ import {
   Building,
   Calculator,
   AlertCircle,
-  Calendar
+  Calendar,
+  Check,
+  ChevronsUpDown
 } from 'lucide-react';
 import { notify } from '@/lib/notifications';
 
@@ -69,6 +73,7 @@ export function OpenProductionDialog({
   ]);
   
   const [loading, setLoading] = useState(false);
+  const [openMaterialSelectors, setOpenMaterialSelectors] = useState<{ [key: number]: boolean }>({});
 
   // Semi-finished products (finished products that can be produced)
   const finishedMaterials = materials.filter(m => m.isFinishedProduct === true);
@@ -112,6 +117,7 @@ export function OpenProductionDialog({
       productionDate: new Date().toISOString().split('T')[0]
     });
     setMaterialItems([{ materialId: '', quantity: 0, notes: '' }]);
+    setOpenMaterialSelectors({});
   };
 
   const addMaterialItem = () => {
@@ -128,6 +134,15 @@ export function OpenProductionDialog({
     const updated = [...materialItems];
     updated[index] = { ...updated[index], [field]: value };
     setMaterialItems(updated);
+  };
+
+  // Helper function to handle decimal input with both comma and dot
+  const handleDecimalInput = (value: string): number => {
+    if (!value || value === '') return 0;
+    // Replace comma with dot for parsing
+    const normalizedValue = value.replace(',', '.');
+    const result = parseFloat(normalizedValue);
+    return isNaN(result) ? 0 : result;
   };
 
   const calculateTotalCost = () => {
@@ -159,12 +174,32 @@ export function OpenProductionDialog({
       return;
     }
     
-    const validItems = materialItems.filter(item => 
-      item.materialId && item.quantity > 0
-    );
+    // Convert string quantities to numbers
+    const validItems = materialItems.filter(item => {
+      if (!item.materialId) return false;
+      const qty = typeof item.quantity === 'string' ? 
+        parseFloat(item.quantity.replace(',', '.')) : 
+        item.quantity;
+      return qty > 0;
+    }).map(item => ({
+      ...item,
+      quantity: typeof item.quantity === 'string' ? 
+        parseFloat(item.quantity.replace(',', '.')) : 
+        item.quantity
+    }));
     
     if (validItems.length === 0) {
       notify.error('En az bir malzeme ekleyin');
+      return;
+    }
+
+    // Convert produced quantity
+    const producedQty = typeof formData.producedQuantity === 'string' ? 
+      parseFloat(formData.producedQuantity.replace(',', '.')) : 
+      formData.producedQuantity;
+      
+    if (!producedQty || producedQty <= 0) {
+      notify.error('Geçerli bir üretim miktarı girin');
       return;
     }
 
@@ -172,6 +207,7 @@ export function OpenProductionDialog({
       setLoading(true);
       await onSubmit({
         ...formData,
+        producedQuantity: producedQty,
         items: validItems
       });
       resetForm();
@@ -220,13 +256,18 @@ export function OpenProductionDialog({
                 </div>
                 
                 <div>
-                  <Label>Üretilen Miktar</Label>
+                  <Label>
+                    Üretilen Miktar
+                    <span className="text-xs text-muted-foreground ml-1">(3 ondalık basamak)</span>
+                  </Label>
                   <Input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={formData.producedQuantity}
-                    onChange={(e) => setFormData(prev => ({ ...prev, producedQuantity: parseFloat(e.target.value) || 0 }))}
+                    type="text"
+                    value={formData.producedQuantity || ''}
+                    onChange={(e) => {
+                      setFormData(prev => ({ ...prev, producedQuantity: e.target.value }));
+                    }}
+                    placeholder="Örn: 100,5 veya 100.125"
+                    className="text-center"
                     required
                   />
                   {formData.producedMaterialId && (
@@ -363,77 +404,123 @@ export function OpenProductionDialog({
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {materialItems.map((item, index) => (
-                <div key={index} className="flex items-end gap-3 p-3 border rounded-lg">
-                  <div className="flex-1">
-                    <Label>Malzeme</Label>
-                    <Select
-                      value={item.materialId}
-                      onValueChange={(value) => updateMaterialItem(index, 'materialId', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Malzeme seçin" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rawMaterials.map(material => (
-                          <SelectItem key={material.id} value={material.id}>
-                            <div className="flex items-center gap-2">
-                              <Package className="w-4 h-4" />
-                              <div className="flex flex-col">
-                                <span>{material.name}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  Birim: {material.consumptionUnit?.name || material.consumptionUnit?.abbreviation || 'Bilinmiyor'}
-                                </span>
-                              </div>
-                              <Badge variant="secondary" className="ml-auto">
-                                ₺{material.averageCost?.toFixed(2) || '0.00'}
-                              </Badge>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              {materialItems.map((item, index) => {
+                const selectedMaterial = rawMaterials.find(m => m.id === item.materialId);
+                return (
+                  <div key={index} className="grid grid-cols-12 gap-3 items-end p-3 border rounded-lg">
+                    {/* Material Selection */}
+                    <div className="col-span-5">
+                      <Label className="text-sm font-medium">Malzeme</Label>
+                      <Popover 
+                        open={openMaterialSelectors[index]} 
+                        onOpenChange={(open) => setOpenMaterialSelectors(prev => ({ ...prev, [index]: open }))}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openMaterialSelectors[index]}
+                            className="w-full justify-between font-normal h-10"
+                          >
+                            {item.materialId
+                              ? selectedMaterial?.name
+                              : "Malzeme seçin..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Malzeme ara..." />
+                            <CommandEmpty>Malzeme bulunamadı.</CommandEmpty>
+                            <CommandList>
+                              <CommandGroup>
+                                {rawMaterials.map((material) => (
+                                  <CommandItem
+                                    key={material.id}
+                                    value={material.name}
+                                    onSelect={() => {
+                                      updateMaterialItem(index, 'materialId', material.id);
+                                      setOpenMaterialSelectors(prev => ({ ...prev, [index]: false }));
+                                    }}
+                                  >
+                                    <Check
+                                      className={`mr-2 h-4 w-4 ${
+                                        item.materialId === material.id ? "opacity-100" : "opacity-0"
+                                      }`}
+                                    />
+                                    <div className="flex items-center justify-between w-full">
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{material.name}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {material.category?.name} • {material.consumptionUnit?.abbreviation || 'birim'}
+                                        </span>
+                                      </div>
+                                      <Badge variant="secondary" className="ml-2 shrink-0">
+                                        ₺{material.averageCost?.toFixed(2) || '0.00'}
+                                      </Badge>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    
+                    {/* Quantity Input */}
+                    <div className="col-span-2">
+                      <Label className="text-sm font-medium">
+                        Miktar
+                        <span className="text-xs text-muted-foreground ml-1">(0.000)</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={item.quantity || ''}
+                        onChange={(e) => {
+                          updateMaterialItem(index, 'quantity', e.target.value);
+                        }}
+                        placeholder="Örn: 1,5 veya 2.125"
+                        className="h-10 text-center"
+                      />
+                    </div>
+                    
+                    {/* Unit Display */}
+                    <div className="col-span-1">
+                      <Label className="text-sm font-medium">Birim</Label>
+                      <div className="h-10 px-3 py-2 border rounded-md flex items-center text-sm bg-gray-50">
+                        {selectedMaterial?.consumptionUnit?.abbreviation || '-'}
+                      </div>
+                    </div>
+                    
+                    {/* Notes */}
+                    <div className="col-span-3">
+                      <Label className="text-sm font-medium">Notlar</Label>
+                      <Input
+                        value={item.notes || ''}
+                        onChange={(e) => updateMaterialItem(index, 'notes', e.target.value)}
+                        placeholder="Opsiyonel"
+                        className="h-10"
+                      />
+                    </div>
+                    
+                    {/* Delete Button */}
+                    <div className="col-span-1">
+                      {materialItems.length > 1 && (
+                        <Button
+                          type="button"
+                          onClick={() => removeMaterialItem(index)}
+                          variant="outline"
+                          size="icon"
+                          className="text-red-600 hover:text-red-700 h-10 w-10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="w-32">
-                    <Label>Miktar</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={item.quantity}
-                      onChange={(e) => updateMaterialItem(index, 'quantity', parseFloat(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                    {item.materialId && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {rawMaterials.find(m => m.id === item.materialId)?.consumptionUnit?.abbreviation || 'birim'}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1">
-                    <Label>Notlar</Label>
-                    <Input
-                      value={item.notes || ''}
-                      onChange={(e) => updateMaterialItem(index, 'notes', e.target.value)}
-                      placeholder="Opsiyonel notlar"
-                    />
-                  </div>
-                  
-                  {materialItems.length > 1 && (
-                    <Button
-                      type="button"
-                      onClick={() => removeMaterialItem(index)}
-                      variant="outline"
-                      size="icon"
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
               
               {/* Cost Summary */}
               {totalCost > 0 && (

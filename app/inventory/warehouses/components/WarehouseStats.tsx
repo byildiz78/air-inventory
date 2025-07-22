@@ -15,6 +15,7 @@ interface WarehouseStatsProps {
   transfers: any[];
   materialStocks: any[];
   getWarehouseTotalValue: (warehouseId: string) => number;
+  getWarehouseTotalValueWithVAT: (warehouseId: string) => number;
   getWarehouseUtilization: (warehouse: any) => number;
 }
 
@@ -23,9 +24,11 @@ export function WarehouseStats({
   transfers,
   materialStocks,
   getWarehouseTotalValue,
+  getWarehouseTotalValueWithVAT,
   getWarehouseUtilization
 }: WarehouseStatsProps) {
-  const totalValue = warehouses.reduce((total, w) => total + getWarehouseTotalValue(w.id), 0);
+  const totalValueExclVAT = warehouses.reduce((total, w) => total + getWarehouseTotalValue(w.id), 0);
+  const totalValueInclVAT = warehouses.reduce((total, w) => total + getWarehouseTotalValueWithVAT(w.id), 0);
   const avgUtilization = warehouses.length > 0 
     ? warehouses.reduce((total, w) => total + getWarehouseUtilization(w), 0) / warehouses.length
     : 0;
@@ -44,12 +47,20 @@ export function WarehouseStats({
       bgColor: 'bg-blue-50'
     },
     {
-      title: 'Toplam Stok Değeri',
-      value: `₺${totalValue.toLocaleString()}`,
+      title: 'Stok Değeri',
+      value: `₺${totalValueExclVAT.toLocaleString()}`,
       description: 'Tüm depolar',
       icon: TrendingUp,
       color: 'text-green-600',
       bgColor: 'bg-green-50'
+    },
+    {
+      title: 'Stok Değeri (KDV Dahil)',
+      value: `₺${totalValueInclVAT.toLocaleString()}`,
+      description: 'KDV dahil toplam',
+      icon: TrendingUp,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50'
     },
     {
       title: 'Bekleyen Transferler',
@@ -72,7 +83,7 @@ export function WarehouseStats({
   return (
     <div className="space-y-4">
       {/* Main Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (

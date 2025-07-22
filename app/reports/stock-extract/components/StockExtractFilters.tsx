@@ -25,7 +25,7 @@ interface Filters {
   endDate: string;
   warehouseIds: string[];
   categoryIds: string[];
-  reportType: 'quantity' | 'amount';
+  reportType: 'quantity' | 'amount' | 'amount_with_vat';
 }
 
 interface StockExtractFiltersProps {
@@ -187,14 +187,15 @@ export function StockExtractFilters({
               </Label>
               <Select 
                 value={filters.reportType} 
-                onValueChange={(value: 'quantity' | 'amount') => onChange({ reportType: value })}
+                onValueChange={(value: 'quantity' | 'amount' | 'amount_with_vat') => onChange({ reportType: value })}
               >
                 <SelectTrigger className="border-blue-300 focus:border-blue-500">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="quantity">📊 Miktar Bazlı</SelectItem>
-                  <SelectItem value="amount">💰 Tutar Bazlı</SelectItem>
+                  <SelectItem value="amount">💰 Tutar Bazlı (KDV Hariç)</SelectItem>
+                  <SelectItem value="amount_with_vat">💰 Tutar Bazlı (KDV Dahil)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

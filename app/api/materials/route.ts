@@ -208,6 +208,13 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
             name: true,
           }
         },
+        defaultTax: {
+          select: {
+            id: true,
+            name: true,
+            rate: true,
+          }
+        },
         materialStocks: {
           include: {
             warehouse: {

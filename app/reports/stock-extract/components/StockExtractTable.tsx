@@ -87,7 +87,7 @@ interface GroupedData {
 
 interface StockExtractTableProps {
   data: StockMovementData[];
-  reportType: 'quantity' | 'amount';
+  reportType: 'quantity' | 'amount' | 'amount_with_vat';
   loading: boolean;
 }
 
@@ -262,7 +262,7 @@ export function StockExtractTable({ data, reportType, loading }: StockExtractTab
             totals.adjustmentOUT += record.adjustmentOUT;
             totals.closingStock += record.closingStock;
 
-            if (reportType === 'amount') {
+            if (reportType === 'amount' || reportType === 'amount_with_vat') {
               totals.openingStockAmount += record.openingStockAmount || 0;
               totals.purchaseINAmount += record.purchaseINAmount || 0;
               totals.transferINAmount += record.transferINAmount || 0;
@@ -335,7 +335,7 @@ export function StockExtractTable({ data, reportType, loading }: StockExtractTab
     );
   }
 
-  const isAmountReport = reportType === 'amount';
+  const isAmountReport = reportType === 'amount' || reportType === 'amount_with_vat';
 
   return (
     <div className="space-y-4">

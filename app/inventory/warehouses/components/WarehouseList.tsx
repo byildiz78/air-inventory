@@ -19,6 +19,7 @@ interface WarehouseListProps {
   getWarehouseTypeColor: (type: string) => string;
   getWarehouseStocks: (warehouseId: string) => any[];
   getWarehouseTotalValue: (warehouseId: string) => number;
+  getWarehouseTotalValueWithVAT: (warehouseId: string) => number;
   getWarehouseUtilization: (warehouse: any) => number;
   onEditWarehouse: (warehouse: any) => void;
   onDeleteWarehouse: (warehouseId: string) => void;
@@ -31,6 +32,7 @@ export function WarehouseList({
   getWarehouseTypeColor,
   getWarehouseStocks,
   getWarehouseTotalValue,
+  getWarehouseTotalValueWithVAT,
   getWarehouseUtilization,
   onEditWarehouse,
   onDeleteWarehouse,
@@ -73,7 +75,8 @@ export function WarehouseList({
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {warehouses.map((warehouse) => {
         const stocks = getWarehouseStocks(warehouse.id);
-        const totalValue = getWarehouseTotalValue(warehouse.id);
+        const totalValueExclVAT = getWarehouseTotalValue(warehouse.id);
+        const totalValueInclVAT = getWarehouseTotalValueWithVAT(warehouse.id);
         const utilization = getWarehouseUtilization(warehouse);
         
         return (
@@ -127,19 +130,28 @@ export function WarehouseList({
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Malzeme Çeşidi</p>
-                  <p className="font-medium flex items-center gap-1">
-                    <Package className="w-3 h-3" />
-                    {stocks.length}
-                  </p>
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-muted-foreground">Malzeme Çeşidi</p>
+                    <p className="font-medium flex items-center gap-1">
+                      <Package className="w-3 h-3" />
+                      {stocks.length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">KDV Hariç Değer</p>
+                    <p className="font-medium flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3 text-green-600" />
+                      ₺{totalValueExclVAT.toLocaleString()}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Toplam Değer</p>
-                  <p className="font-medium flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3 text-green-600" />
-                    ₺{totalValue.toLocaleString()}
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-muted-foreground">KDV Dahil Toplam Değer</p>
+                  <p className="font-semibold text-emerald-600 flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3" />
+                    ₺{totalValueInclVAT.toLocaleString()}
                   </p>
                 </div>
               </div>

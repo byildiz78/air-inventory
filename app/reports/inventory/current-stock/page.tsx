@@ -36,7 +36,6 @@ export default function CurrentStockReportPage() {
   } = useCurrentStock();
 
   const [categories, setCategories] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [exporting, setExporting] = useState(false);
 
@@ -46,14 +45,12 @@ export default function CurrentStockReportPage() {
 
   const loadFilterData = async () => {
     try {
-      const [categoriesRes, suppliersRes, warehousesRes] = await Promise.all([
+      const [categoriesRes, warehousesRes] = await Promise.all([
         fetch('/api/categories').then(res => res.json()),
-        fetch('/api/suppliers').then(res => res.json()),
         fetch('/api/warehouses').then(res => res.json())
       ]);
 
       if (categoriesRes.success) setCategories(categoriesRes.data);
-      if (suppliersRes.success) setSuppliers(suppliersRes.data);
       if (warehousesRes.success) setWarehouses(warehousesRes.data);
     } catch (error) {
       console.error('Filter data loading error:', error);
@@ -158,7 +155,7 @@ export default function CurrentStockReportPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -178,20 +175,6 @@ export default function CurrentStockReportPage() {
                   {categories.map(category => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filters.supplierId} onValueChange={(value) => updateFilters({ supplierId: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tedarikçi" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tüm Tedarikçiler</SelectItem>
-                  {suppliers.map(supplier => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -240,7 +223,7 @@ export default function CurrentStockReportPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <Package className="w-5 h-5 text-blue-600" />
@@ -253,10 +236,19 @@ export default function CurrentStockReportPage() {
                 <div className="p-4 bg-green-50 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <Scale className="w-5 h-5 text-green-600" />
-                    <h3 className="font-medium">Toplam Stok Değeri</h3>
+                    <h3 className="font-medium">Stok Değeri</h3>
                   </div>
                   <p className="text-2xl font-bold">₺{stockData.reduce((sum, item) => sum + item.totalValue, 0).toLocaleString()}</p>
                   <p className="text-sm text-muted-foreground">Mevcut stok maliyeti</p>
+                </div>
+                
+                <div className="p-4 bg-emerald-50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Scale className="w-5 h-5 text-emerald-600" />
+                    <h3 className="font-medium">Stok Değeri</h3>
+                  </div>
+                  <p className="text-2xl font-bold text-emerald-700">₺{stockData.reduce((sum, item) => sum + item.totalValueWithVAT, 0).toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground">KDV dahil toplam</p>
                 </div>
                 
                 <div className="p-4 bg-orange-50 rounded-lg">
@@ -296,11 +288,12 @@ export default function CurrentStockReportPage() {
                   <tr className="bg-gray-100">
                     <th className="p-2 text-left">Malzeme</th>
                     <th className="p-2 text-left">Kategori</th>
-                    <th className="p-2 text-left">Tedarikçi</th>
                     <th className="p-2 text-right">Mevcut Stok</th>
                     <th className="p-2 text-right">Min. Stok</th>
                     <th className="p-2 text-right">Birim Maliyet</th>
-                    <th className="p-2 text-right">Toplam Değer</th>
+                    <th className="p-2 text-right">KDV Hariç</th>
+                    <th className="p-2 text-right">KDV Dahil</th>
+                    <th className="p-2 text-right">KDV %</th>
                     <th className="p-2 text-center">Durum</th>
                     <th className="p-2 text-center">Depolar</th>
                   </tr>
@@ -323,11 +316,12 @@ export default function CurrentStockReportPage() {
                           </div>
                         </td>
                         <td className="p-2">{item.categoryName}</td>
-                        <td className="p-2">{item.supplierName || '-'}</td>
                         <td className="p-2 text-right">{item.currentStock.toFixed(2)} {item.consumptionUnit.abbreviation}</td>
                         <td className="p-2 text-right">{item.minStockLevel.toFixed(2)} {item.consumptionUnit.abbreviation}</td>
                         <td className="p-2 text-right">₺{item.averageCost.toFixed(2)}</td>
-                        <td className="p-2 text-right font-medium">₺{item.totalValue.toLocaleString()}</td>
+                        <td className="p-2 text-right">₺{item.totalValue.toLocaleString()}</td>
+                        <td className="p-2 text-right font-medium text-emerald-600">₺{item.totalValueWithVAT.toLocaleString()}</td>
+                        <td className="p-2 text-right text-sm">{item.vatRate}%</td>
                         <td className="p-2 text-center">
                           <Badge variant={statusBadge.variant as any}>
                             {statusBadge.label}

@@ -7,7 +7,7 @@ interface StockExtractRequest {
   endDate: string;
   warehouseIds?: string[];
   categoryIds?: string[];
-  reportType: 'quantity' | 'amount';
+  reportType: 'quantity' | 'amount' | 'amount_with_vat';
 }
 
 interface StockMovementData {
@@ -46,6 +46,24 @@ interface StockMovementData {
   consumptionOUTAmount?: number;
   adjustmentOUTAmount?: number;
   closingStockAmount?: number;
+}
+
+// Helper function to calculate amount with VAT if needed
+function calculateAmountWithVAT(baseAmount: number, material: any, reportType: string): number {
+  if (reportType !== 'amount_with_vat') {
+    return baseAmount;
+  }
+  
+  let vatRate = 0;
+  if (material.defaultTax?.rate) {
+    vatRate = material.defaultTax.rate;
+  } else {
+    // If no VAT rate, assume 20% VAT (general rate)
+    vatRate = 20;
+  }
+  
+  const vatMultiplier = 1 + (vatRate / 100);
+  return baseAmount * vatMultiplier;
 }
 
 // Movement classification helper - simple rules based on type and invoiceId
@@ -88,7 +106,7 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
     const endDate = searchParams.get('endDate');
     const warehouseIds = searchParams.get('warehouseIds')?.split(',').filter(Boolean);
     const categoryIds = searchParams.get('categoryIds')?.split(',').filter(Boolean);
-    const reportType = (searchParams.get('reportType') || 'quantity') as 'quantity' | 'amount';
+    const reportType = (searchParams.get('reportType') || 'quantity') as 'quantity' | 'amount' | 'amount_with_vat';
 
     if (!startDate || !endDate) {
       return NextResponse.json(
@@ -130,7 +148,14 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
             parent: true
           }
         },
-        consumptionUnit: true
+        consumptionUnit: true,
+        defaultTax: {
+          select: {
+            id: true,
+            name: true,
+            rate: true,
+          }
+        }
       }
     });
 
@@ -215,7 +240,8 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
           m => m.materialId === material.id && m.warehouseId === warehouse.id
         );
         const openingQty = openingMovements.reduce((sum, m) => sum + m.quantity, 0);
-        const openingAmount = openingMovements.reduce((sum, m) => sum + (m.quantity * (m.unitCost || 0)), 0);
+        const openingAmountBase = openingMovements.reduce((sum, m) => sum + (m.quantity * (m.unitCost || 0)), 0);
+        const openingAmount = calculateAmountWithVAT(openingAmountBase, material, reportType);
 
         // Calculate period movements by type
         const movements = periodMovements.filter(
@@ -233,7 +259,8 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
         // Classify and sum movements
         movements.forEach(movement => {
           const qty = movement.quantity;
-          const amount = movement.quantity * (movement.unitCost || 0);
+          const baseAmount = movement.quantity * (movement.unitCost || 0);
+          const amount = calculateAmountWithVAT(baseAmount, material, reportType);
           
           console.log(`🔍 Processing movement: type=${movement.type}, invoiceId=${movement.invoiceId}, qty=${qty}`);
 
@@ -339,7 +366,7 @@ export const GET = AuthMiddleware.withAuth(async (request: NextRequest) => {
           };
 
           // Add amount data if requested
-          if (reportType === 'amount') {
+          if (reportType === 'amount' || reportType === 'amount_with_vat') {
             record.openingStockAmount = openingAmount;
             record.purchaseINAmount = movementData.purchaseINAmount;
             record.transferINAmount = movementData.transferINAmount;

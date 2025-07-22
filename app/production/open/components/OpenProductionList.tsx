@@ -273,7 +273,9 @@ export function OpenProductionList({
                     <div className="text-right">
                       <div className="flex items-center gap-1 text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">
                         <Package className="w-4 h-4 text-slate-500" />
-                        <span>{production.producedQuantity} birim</span>
+                        <span>
+                          {production.producedQuantity} {producedMaterial?.consumptionUnit?.abbreviation || 'birim'}
+                        </span>
                       </div>
                       
                       {production.totalCost && (

@@ -290,8 +290,13 @@ export const recipeService = {
               throw new Error(`Unit with ID ${ingredient.unitId} not found`);
             }
 
+            // Convert quantity to float (handle both comma and dot decimal separators)
+            const quantityFloat = typeof ingredient.quantity === 'string' ? 
+              parseFloat(ingredient.quantity.replace(',', '.')) : 
+              ingredient.quantity;
+
             // Calculate cost for this ingredient
-            const cost = (material.averageCost || 0) * ingredient.quantity;
+            const cost = (material.averageCost || 0) * quantityFloat;
             totalCost += cost;
 
             // Create the ingredient
@@ -300,7 +305,7 @@ export const recipeService = {
                 recipeId: id,
                 materialId: ingredient.materialId,
                 unitId: ingredient.unitId,
-                quantity: ingredient.quantity,
+                quantity: quantityFloat,
                 cost,
                 notes: ingredient.notes?.trim(),
               },

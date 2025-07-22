@@ -10,7 +10,6 @@ export function useCurrentStock() {
   const [filters, setFilters] = useState<CurrentStockFilters>({
     searchTerm: '',
     categoryId: 'all',
-    supplierId: 'all',
     warehouseId: 'all',
     stockStatus: 'all'
   });
@@ -49,12 +48,11 @@ export function useCurrentStock() {
                          (item.code && item.code.toLowerCase().includes(filters.searchTerm.toLowerCase()));
     
     const matchesCategory = filters.categoryId === 'all' || item.categoryId === filters.categoryId;
-    const matchesSupplier = filters.supplierId === 'all' || item.supplierId === filters.supplierId;
     const matchesWarehouse = filters.warehouseId === 'all' || 
                             item.warehouseStocks.some(ws => ws.warehouseId === filters.warehouseId);
     const matchesStockStatus = filters.stockStatus === 'all' || item.stockStatus === filters.stockStatus;
 
-    return matchesSearch && matchesCategory && matchesSupplier && matchesWarehouse && matchesStockStatus;
+    return matchesSearch && matchesCategory && matchesWarehouse && matchesStockStatus;
   });
 
   const updateFilters = (newFilters: Partial<CurrentStockFilters>) => {
@@ -71,11 +69,12 @@ export function useCurrentStock() {
         'Malzeme Adı': item.name,
         'Kod': item.code || '',
         'Kategori': item.categoryName,
-        'Tedarikçi': item.supplierName || '',
         'Mevcut Stok': item.currentStock,
         'Min. Stok': item.minStockLevel,
         'Birim Maliyet': item.averageCost,
-        'Toplam Değer': item.totalValue,
+        'KDV Hariç Değer': item.totalValue,
+        'KDV Dahil Değer': item.totalValueWithVAT,
+        'KDV Oranı': `${item.vatRate}%`,
         'Durum': item.stockStatus,
         'Birim': item.consumptionUnit.abbreviation
       }));

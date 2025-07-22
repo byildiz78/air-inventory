@@ -62,7 +62,7 @@ interface StockMovementData {
 
 interface StockExtractData {
   period: { startDate: string; endDate: string };
-  reportType: 'quantity' | 'amount';
+  reportType: 'quantity' | 'amount' | 'amount_with_vat';
   records: StockMovementData[];
   summary: {
     totalMaterials: number;
@@ -78,7 +78,7 @@ interface Filters {
   endDate: string;
   warehouseIds: string[];
   categoryIds: string[];
-  reportType: 'quantity' | 'amount';
+  reportType: 'quantity' | 'amount' | 'amount_with_vat';
 }
 
 export default function StockExtractPage() {
@@ -245,7 +245,8 @@ export default function StockExtractPage() {
               <div className="text-sm text-muted-foreground">
                 <strong>Filtre Özeti:</strong> {getFilterSummary()} • 
                 {filters.startDate} - {filters.endDate} • 
-                {filters.reportType === 'quantity' ? 'Miktar Bazlı' : 'Tutar Bazlı'}
+                {filters.reportType === 'quantity' ? 'Miktar Bazlı' : 
+                 filters.reportType === 'amount' ? 'Tutar Bazlı' : 'Tutar Bazlı (KDV Dahil)'}
               </div>
             </div>
           </CardContent>
@@ -268,7 +269,8 @@ export default function StockExtractPage() {
                     </CardTitle>
                     <CardDescription>
                       {data.period.startDate} - {data.period.endDate} dönemi • 
-                      {data.reportType === 'quantity' ? 'Miktar Bazlı' : 'Tutar Bazlı'} Rapor
+                      {data.reportType === 'quantity' ? 'Miktar Bazlı' : 
+                       data.reportType === 'amount' ? 'Tutar Bazlı' : 'Tutar Bazlı (KDV Dahil)'} Rapor
                     </CardDescription>
                   </div>
                   <Badge variant="secondary">

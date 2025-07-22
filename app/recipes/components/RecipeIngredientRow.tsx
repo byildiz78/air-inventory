@@ -3,7 +3,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2 } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Trash2, Check, ChevronsUpDown } from 'lucide-react';
 import { Material, Unit } from '@prisma/client';
 
 interface RecipeIngredientRowProps {
@@ -31,8 +33,11 @@ export function RecipeIngredientRow({
   onRemove,
   materialDefaultUnits = {}
 }: RecipeIngredientRowProps) {
+  const [openMaterialSelector, setOpenMaterialSelector] = useState(false);
+  
   // Find the material to get its default unit
   const selectedMaterial = materials.find(m => m.id === ingredient.materialId);
+  
   
   // When material changes, update the unit if needed
   useEffect(() => {
@@ -48,30 +53,62 @@ export function RecipeIngredientRow({
     <div className="grid grid-cols-12 gap-2 items-end p-3 border rounded-lg">
       <div className="col-span-4">
         <Label className="text-xs">Malzeme</Label>
-        <Select 
-          value={ingredient.materialId} 
-          onValueChange={(value) => onUpdate(index, 'materialId', value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Malzeme seçin" />
-          </SelectTrigger>
-          <SelectContent>
-            {materials.map(material => (
-              <SelectItem key={material.id} value={material.id}>
-                {material.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={openMaterialSelector} onOpenChange={setOpenMaterialSelector}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={openMaterialSelector}
+              className="w-full justify-between font-normal"
+            >
+              {ingredient.materialId
+                ? materials.find((material) => material.id === ingredient.materialId)?.name
+                : "Malzeme seçin..."}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-full p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Malzeme ara..." />
+              <CommandEmpty>Malzeme bulunamadı.</CommandEmpty>
+              <CommandList>
+                <CommandGroup>
+                  {materials.map((material) => (
+                    <CommandItem
+                      key={material.id}
+                      value={material.name}
+                      onSelect={() => {
+                        onUpdate(index, 'materialId', material.id);
+                        setOpenMaterialSelector(false);
+                      }}
+                    >
+                      <Check
+                        className={`mr-2 h-4 w-4 ${
+                          ingredient.materialId === material.id ? "opacity-100" : "opacity-0"
+                        }`}
+                      />
+                      <div className="flex flex-col">
+                        <span>{material.name}</span>
+                        {(material as any).category && (
+                          <span className="text-xs text-muted-foreground">{(material as any).category.name}</span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
       
       <div className="col-span-2">
         <Label className="text-xs">Miktar</Label>
         <Input 
-          type="number" 
-          step="0.01"
+          type="text"
           value={ingredient.quantity || ''}
-          onChange={(e) => onUpdate(index, 'quantity', parseFloat(e.target.value) || 0)}
+          onChange={(e) => onUpdate(index, 'quantity', e.target.value)}
+          placeholder="Örn: 1,5 veya 2.125"
         />
       </div>
       

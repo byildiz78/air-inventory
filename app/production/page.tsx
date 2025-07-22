@@ -30,6 +30,7 @@ export default function ProductionPage() {
   const Toaster = dynamic(() => import('react-hot-toast').then((mod) => mod.Toaster), { ssr: false });
   
   const [productions, setProductions] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
   const [semiFinishedMaterials, setSemiFinishedMaterials] = useState<any[]>([]);
   const [selectedMaterialRecipe, setSelectedMaterialRecipe] = useState<any>(null);
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -84,6 +85,7 @@ export default function ProductionPage() {
       }
       
       if (materialsData.success) {
+        setMaterials(materialsData.data);
         // Filter materials to only show semi-finished products that have SalesItems with recipe mappings
         const semiFinishedWithRecipes = materialsData.data.filter((material: any) => 
           material.isFinishedProduct && 
@@ -193,9 +195,19 @@ export default function ProductionPage() {
     try {
       setLoading(true);
       
+      // Convert quantity from string to number
+      const quantity = typeof productionForm.quantity === 'string' ? 
+        parseFloat(productionForm.quantity.replace(',', '.')) : 
+        productionForm.quantity;
+        
+      if (!quantity || quantity <= 0) {
+        toast.error('Geçerli bir miktar girin');
+        return;
+      }
+
       const newProduction = {
         materialId: productionForm.materialId,
-        quantity: productionForm.quantity,
+        quantity: quantity,
         warehouseId: productionForm.warehouseId,
         notes: productionForm.notes,
         date: new Date(productionForm.date).toISOString(),
@@ -259,6 +271,7 @@ export default function ProductionPage() {
     });
     setSelectedMaterialRecipe(null);
   };
+
 
   // Helper function removed - recipes are handled through material recipe mappings
   const getUserById = (id: string) => users.find(user => user.id === id);
@@ -337,8 +350,13 @@ export default function ProductionPage() {
                         <SelectItem key={material.id} value={material.id}>
                           <div className="flex items-center gap-2">
                             <Package className="w-4 h-4" />
-                            {material.name}
-                            <Badge variant="outline" className="ml-2">
+                            <div className="flex flex-col">
+                              <span>{material.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                Birim: {material.consumptionUnit?.abbreviation || material.consumptionUnit?.name || 'Bilinmiyor'}
+                              </span>
+                            </div>
+                            <Badge variant="outline" className="ml-auto">
                               Yarı Mamül
                             </Badge>
                           </div>
@@ -367,13 +385,16 @@ export default function ProductionPage() {
                 )}
                 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Üretim Miktarı (Porsiyon)</label>
+                  <label className="block text-sm font-medium mb-1">
+                    Üretim Miktarı (Porsiyon)
+                    <span className="text-xs text-muted-foreground ml-1">(3 ondalık basamak)</span>
+                  </label>
                   <Input
-                    type="number"
-                    min="1"
-                    step="0.1"
-                    value={productionForm.quantity}
-                    onChange={(e) => setProductionForm(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 1 }))}
+                    type="text"
+                    value={productionForm.quantity || ''}
+                    onChange={(e) => setProductionForm(prev => ({ ...prev, quantity: e.target.value }))}
+                    placeholder="Örn: 100,5 veya 100.125"
+                    className="text-center"
                     required
                   />
                 </div>
@@ -573,7 +594,7 @@ export default function ProductionPage() {
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {production.quantity} porsiyon → {production.producedQuantity} birim
+                            {production.quantity} porsiyon → {production.producedQuantity} {materials.find(m => m.id === production.materialId)?.consumptionUnit?.abbreviation || 'birim'}
                           </p>
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -594,7 +615,7 @@ export default function ProductionPage() {
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <div className="font-bold text-lg">
-                            {production.producedQuantity} birim
+                            {production.producedQuantity} {materials.find(m => m.id === production.materialId)?.consumptionUnit?.abbreviation || 'birim'}
                           </div>
                           <div className="text-sm text-blue-600">
                             Maliyet: ₺{(production.totalCost || 0).toLocaleString()}
@@ -657,7 +678,9 @@ export default function ProductionPage() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Üretilen:</span>
-                        <div className="font-medium">{selectedProduction.producedQuantity} birim</div>
+                        <div className="font-medium">
+                          {selectedProduction.producedQuantity} {materials.find(m => m.id === selectedProduction.materialId)?.consumptionUnit?.abbreviation || 'birim'}
+                        </div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Maliyet:</span>
@@ -673,7 +696,9 @@ export default function ProductionPage() {
                       <span className="font-medium">{selectedProduction.materialName}</span>
                     </div>
                     <div className="mt-2 text-sm text-green-600">
-                      <span>{selectedProduction.producedQuantity} birim üretildi</span>
+                      <span>
+                        {selectedProduction.producedQuantity} {materials.find(m => m.id === selectedProduction.materialId)?.consumptionUnit?.abbreviation || 'birim'} üretildi
+                      </span>
                     </div>
                   </div>
                   

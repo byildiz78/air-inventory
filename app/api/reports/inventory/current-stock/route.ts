@@ -38,6 +38,13 @@ export async function GET() {
             conversionFactor: true
           }
         },
+        defaultTax: {
+          select: {
+            id: true,
+            name: true,
+            rate: true,
+          }
+        },
         materialStocks: {
           include: {
             warehouse: {
@@ -113,10 +120,25 @@ export async function GET() {
         urgency = 'medium';
       }
 
+      // Calculate VAT-included values
+      const baseValue = totalStock * averageCost;
+      let totalValueWithVAT = baseValue;
+      let vatRate = 0;
+      
+      if (material.defaultTax?.rate) {
+        vatRate = material.defaultTax.rate;
+        const vatMultiplier = 1 + (vatRate / 100);
+        totalValueWithVAT = baseValue * vatMultiplier;
+      } else {
+        // If no VAT rate, assume 20% VAT (general rate)
+        vatRate = 20;
+        totalValueWithVAT = baseValue * 1.20;
+      }
+
       return {
         id: material.id,
         name: material.name,
-
+        code: material.code,
         categoryId: material.categoryId,
         categoryName: material.category?.name,
         categoryColor: material.category?.color,
@@ -126,7 +148,9 @@ export async function GET() {
         minStockLevel: material.minStockLevel,
         maxStockLevel: material.maxStockLevel,
         averageCost: averageCost,
-        totalValue: totalStock * averageCost,
+        totalValue: baseValue,
+        totalValueWithVAT: totalValueWithVAT,
+        vatRate: vatRate,
         stockStatus: stockStatus,
         stockRatio: stockRatio,
         urgency: urgency,
@@ -174,6 +198,7 @@ export async function GET() {
     const summary = {
       totalMaterials: stockData.length,
       totalStockValue: stockData.reduce((sum, item) => sum + item.totalValue, 0),
+      totalStockValueWithVAT: stockData.reduce((sum, item) => sum + item.totalValueWithVAT, 0),
       lowStockItems: stockData.filter(item => item.stockStatus === 'low' || item.stockStatus === 'critical').length,
       criticalStockItems: stockData.filter(item => item.stockStatus === 'critical').length,
       normalStockItems: stockData.filter(item => item.stockStatus === 'normal').length,
