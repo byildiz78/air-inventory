@@ -523,7 +523,7 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    // Delete with transaction to reverse stock movements
+    // Delete with transaction to restore stock and remove movements
     await prisma.$transaction(async (tx) => {
       // 1. Restore consumed materials (add back to consumption warehouse)
       for (const item of existingProduction.items) {
@@ -535,9 +535,6 @@ export async function DELETE(
             }
           }
         });
-
-        const stockBefore = existingConsumptionStock?.currentStock || 0;
-        const stockAfter = stockBefore + (item.quantity * 1000);
 
         if (existingConsumptionStock) {
           await tx.materialStock.update({
@@ -563,23 +560,6 @@ export async function DELETE(
             }
           });
         }
-
-        // Create reverse stock movement
-        await tx.stockMovement.create({
-          data: {
-            materialId: item.materialId,
-            unitId: '1',
-            userId: user.userId,
-            warehouseId: existingProduction.consumptionWarehouseId,
-            type: 'IN',
-            quantity: item.quantity * 1000,
-            reason: `Açık üretim silme (geri alma) - ${params.id}`,
-            unitCost: item.unitCost,
-            totalCost: item.totalCost,
-            stockBefore: stockBefore,
-            stockAfter: stockAfter
-          }
-        });
       }
 
       // 2. Remove produced material (subtract from production warehouse)
@@ -593,9 +573,6 @@ export async function DELETE(
       });
 
       if (existingProductionStock) {
-        const productionStockBefore = existingProductionStock.currentStock;
-        const productionStockAfter = productionStockBefore - (existingProduction.producedQuantity * 1000);
-
         await tx.materialStock.update({
           where: {
             materialId_warehouseId: {
@@ -608,26 +585,16 @@ export async function DELETE(
             availableStock: { decrement: existingProduction.producedQuantity * 1000 }
           }
         });
-
-        // Create reverse stock movement
-        await tx.stockMovement.create({
-          data: {
-            materialId: existingProduction.producedMaterialId,
-            unitId: '1',
-            userId: user.userId,
-            warehouseId: existingProduction.productionWarehouseId,
-            type: 'OUT',
-            quantity: -(existingProduction.producedQuantity * 1000),
-            reason: `Açık üretim silme (geri alma) - ${params.id}`,
-            unitCost: existingProduction.totalCost / existingProduction.producedQuantity,
-            totalCost: -existingProduction.totalCost,
-            stockBefore: productionStockBefore,
-            stockAfter: productionStockAfter
-          }
-        });
       }
 
-      // 3. Delete open production (items will be deleted automatically due to CASCADE)
+      // 3. Delete related stock movements
+      await tx.stockMovement.deleteMany({
+        where: {
+          reason: `Açık üretim - ${params.id}`
+        }
+      });
+
+      // 4. Delete open production (items will be deleted automatically due to CASCADE)
       await tx.openProduction.delete({
         where: { id: params.id }
       });

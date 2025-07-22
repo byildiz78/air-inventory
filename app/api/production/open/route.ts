@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
+    console.log('Received request data:', JSON.stringify(data, null, 2));
     
     const {
       producedMaterialId,
@@ -392,9 +393,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error creating open production:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json({
       success: false,
-      error: 'Internal server error'
+      error: error instanceof Error ? error.message : 'Internal server error'
     }, { status: 500 });
   }
 }

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Tag, 
   Plus, 
@@ -36,7 +37,8 @@ export default function CategoriesPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    color: '#3B82F6'
+    color: '#3B82F6',
+    parentId: 'none'
   });
 
   useEffect(() => {
@@ -77,7 +79,8 @@ export default function CategoriesPage() {
     setFormData({
       name: '',
       description: '',
-      color: '#3B82F6'
+      color: '#3B82F6',
+      parentId: 'none'
     });
   };
 
@@ -89,7 +92,10 @@ export default function CategoriesPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          parentId: formData.parentId === 'none' ? null : formData.parentId
+        }),
       });
       
       if (!response.ok) {
@@ -113,7 +119,10 @@ export default function CategoriesPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          parentId: formData.parentId === 'none' ? null : formData.parentId
+        }),
       });
       
       if (!response.ok) {
@@ -157,7 +166,8 @@ export default function CategoriesPage() {
     setFormData({
       name: category.name,
       description: category.description || '',
-      color: category.color
+      color: category.color,
+      parentId: category.parentId || 'none'
     });
   };
 
@@ -223,6 +233,25 @@ export default function CategoriesPage() {
                     placeholder="Örn: Et ve Et Ürünleri"
                     required
                   />
+                </div>
+                <div>
+                  <Label htmlFor="parentId">Ana Kategori</Label>
+                  <Select
+                    value={formData.parentId}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, parentId: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ana kategori seçin (boş bırakırsanız ana kategori olur)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ana Kategori Olsun</SelectItem>
+                      {categories.filter(cat => !cat.parentId).map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="description">Açıklama</Label>
@@ -444,6 +473,25 @@ export default function CategoriesPage() {
                   placeholder="Örn: Et ve Et Ürünleri"
                   required
                 />
+              </div>
+              <div>
+                <Label htmlFor="edit-parentId">Ana Kategori</Label>
+                <Select
+                  value={formData.parentId}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, parentId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ana kategori seçin (boş bırakırsanız ana kategori olur)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ana Kategori Olsun</SelectItem>
+                    {categories.filter(cat => !cat.parentId && cat.id !== editingCategory?.id).map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="edit-description">Açıklama</Label>

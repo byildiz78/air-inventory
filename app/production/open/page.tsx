@@ -108,6 +108,7 @@ export default function OpenProductionPage() {
         setIsNewProductionOpen(false);
         await loadData();
       } else {
+        console.error('Detailed API error:', response);
         notify.error(response.error || 'Açık üretim oluşturulurken hata oluştu');
       }
     } catch (error) {

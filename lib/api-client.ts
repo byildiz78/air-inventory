@@ -85,8 +85,10 @@ class ApiClient {
         // Try to parse error response
         try {
           const errorData = await response.json();
+          console.error('API Error Response:', errorData);
           throw new Error(errorData.error || `HTTP ${response.status}`);
-        } catch {
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
           throw new Error(`HTTP ${response.status}`);
         }
       }

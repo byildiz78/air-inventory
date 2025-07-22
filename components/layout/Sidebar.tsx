@@ -71,7 +71,7 @@ const navigation = [
      
       { name: 'Reçete Eşleştirmeleri', href: '/recipes/mappings' },
 
-      { name: 'Yarı Mamül Üretim', href: '/production' },
+      { name: 'Yarı Mamül Üretim (Reçeteli)', href: '/production' },
       { name: 'Açık Üretim', href: '/production/open' },
       { name: 'Maliyet Analizi', href: '/recipes/cost-analysis' },
     ],
