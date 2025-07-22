@@ -6,6 +6,50 @@ import { RecipeCostUpdater } from '@/lib/services/recipe-cost-updater';
 import { CurrentAccountBalanceUpdater } from '@/lib/services/current-account-balance-updater';
 import { AuthMiddleware } from '@/lib/auth-middleware';
 
+// Helper function to calculate discount-aware unit price
+function calculateDiscountedUnitPrice(item: any): number {
+  // Safety checks
+  if (!item.quantity || item.quantity <= 0) {
+    console.warn(`Invalid quantity for item: ${item.quantity}`);
+    return item.unitPrice || 0;
+  }
+
+  // If no discounts, return original unit price
+  if (!item.totalDiscountAmount && !item.subtotalAmount) {
+    return item.unitPrice || 0;
+  }
+
+  // Method 1: Use subtotalAmount (most accurate as it's the final discounted amount)
+  if (item.subtotalAmount && item.subtotalAmount > 0) {
+    const discountedUnitPrice = item.subtotalAmount / item.quantity;
+    console.log(`Discount calculation - Original: ${item.unitPrice}, Discounted: ${discountedUnitPrice}, Quantity: ${item.quantity}`);
+    return discountedUnitPrice;
+  }
+
+  // Method 2: Calculate manually from discount rates (fallback)
+  if (item.unitPrice && (item.discount1Rate || item.discount2Rate)) {
+    const baseAmount = item.unitPrice;
+    let discountedPrice = baseAmount;
+    
+    // Apply first discount
+    if (item.discount1Rate && item.discount1Rate > 0) {
+      discountedPrice = discountedPrice * (1 - (item.discount1Rate / 100));
+    }
+    
+    // Apply second discount (cascading)
+    if (item.discount2Rate && item.discount2Rate > 0) {
+      discountedPrice = discountedPrice * (1 - (item.discount2Rate / 100));
+    }
+    
+    console.log(`Manual discount calculation - Original: ${baseAmount}, After discounts: ${discountedPrice}`);
+    return discountedPrice;
+  }
+
+  // Fallback: return original unit price if no discount data available
+  console.log(`No discount data available, using original unit price: ${item.unitPrice}`);
+  return item.unitPrice || 0;
+}
+
 /**
  * @swagger
  * /api/invoices:
@@ -899,14 +943,14 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
             const consumptionUnit = material.consumptionUnit;
             
             let consumptionQuantity = invoiceQuantity;
-            let consumptionUnitCost = item.unitPrice;
+            let consumptionUnitCost = discountedUnitPrice; // Use discounted price instead of raw unitPrice
             
             if (purchaseUnit && consumptionUnit && purchaseUnit.id !== consumptionUnit.id) {
               // Convert from purchase unit to consumption unit
               // Example: 1 kg = 1000 gr, so if conversionFactor for gram is 0.001, then 1 kg = 1000 gram
               const conversionFactor = purchaseUnit.conversionFactor / consumptionUnit.conversionFactor;
               consumptionQuantity = invoiceQuantity * conversionFactor;
-              consumptionUnitCost = item.unitPrice / conversionFactor;
+              consumptionUnitCost = discountedUnitPrice / conversionFactor; // Use discounted price
             }
 
             // Calculate stock after with consumption quantity
@@ -922,8 +966,8 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
                 type: body.type === 'PURCHASE' ? 'IN' : 'OUT',
                 quantity: consumptionQuantity, // Use consumption quantity
                 reason: `${body.type === 'PURCHASE' ? 'Alış' : 'Satış'} Faturası: ${invoiceNumber}`,
-                unitCost: consumptionUnitCost, // Use consumption unit cost
-                totalCost: item.totalAmount,
+                unitCost: consumptionUnitCost, // Use discounted consumption unit cost
+                totalCost: item.subtotalAmount || (consumptionQuantity * consumptionUnitCost), // Use discounted total cost
                 stockBefore: stockBefore,
                 stockAfter: stockAfter,
                 date: movementDate
@@ -994,10 +1038,12 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
           }
         });
         
-        let consumptionUnitCost = item.unitPrice;
+        // Calculate discount-aware unit cost
+        const discountedUnitPrice = calculateDiscountedUnitPrice(item);
+        let consumptionUnitCost = discountedUnitPrice;
         if (material && material.purchaseUnit && material.consumptionUnit && material.purchaseUnit.id !== material.consumptionUnit.id) {
           const conversionFactor = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
-          consumptionUnitCost = item.unitPrice / conversionFactor;
+          consumptionUnitCost = discountedUnitPrice / conversionFactor;
         }
         
         await updateMaterialStock(item.materialId, item.warehouseId, currentStock, consumptionUnitCost);
@@ -1005,19 +1051,21 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         // Update Material.currentStock, lastPurchasePrice and averageCost with total across all warehouses
         const totalStock = await calculateTotalStockFromMovements(item.materialId);
         
-        // Convert lastPurchasePrice to consumption unit for averageCost
-        let newAverageCost = item.unitPrice; // item.unitPrice is in purchase unit
+        // Convert discounted lastPurchasePrice to consumption unit for averageCost
+        let newAverageCost = discountedUnitPrice; // discounted price is in purchase unit
         if (material && material.purchaseUnit && material.consumptionUnit && material.purchaseUnit.id !== material.consumptionUnit.id) {
           const conversionFactor = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
-          newAverageCost = item.unitPrice / conversionFactor;
+          newAverageCost = discountedUnitPrice / conversionFactor;
         }
+        
+        console.log(`Material ${item.materialId} price update: Original=${item.unitPrice}, Discounted=${discountedUnitPrice}, AverageCost=${newAverageCost}`);
         
         await prisma.material.update({
           where: { id: item.materialId },
           data: { 
             currentStock: totalStock,
-            lastPurchasePrice: item.unitPrice, // Update last purchase price (purchase unit)
-            averageCost: newAverageCost // Update average cost (consumption unit)
+            lastPurchasePrice: discountedUnitPrice, // Update last purchase price with discount (purchase unit)
+            averageCost: newAverageCost // Update average cost with discount (consumption unit)
           }
         });
       }

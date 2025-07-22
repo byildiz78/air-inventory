@@ -93,6 +93,13 @@ export const recipeService = {
               id: true,
               name: true,
               averageCost: true,
+              defaultTax: {
+                select: {
+                  id: true,
+                  name: true,
+                  rate: true,
+                }
+              }
             },
           },
           unit: {

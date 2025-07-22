@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
-import { Material, Unit } from '@prisma/client';
+import { Material, Unit, Tax } from '@prisma/client';
 import { apiClient } from '@/lib/api-client';
 import { RecipeWithRelations } from './types';
 import { RecipeForm } from './components/RecipeForm';
@@ -19,7 +19,7 @@ import { useViewMode, ViewMode } from './hooks/useViewMode';
 
 export default function RecipesPage() {
   const [recipes, setRecipes] = useState<RecipeWithRelations[]>([]);
-  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materials, setMaterials] = useState<(Material & { defaultTax?: Tax | null })[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -132,6 +132,54 @@ export default function RecipesPage() {
       }
       return total;
     }, 0);
+  };
+
+  const calculateFormCostWithVAT = () => {
+    return recipeForm.ingredients.reduce((total, ingredient) => {
+      const material = getMaterialById(ingredient.materialId);
+      if (material && material.averageCost && ingredient.quantity > 0) {
+        const baseCost = material.averageCost * ingredient.quantity;
+        // Add VAT if material has defaultTax
+        if (material.defaultTax?.rate) {
+          const vatMultiplier = 1 + (material.defaultTax.rate / 100);
+          return total + (baseCost * vatMultiplier);
+        }
+        return total + baseCost;
+      }
+      return total;
+    }, 0);
+  };
+
+  // Helper function to calculate recipe cost with VAT
+  const calculateRecipeCostWithVAT = (recipe: RecipeWithRelations) => {
+    if (!recipe.ingredients) return recipe.totalCost || 0;
+    
+    return recipe.ingredients.reduce((total, ingredient) => {
+      if (ingredient.material && ingredient.material.averageCost && ingredient.quantity > 0) {
+        const baseCost = ingredient.material.averageCost * ingredient.quantity;
+        // Get material with tax info from materials array
+        const materialWithTax = materials.find(m => m.id === ingredient.material?.id);
+        if (materialWithTax?.defaultTax?.rate) {
+          const vatMultiplier = 1 + (materialWithTax.defaultTax.rate / 100);
+          return total + (baseCost * vatMultiplier);
+        }
+        return total + baseCost;
+      }
+      return total;
+    }, 0);
+  };
+
+  // Helper function to calculate recipe cost per serving with VAT
+  const calculateRecipeCostPerServingWithVAT = (recipe: RecipeWithRelations) => {
+    const totalCostWithVAT = calculateRecipeCostWithVAT(recipe);
+    return totalCostWithVAT / (recipe.servingSize || 1);
+  };
+
+  // Helper function to calculate VAT amount for recipe
+  const calculateRecipeVATAmount = (recipe: RecipeWithRelations) => {
+    const totalCostWithVAT = calculateRecipeCostWithVAT(recipe);
+    const totalCostWithoutVAT = recipe.totalCost || 0;
+    return totalCostWithVAT - totalCostWithoutVAT;
   };
 
   const categories = [...new Set(recipes.map(r => r.category).filter(Boolean))] as string[];
@@ -274,6 +322,7 @@ export default function RecipesPage() {
                   resetForm();
                 }}
                 calculateFormCost={calculateFormCost}
+                calculateFormCostWithVAT={calculateFormCostWithVAT}
               />
             </DialogContent>
           </Dialog>
@@ -300,6 +349,7 @@ export default function RecipesPage() {
                   setSelectedRecipe(null);
                 }}
                 calculateFormCost={calculateFormCost}
+                calculateFormCostWithVAT={calculateFormCostWithVAT}
               />
             </DialogContent>
           </Dialog>

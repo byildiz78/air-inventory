@@ -4,6 +4,36 @@ import { ActivityLogger } from '@/lib/activity-logger';
 import { warehouseService } from '@/lib/services/warehouse-service';
 import { CurrentAccountBalanceUpdater } from '@/lib/services/current-account-balance-updater';
 
+// Helper function to calculate discounted unit price
+function calculateDiscountedUnitPrice(item: any): number {
+  // If subtotalAmount exists and is greater than 0, use it for calculation
+  if (item.subtotalAmount && item.subtotalAmount > 0 && item.quantity > 0) {
+    const discountedUnitPrice = item.subtotalAmount / item.quantity;
+    return discountedUnitPrice;
+  }
+  
+  // Fallback: Calculate discounted price from unitPrice and discount fields
+  let discountedPrice = item.unitPrice;
+  
+  if (item.discount1Rate && item.discount1Rate > 0) {
+    discountedPrice = discountedPrice * (1 - item.discount1Rate / 100);
+  }
+  
+  if (item.discount2Rate && item.discount2Rate > 0) {
+    discountedPrice = discountedPrice * (1 - item.discount2Rate / 100);
+  }
+  
+  // Alternative fallback: Use discount amounts if available
+  if (!item.discount1Rate && !item.discount2Rate && (item.discount1Amount || item.discount2Amount)) {
+    const totalDiscountAmount = (item.discount1Amount || 0) + (item.discount2Amount || 0);
+    const totalAmount = item.unitPrice * item.quantity;
+    const discountedTotalAmount = totalAmount - totalDiscountAmount;
+    discountedPrice = item.quantity > 0 ? discountedTotalAmount / item.quantity : item.unitPrice;
+  }
+  
+  return Math.max(0, discountedPrice); // Ensure non-negative price
+}
+
 // Helper function to update MaterialStock table with logging
 async function updateMaterialStock(materialId: string, warehouseId: string | undefined, newStock: number, averageCost?: number): Promise<void> {
   if (!warehouseId) {
@@ -353,14 +383,17 @@ export async function PUT(
             const purchaseUnit = material.purchaseUnit;
             const consumptionUnit = material.consumptionUnit;
             
+            // Calculate discount-aware unit cost
+            const discountedUnitPrice = calculateDiscountedUnitPrice(item);
+            
             let consumptionQuantity = invoiceQuantity;
-            let consumptionUnitCost = item.unitPrice;
+            let consumptionUnitCost = discountedUnitPrice; // Use discounted price
             
             if (purchaseUnit && consumptionUnit && purchaseUnit.id !== consumptionUnit.id) {
               // Convert from purchase unit to consumption unit
               const conversionFactor = purchaseUnit.conversionFactor / consumptionUnit.conversionFactor;
               consumptionQuantity = invoiceQuantity * conversionFactor;
-              consumptionUnitCost = item.unitPrice / conversionFactor;
+              consumptionUnitCost = discountedUnitPrice / conversionFactor; // Use discounted price
             }
 
             const stockAfter = stockBefore + consumptionQuantity;
@@ -375,8 +408,8 @@ export async function PUT(
                 type: updatedInvoice.type === 'PURCHASE' ? 'IN' : 'OUT',
                 quantity: consumptionQuantity, // Use consumption quantity
                 reason: `${updatedInvoice.type === 'PURCHASE' ? 'Alış' : 'Satış'} Faturası (Güncellendi): ${updatedInvoice.invoiceNumber}`,
-                unitCost: consumptionUnitCost, // Use consumption unit cost
-                totalCost: item.totalAmount,
+                unitCost: consumptionUnitCost, // Use discounted consumption unit cost
+                totalCost: item.subtotalAmount || (consumptionQuantity * consumptionUnitCost), // Use discounted total cost
                 stockBefore: stockBefore,
                 stockAfter: stockAfter,
                 date: movementDate
@@ -513,11 +546,16 @@ export async function PUT(
           }
         });
         
-        // Convert lastPurchasePrice to consumption unit for averageCost
-        let consumptionUnitCost = item.unitPrice; // item.unitPrice is in purchase unit
+        // Calculate discount-aware unit cost for this item
+        const discountedUnitPrice = calculateDiscountedUnitPrice(item);
+        
+        console.log(`Invoice Edit - Material ${item.materialId} price update: Original=${item.unitPrice}, Discounted=${discountedUnitPrice}`);
+        
+        // Convert discounted lastPurchasePrice to consumption unit for averageCost
+        let consumptionUnitCost = discountedUnitPrice; // discounted price is in purchase unit
         if (material && material.purchaseUnit && material.consumptionUnit && material.purchaseUnit.id !== material.consumptionUnit.id) {
           const conversionFactor = material.purchaseUnit.conversionFactor / material.consumptionUnit.conversionFactor;
-          consumptionUnitCost = item.unitPrice / conversionFactor;
+          consumptionUnitCost = discountedUnitPrice / conversionFactor;
         }
         
         // Update MaterialStock table - use the updateMaterialStock helper with logging
@@ -531,8 +569,8 @@ export async function PUT(
             where: { id: item.materialId },
             data: { 
               currentStock: totalStock,
-              lastPurchasePrice: item.unitPrice, // Update last purchase price (purchase unit)
-              averageCost: consumptionUnitCost // Update average cost (consumption unit)
+              lastPurchasePrice: discountedUnitPrice, // Update with discounted price (purchase unit)
+              averageCost: consumptionUnitCost // Update with discounted cost (consumption unit)
             }
           });
         }

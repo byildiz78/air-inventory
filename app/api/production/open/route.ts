@@ -195,26 +195,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Check stock availability for consumed materials
+    // Get material ids for cost calculation
     const materialIds = items.map((item: any) => item.materialId);
-    const materialStocks = await prisma.materialStock.findMany({
-      where: {
-        materialId: { in: materialIds },
-        warehouseId: consumptionWarehouseId
-      }
-    });
-
-    // Validate stock levels
-    for (const item of items) {
-      const stock = materialStocks.find(s => s.materialId === item.materialId);
-      if (!stock || stock.availableStock < item.quantity * 1000) { // Convert to grams
-        const material = await prisma.material.findUnique({ where: { id: item.materialId } });
-        return NextResponse.json({
-          success: false,
-          error: `${material?.name || 'Malzeme'} için yeterli stok yok`
-        }, { status: 400 });
-      }
-    }
 
     // Calculate total cost
     let totalCost = 0;
@@ -282,7 +264,7 @@ export async function POST(request: NextRequest) {
         });
 
         const stockBefore = existingConsumptionStock?.currentStock || 0;
-        const stockAfter = stockBefore - (item.quantity * 1000);
+        const stockAfter = stockBefore - item.quantity;
 
         // Update consumption warehouse stock (decrease)
         if (existingConsumptionStock) {
@@ -294,8 +276,8 @@ export async function POST(request: NextRequest) {
               }
             },
             data: {
-              currentStock: { decrement: item.quantity * 1000 }, // Convert to grams
-              availableStock: { decrement: item.quantity * 1000 }
+              currentStock: { decrement: item.quantity },
+              availableStock: { decrement: item.quantity }
             }
           });
         }
@@ -308,7 +290,7 @@ export async function POST(request: NextRequest) {
             userId: userId || user.userId,
             warehouseId: consumptionWarehouseId,
             type: 'OUT',
-            quantity: -(item.quantity * 1000), // Negative for OUT, in grams
+            quantity: -item.quantity, // Negative for OUT
             reason: `Açık üretim - ${openProduction.id}`,
             unitCost: item.unitCost,
             totalCost: -item.totalCost, // Negative for consumption
@@ -329,7 +311,7 @@ export async function POST(request: NextRequest) {
       });
 
       const productionStockBefore = existingProductionStock?.currentStock || 0;
-      const productionStockAfter = productionStockBefore + (producedQuantity * 1000);
+      const productionStockAfter = productionStockBefore + producedQuantity;
 
       if (existingProductionStock) {
         await tx.materialStock.update({
@@ -340,8 +322,8 @@ export async function POST(request: NextRequest) {
             }
           },
           data: {
-            currentStock: { increment: producedQuantity * 1000 }, // Convert to grams
-            availableStock: { increment: producedQuantity * 1000 }
+            currentStock: { increment: producedQuantity },
+            availableStock: { increment: producedQuantity }
           }
         });
       } else {
@@ -349,8 +331,8 @@ export async function POST(request: NextRequest) {
           data: {
             materialId: producedMaterialId,
             warehouseId: productionWarehouseId,
-            currentStock: producedQuantity * 1000,
-            availableStock: producedQuantity * 1000,
+            currentStock: producedQuantity,
+            availableStock: producedQuantity,
             averageCost: totalCost / producedQuantity || 0 // Calculate average cost
           }
         });
@@ -364,7 +346,7 @@ export async function POST(request: NextRequest) {
           userId: userId || user.userId,
           warehouseId: productionWarehouseId,
           type: 'IN',
-          quantity: producedQuantity * 1000, // Positive for IN, in grams
+          quantity: producedQuantity, // Positive for IN
           reason: `Açık üretim - ${openProduction.id}`,
           unitCost: totalCost / producedQuantity,
           totalCost: totalCost,

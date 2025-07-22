@@ -5,12 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Calculator } from 'lucide-react';
-import { Material, Unit } from '@prisma/client';
+import { Material, Unit, Tax } from '@prisma/client';
 import { RecipeIngredientRow } from './RecipeIngredientRow';
 
 interface RecipeFormProps {
   isEdit?: boolean;
-  materials: Material[];
+  materials: (Material & { defaultTax?: Tax | null })[];
   units: Unit[];
   recipeForm: {
     name: string;
@@ -29,6 +29,7 @@ interface RecipeFormProps {
   onSave: () => Promise<void>;
   onCancel: () => void;
   calculateFormCost: () => number;
+  calculateFormCostWithVAT: () => number;
 }
 
 export function RecipeForm({
@@ -39,7 +40,8 @@ export function RecipeForm({
   onFormChange,
   onSave,
   onCancel,
-  calculateFormCost
+  calculateFormCost,
+  calculateFormCostWithVAT
 }: RecipeFormProps) {
   // Create a map of material default consumption units
   const [materialDefaultUnits, setMaterialDefaultUnits] = useState<Record<string, string>>({});
@@ -165,22 +167,51 @@ export function RecipeForm({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="space-y-6">
+            {/* KDV Hariç Maliyetler */}
             <div>
-              <p className="text-sm text-muted-foreground">Toplam Maliyet</p>
-              <p className="text-lg font-bold">₺{calculateFormCost().toFixed(2)}</p>
+              <h4 className="text-sm font-medium text-muted-foreground mb-3">KDV Hariç</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Toplam Maliyet</p>
+                  <p className="text-lg font-bold">₺{calculateFormCost().toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Porsiyon Başı</p>
+                  <p className="text-lg font-bold">₺{(calculateFormCost() / recipeForm.servingSize).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Önerilen Fiyat (%40 kâr)</p>
+                  <p className="text-lg font-bold text-blue-600">₺{((calculateFormCost() / recipeForm.servingSize) * 1.4).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Porsiyon Sayısı</p>
+                  <p className="text-lg font-bold">{recipeForm.servingSize}</p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Porsiyon Başı</p>
-              <p className="text-lg font-bold">₺{calculateFormCost().toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Önerilen Fiyat (%40 kâr)</p>
-              <p className="text-lg font-bold text-green-600">₺{(calculateFormCost() * 1.4).toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Porsiyon Sayısı</p>
-              <p className="text-lg font-bold">{recipeForm.servingSize}</p>
+
+            {/* KDV Dahil Maliyetler */}
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium text-emerald-700 mb-3">KDV Dahil</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Toplam Maliyet</p>
+                  <p className="text-lg font-bold text-emerald-600">₺{calculateFormCostWithVAT().toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Porsiyon Başı</p>
+                  <p className="text-lg font-bold text-emerald-600">₺{(calculateFormCostWithVAT() / recipeForm.servingSize).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Önerilen Fiyat (%40 kâr)</p>
+                  <p className="text-lg font-bold text-green-600">₺{((calculateFormCostWithVAT() / recipeForm.servingSize) * 1.4).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">KDV Tutarı</p>
+                  <p className="text-lg font-bold text-orange-600">₺{(calculateFormCostWithVAT() - calculateFormCost()).toFixed(2)}</p>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
