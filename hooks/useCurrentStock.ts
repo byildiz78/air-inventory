@@ -53,6 +53,22 @@ export function useCurrentStock() {
     const matchesStockStatus = filters.stockStatus === 'all' || item.stockStatus === filters.stockStatus;
 
     return matchesSearch && matchesCategory && matchesWarehouse && matchesStockStatus;
+  }).map(item => {
+    // If warehouse filter is applied, adjust the item to show only that warehouse's data
+    if (filters.warehouseId !== 'all') {
+      const warehouseStock = item.warehouseStocks.find(ws => ws.warehouseId === filters.warehouseId);
+      if (warehouseStock) {
+        return {
+          ...item,
+          currentStock: warehouseStock.currentStock,
+          totalValue: warehouseStock.currentStock * warehouseStock.averageCost,
+          totalValueWithVAT: (warehouseStock.currentStock * warehouseStock.averageCost) * (1 + (item.vatRate / 100)),
+          averageCost: warehouseStock.averageCost,
+          warehouseStocks: [warehouseStock] // Show only selected warehouse
+        };
+      }
+    }
+    return item;
   });
 
   const updateFilters = (newFilters: Partial<CurrentStockFilters>) => {
@@ -63,7 +79,7 @@ export function useCurrentStock() {
     fetchStockData();
   };
 
-  const exportData = async (format: 'excel' | 'csv') => {
+  const exportData = async (format: 'excel' | 'csv', categories: any[] = [], warehouses: any[] = []) => {
     try {
       const exportData = filteredData.map(item => ({
         'Malzeme Adı': item.name,
@@ -76,11 +92,45 @@ export function useCurrentStock() {
         'KDV Dahil Değer': item.totalValueWithVAT,
         'KDV Oranı': `${item.vatRate}%`,
         'Durum': item.stockStatus,
-        'Birim': item.consumptionUnit.abbreviation
+        'Birim': item.consumptionUnit.abbreviation,
+        'Depolar': item.warehouseStocks
+          .filter(ws => ws.currentStock !== 0 && ws.currentStock != null)
+          .map(ws => `${ws.warehouseName}: ${ws.currentStock.toLocaleString()} ${item.consumptionUnit.abbreviation}`)
+          .join(', ')
       }));
 
-      // Create CSV content
-      if (format === 'csv') {
+      if (format === 'excel') {
+        const XLSX = await import('xlsx');
+        
+        // Create filter information
+        const filterInfo = [
+          ['MEVCUT STOK RAPORU'],
+          ['Rapor Tarihi:', new Date().toLocaleDateString('tr-TR')],
+          [''],
+          ['FİLTRELER:'],
+          ['Arama Terimi:', filters.searchTerm || 'Tümü'],
+          ['Kategori:', filters.categoryId === 'all' ? 'Tüm Kategoriler' : categories.find(c => c.id === filters.categoryId)?.name || 'Tümü'],
+          ['Depo:', filters.warehouseId === 'all' ? 'Tüm Depolar' : warehouses.find(w => w.id === filters.warehouseId)?.name || 'Tümü'],
+          ['Stok Durumu:', filters.stockStatus === 'all' ? 'Tüm Stoklar' : filters.stockStatus],
+          [''],
+          ['MALZEME LİSTESİ:'],
+          []
+        ];
+
+        // Create worksheet with filter info and data
+        const ws = XLSX.utils.aoa_to_sheet(filterInfo);
+        
+        // Add data starting from row after filter info
+        const dataStartRow = filterInfo.length;
+        XLSX.utils.sheet_add_json(ws, exportData, { origin: `A${dataStartRow + 1}` });
+
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Mevcut Stok');
+
+        // Download file
+        XLSX.writeFile(wb, `mevcut-stok-${new Date().toISOString().split('T')[0]}.xlsx`);
+      } else if (format === 'csv') {
         const headers = Object.keys(exportData[0] || {});
         const csvContent = [
           headers.join(','),

@@ -47,36 +47,25 @@ export function StockDistribution({
     return materialStocks.filter(stock => stock.materialId === materialId);
   };
 
-  // Get total stock value for a warehouse with proper unit conversion
+  // Get total stock value for a warehouse - directly from materialStock table
   const getWarehouseTotalStock = (warehouseId: string) => {
     return materialStocks
       .filter(stock => stock.warehouseId === warehouseId)
       .reduce((total, stock) => {
-        const material = materials.find(m => m.id === stock.materialId);
-        // Convert stock to display unit (consumption unit base)
-        const unitConversion = material?.unitConversion || 1000; // Default to 1000 for gram to kg conversion
-        const stockInConsumptionUnit = stock.currentStock / unitConversion;
-        
-        // Debug logging
-        if (stock.currentStock > 0) {
-          console.log(`🔍 Stock calculation for ${material?.name}: currentStock=${stock.currentStock}, unitConversion=${unitConversion}, result=${stockInConsumptionUnit}`);
-        }
-        return total + stockInConsumptionUnit;
+        // Use stock directly from materialStock table - no conversion needed
+        return total + (stock.currentStock || 0);
       }, 0);
   };
 
-  // Get total stock value for a warehouse with proper unit conversion
+  // Get total stock value for a warehouse - using averageCost from materialStock
   const getWarehouseTotalValue = (warehouseId: string) => {
     return materialStocks
       .filter(stock => stock.warehouseId === warehouseId)
       .reduce((total, stock) => {
-        const material = materials.find(m => m.id === stock.materialId);
-        const unitConversion = material?.unitConversion || 1000;
-        const stockInConsumptionUnit = stock.currentStock / unitConversion;
-        // Use lastPurchasePrice converted to consumption unit price
-        const lastPurchasePrice = material?.lastPurchasePrice || 0;
-        const averageConsumptionUnitPrice = lastPurchasePrice / unitConversion;
-        return total + (stockInConsumptionUnit * averageConsumptionUnitPrice);
+        // Use averageCost from materialStock table and currentStock directly
+        const averageCost = stock.averageCost || 0;
+        const currentStock = stock.currentStock || 0;
+        return total + (currentStock * averageCost);
       }, 0);
   };
 
@@ -189,7 +178,7 @@ export function StockDistribution({
                           <div className="bg-blue-50 p-3 rounded-lg">
                             <div className="text-blue-600 font-medium">Toplam Stok</div>
                             <div className="text-lg font-bold text-blue-700">
-                              {totalStock.toFixed(1)} kg
+                              {totalStock.toLocaleString()} birim
                             </div>
                           </div>
                           <div className="bg-green-50 p-3 rounded-lg">
@@ -233,25 +222,12 @@ export function StockDistribution({
                                     </div>
                                   </div>
                                   <div className="text-right">
-                                    {(() => {
-                                      const material = materials.find(m => m.id === stock.materialId);
-                                      const unitConversion = material?.unitConversion || 1000;
-                                      const stockInConsumptionUnit = stock.currentStock / unitConversion;
-                                      const lastPurchasePrice = material?.lastPurchasePrice || 0;
-                                      const averageConsumptionUnitPrice = lastPurchasePrice / unitConversion;
-                                      const totalValue = stockInConsumptionUnit * averageConsumptionUnitPrice;
-                                      
-                                      return (
-                                        <>
-                                          <div className={`font-medium text-sm ${isLowStock ? 'text-red-600' : 'text-green-600'}`}>
-                                            {stockInConsumptionUnit.toFixed(1)} {material?.consumptionUnit?.abbreviation || 'kg'}
-                                          </div>
-                                          <div className="text-xs text-muted-foreground">
-                                            ₺{totalValue.toFixed(0)}
-                                          </div>
-                                        </>
-                                      );
-                                    })()}
+                                    <div className={`font-medium text-sm ${isLowStock ? 'text-red-600' : 'text-green-600'}`}>
+                                      {stock.currentStock.toLocaleString()} birim
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      ₺{(stock.currentStock * (stock.averageCost || 0)).toLocaleString()}
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -274,15 +250,10 @@ export function StockDistribution({
                 if (materialStocksForMaterial.length === 0) return null;
 
                 const totalStock = materialStocksForMaterial.reduce((total, stock) => {
-                  const unitConversion = material?.unitConversion || 1000;
-                  return total + (stock.currentStock / unitConversion);
+                  return total + (stock.currentStock || 0);
                 }, 0);
                 const totalValue = materialStocksForMaterial.reduce((total, stock) => {
-                  const unitConversion = material?.unitConversion || 1000;
-                  const stockInConsumptionUnit = stock.currentStock / unitConversion;
-                  const lastPurchasePrice = material?.lastPurchasePrice || 0;
-                  const averageConsumptionUnitPrice = lastPurchasePrice / unitConversion;
-                  return total + (stockInConsumptionUnit * averageConsumptionUnitPrice);
+                  return total + ((stock.currentStock || 0) * (stock.averageCost || 0));
                 }, 0);
 
                 return (
@@ -298,7 +269,7 @@ export function StockDistribution({
                             {materialStocksForMaterial.length} depoda
                           </Badge>
                           <Badge variant="secondary" className="text-xs">
-                            {totalStock.toFixed(1)} {material?.consumptionUnit?.abbreviation || 'kg'}
+                            {totalStock.toLocaleString()} birim
                           </Badge>
                         </div>
                       </div>
@@ -317,40 +288,26 @@ export function StockDistribution({
                                 {isLowStock && <AlertTriangle className="w-3 h-3 text-orange-500" />}
                               </div>
                               <div className="space-y-1 text-xs">
-                                {(() => {
-                                  const unitConversion = material?.unitConversion || 1000;
-                                  const stockInConsumptionUnit = stock.currentStock / unitConversion;
-                                  const availableStockInConsumptionUnit = stock.availableStock / unitConversion;
-                                  const lastPurchasePrice = material?.lastPurchasePrice || 0;
-                                  const averageConsumptionUnitPrice = lastPurchasePrice / unitConversion;
-                                  const totalValue = stockInConsumptionUnit * averageConsumptionUnitPrice;
-                                  const unitAbbr = material?.consumptionUnit?.abbreviation || 'kg';
-                                  
-                                  return (
-                                    <>
-                                      <div className="flex justify-between">
-                                        <span>Mevcut:</span>
-                                        <span className={`font-medium ${isLowStock ? 'text-red-600' : 'text-green-600'}`}>
-                                          {stockInConsumptionUnit.toFixed(1)} {unitAbbr}
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span>Kullanılabilir:</span>
-                                        <span className="font-medium">{availableStockInConsumptionUnit.toFixed(1)} {unitAbbr}</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span>Değer:</span>
-                                        <span className="font-medium">₺{totalValue.toFixed(0)}</span>
-                                      </div>
-                                      {stock.location && (
-                                        <div className="flex justify-between">
-                                          <span>Konum:</span>
-                                          <span className="font-medium">{stock.location}</span>
-                                        </div>
-                                      )}
-                                    </>
-                                  );
-                                })()}
+                                <div className="flex justify-between">
+                                  <span>Mevcut:</span>
+                                  <span className={`font-medium ${isLowStock ? 'text-red-600' : 'text-green-600'}`}>
+                                    {stock.currentStock.toLocaleString()} birim
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Kullanılabilir:</span>
+                                  <span className="font-medium">{stock.availableStock.toLocaleString()} birim</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Değer:</span>
+                                  <span className="font-medium">₺{((stock.currentStock || 0) * (stock.averageCost || 0)).toLocaleString()}</span>
+                                </div>
+                                {stock.location && (
+                                  <div className="flex justify-between">
+                                    <span>Konum:</span>
+                                    <span className="font-medium">{stock.location}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );

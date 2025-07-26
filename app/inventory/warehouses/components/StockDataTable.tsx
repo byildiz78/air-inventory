@@ -82,20 +82,17 @@ export function StockDataTable({
       // Debug unit conversion
       console.log(`🔍 UNIT DEBUG ${material?.name}: material.unitConversion=${material?.unitConversion}, using=${unitConversion}`);
       
-      // Stock comes in consumption unit, convert to purchase unit for display
-      // Example: currentStock = 35000 gram, unitConversion = 1000 (1 kg = 1000 gram)
-      // stockInPurchaseUnit = 35000 / 1000 = 35 kg
-      const stockInPurchaseUnit = stock.currentStock / unitConversion;
+      // Use stock values directly from MaterialStock table (no unit conversion needed)
+      const stockInPurchaseUnit = stock.currentStock;
       
-      // Use lastPurchasePrice (price per purchase unit)
-      const lastPurchasePrice = material?.lastPurchasePrice || 0;
+      // Use averageCost from MaterialStock table (more accurate and up-to-date)
+      const lastPurchasePrice = stock.averageCost || 0;
       
-      // Calculate total value using purchase unit
+      // Calculate total value directly
       const totalValue = stockInPurchaseUnit * lastPurchasePrice;
       
       console.log(`📊 Stock calculation for ${material?.name}:`, {
         currentStock: stock.currentStock,
-        unitConversion,
         stockInPurchaseUnit,
         lastPurchasePrice,
         totalValue
@@ -113,9 +110,9 @@ export function StockDataTable({
         availableStock: stock.availableStock,
         reservedStock: stock.reservedStock,
         minimumStock: stock.minimumStock || 0,
-        stockInPurchaseUnit, // Display quantity in purchase unit
-        lastPurchasePrice, // Price per purchase unit
-        totalValue, // Total value in purchase unit terms
+        stockInPurchaseUnit, // Display quantity directly from materialStock
+        lastPurchasePrice, // Use lastPurchasePrice from Material table
+        totalValue, // Total value calculated with lastPurchasePrice
         unitConversion,
         consumptionUnitName: consumptionUnit?.name || 'birim',
         purchaseUnitName: purchaseUnit?.name || 'birim',
@@ -316,13 +313,12 @@ export function StockDataTable({
                     {getSortIcon('totalValue')}
                   </Button>
                 </TableHead>
-                <TableHead className="w-[120px]">Konum</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {currentData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="w-12 h-12 text-muted-foreground opacity-50" />
                       <p className="text-muted-foreground">Sonuç bulunamadı</p>
@@ -349,17 +345,20 @@ export function StockDataTable({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className={`font-medium ${item.isLowStock ? 'text-red-600' : 'text-green-600'}`}>
-                        {item.stockInPurchaseUnit.toFixed(1)}
+                        {item.stockInPurchaseUnit.toLocaleString()}
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline" className="text-xs">
-                        {item.purchaseUnitName}
+                        {item.consumptionUnitName}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="font-medium">
                         ₺{item.lastPurchasePrice.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Ort. Maliyet
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -367,11 +366,8 @@ export function StockDataTable({
                         ₺{item.totalValue.toFixed(2)}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {item.stockInPurchaseUnit.toFixed(1)} × ₺{item.lastPurchasePrice.toFixed(2)}
+                        {item.stockInPurchaseUnit.toLocaleString()} × ₺{item.lastPurchasePrice.toFixed(2)}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{item.location || 'Belirtilmemiş'}</div>
                     </TableCell>
                   </TableRow>
                 ))

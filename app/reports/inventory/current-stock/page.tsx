@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,14 @@ import {
   AlertTriangle,
   Scale,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCurrentStock } from '@/hooks/useCurrentStock';
@@ -38,6 +45,12 @@ export default function CurrentStockReportPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [exporting, setExporting] = useState(false);
+  
+  // Table states
+  const [sortField, setSortField] = useState<string>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     loadFilterData();
@@ -60,12 +73,74 @@ export default function CurrentStockReportPage() {
   const handleExport = async (format: 'excel' | 'csv') => {
     try {
       setExporting(true);
-      await exportData(format);
+      await exportData(format, categories, warehouses);
     } catch (error) {
       console.error('Export error:', error);
     } finally {
       setExporting(false);
     }
+  };
+
+  // Sorting and pagination
+  const sortedAndPaginatedData = useMemo(() => {
+    // Sort data
+    const sorted = [...stockData].sort((a, b) => {
+      let aValue: any = a[sortField as keyof CurrentStockData];
+      let bValue: any = b[sortField as keyof CurrentStockData];
+
+      // Handle nested object fields
+      if (sortField === 'categoryName') {
+        aValue = a.categoryName || '';
+        bValue = b.categoryName || '';
+      }
+
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    // Pagination
+    const totalPages = Math.ceil(sorted.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedData = sorted.slice(startIndex, endIndex);
+
+    return {
+      data: paginatedData,
+      totalPages,
+      totalItems: sorted.length,
+      startIndex,
+      endIndex: Math.min(endIndex, sorted.length)
+    };
+  }, [stockData, sortField, sortDirection, currentPage, itemsPerPage]);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1); // Reset to first page when sorting
+  };
+
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) return <ArrowUpDown className="w-4 h-4" />;
+    return sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />;
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
   };
 
   const getStockStatusBadge = (item: CurrentStockData) => {
@@ -137,11 +212,11 @@ export default function CurrentStockReportPage() {
             </Button>
             <Button 
               variant="outline"
-              onClick={() => handleExport('csv')}
+              onClick={() => handleExport('excel')}
               disabled={exporting}
             >
               <Download className="w-4 h-4 mr-2" />
-              {exporting ? 'Aktarılıyor...' : 'CSV\'e Aktar'}
+              {exporting ? 'Aktarılıyor...' : 'Excel\'e Aktar'}
             </Button>
           </div>
         </div>
@@ -278,28 +353,183 @@ export default function CurrentStockReportPage() {
           <CardHeader>
             <CardTitle>Malzeme Listesi</CardTitle>
             <CardDescription>
-              {stockData.length} malzeme gösteriliyor
+              {sortedAndPaginatedData.startIndex + 1}-{sortedAndPaginatedData.endIndex} / {sortedAndPaginatedData.totalItems} malzeme gösteriliyor
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Sayfa başına:</span>
+                <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {sortedAndPaginatedData.totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronsLeft className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  
+                  {/* Page numbers */}
+                  {Array.from({ length: Math.min(5, sortedAndPaginatedData.totalPages) }, (_, i) => {
+                    const startPage = Math.max(1, currentPage - 2);
+                    const pageNum = startPage + i;
+                    if (pageNum > sortedAndPaginatedData.totalPages) return null;
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={pageNum === currentPage ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === sortedAndPaginatedData.totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(sortedAndPaginatedData.totalPages)}
+                    disabled={currentPage === sortedAndPaginatedData.totalPages}
+                  >
+                    <ChevronsRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="p-2 text-left">Malzeme</th>
-                    <th className="p-2 text-left">Kategori</th>
-                    <th className="p-2 text-right">Mevcut Stok</th>
-                    <th className="p-2 text-right">Min. Stok</th>
-                    <th className="p-2 text-right">Birim Maliyet</th>
-                    <th className="p-2 text-right">KDV Hariç</th>
-                    <th className="p-2 text-right">KDV Dahil</th>
-                    <th className="p-2 text-right">KDV %</th>
-                    <th className="p-2 text-center">Durum</th>
+                    <th className="p-2 text-left">
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-medium justify-start"
+                        onClick={() => handleSort('name')}
+                      >
+                        Malzeme
+                        {getSortIcon('name')}
+                      </Button>
+                    </th>
+                    <th className="p-2 text-left">
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-medium justify-start"
+                        onClick={() => handleSort('categoryName')}
+                      >
+                        Kategori
+                        {getSortIcon('categoryName')}
+                      </Button>
+                    </th>
+                    <th className="p-2 text-right">
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-medium justify-end"
+                        onClick={() => handleSort('currentStock')}
+                      >
+                        Mevcut Stok
+                        {getSortIcon('currentStock')}
+                      </Button>
+                    </th>
+                    <th className="p-2 text-right">
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-medium justify-end"
+                        onClick={() => handleSort('minStockLevel')}
+                      >
+                        Min. Stok
+                        {getSortIcon('minStockLevel')}
+                      </Button>
+                    </th>
+                    <th className="p-2 text-right">
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-medium justify-end"
+                        onClick={() => handleSort('averageCost')}
+                      >
+                        Birim Maliyet
+                        {getSortIcon('averageCost')}
+                      </Button>
+                    </th>
+                    <th className="p-2 text-right">
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-medium justify-end"
+                        onClick={() => handleSort('totalValue')}
+                      >
+                        KDV Hariç
+                        {getSortIcon('totalValue')}
+                      </Button>
+                    </th>
+                    <th className="p-2 text-right">
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-medium justify-end"
+                        onClick={() => handleSort('totalValueWithVAT')}
+                      >
+                        KDV Dahil
+                        {getSortIcon('totalValueWithVAT')}
+                      </Button>
+                    </th>
+                    <th className="p-2 text-right">
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-medium justify-end"
+                        onClick={() => handleSort('vatRate')}
+                      >
+                        KDV %
+                        {getSortIcon('vatRate')}
+                      </Button>
+                    </th>
+                    <th className="p-2 text-center">
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-medium justify-center"
+                        onClick={() => handleSort('stockStatus')}
+                      >
+                        Durum
+                        {getSortIcon('stockStatus')}
+                      </Button>
+                    </th>
                     <th className="p-2 text-center">Depolar</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {stockData.map((item) => {
+                  {sortedAndPaginatedData.data.map((item) => {
                     const statusBadge = getStockStatusBadge(item);
                     
                     return (
@@ -316,8 +546,8 @@ export default function CurrentStockReportPage() {
                           </div>
                         </td>
                         <td className="p-2">{item.categoryName}</td>
-                        <td className="p-2 text-right">{item.currentStock.toFixed(2)} {item.consumptionUnit.abbreviation}</td>
-                        <td className="p-2 text-right">{item.minStockLevel.toFixed(2)} {item.consumptionUnit.abbreviation}</td>
+                        <td className="p-2 text-right">{item.currentStock.toLocaleString()} {item.consumptionUnit.abbreviation}</td>
+                        <td className="p-2 text-right">{item.minStockLevel.toLocaleString()} {item.consumptionUnit.abbreviation}</td>
                         <td className="p-2 text-right">₺{item.averageCost.toFixed(2)}</td>
                         <td className="p-2 text-right">₺{item.totalValue.toLocaleString()}</td>
                         <td className="p-2 text-right font-medium text-emerald-600">₺{item.totalValueWithVAT.toLocaleString()}</td>
@@ -329,11 +559,17 @@ export default function CurrentStockReportPage() {
                         </td>
                         <td className="p-2 text-center">
                           <div className="flex flex-wrap gap-1">
-                            {item.warehouseStocks.filter(ws => ws.currentStock > 0).map((warehouse) => (
-                              <Badge key={warehouse.warehouseId} variant="outline" className="text-xs">
-                                {warehouse.warehouseName}: {warehouse.currentStock.toFixed(1)}
-                              </Badge>
-                            ))}
+                            {item.warehouseStocks
+                              .filter(ws => ws.currentStock !== 0 && ws.currentStock != null) // Show all non-zero stock
+                              .map((warehouse) => (
+                                <Badge 
+                                  key={warehouse.warehouseId} 
+                                  variant={warehouse.currentStock > 0 ? "outline" : "destructive"} 
+                                  className="text-xs"
+                                >
+                                  {warehouse.warehouseName}: {warehouse.currentStock.toLocaleString()} {item.consumptionUnit.abbreviation}
+                                </Badge>
+                              ))}
                           </div>
                         </td>
                       </tr>
@@ -342,6 +578,68 @@ export default function CurrentStockReportPage() {
                 </tbody>
               </table>
             </div>
+            
+            {/* Bottom Pagination */}
+            {sortedAndPaginatedData.totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-muted-foreground">
+                  {sortedAndPaginatedData.startIndex + 1}-{sortedAndPaginatedData.endIndex} / {sortedAndPaginatedData.totalItems} kayıt
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronsLeft className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  
+                  {/* Page numbers */}
+                  {Array.from({ length: Math.min(5, sortedAndPaginatedData.totalPages) }, (_, i) => {
+                    const startPage = Math.max(1, currentPage - 2);
+                    const pageNum = startPage + i;
+                    if (pageNum > sortedAndPaginatedData.totalPages) return null;
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={pageNum === currentPage ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === sortedAndPaginatedData.totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(sortedAndPaginatedData.totalPages)}
+                    disabled={currentPage === sortedAndPaginatedData.totalPages}
+                  >
+                    <ChevronsRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
