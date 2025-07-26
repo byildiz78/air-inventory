@@ -155,6 +155,7 @@ export async function POST(request: NextRequest) {
     const updatedCount = results.filter(r => r.updated).length;
     const priceUpdatedCount = results.filter(r => r.lastPurchasePriceUpdated && !r.resetToZero).length;
     const resetCount = results.filter(r => r.resetToZero).length;
+    const semiFinishedUpdatedCount = semiFinishedResults.filter(r => r.updated).length;
 
     // Log the activity
     const userId = request.headers.get('x-user-id') || '1';
@@ -167,11 +168,98 @@ export async function POST(request: NextRequest) {
         updatedMaterials: updatedCount,
         priceUpdatedFromInvoices: priceUpdatedCount,
         resetToZero: resetCount,
-        operation: 'recalculate_costs_from_latest_invoices'
+        semiFinishedProductsUpdated: semiFinishedUpdatedCount,
+        operation: 'recalculate_costs_from_invoices_and_productions'
       },
       request
     );
 
+    // Update semi-finished product costs based on production records
+    const semiFinishedResults = [];
+    
+    try {
+      // Get all semi-finished products (finished products that can be produced)
+      const semiFinishedMaterials = await prisma.material.findMany({
+        where: {
+          isFinishedProduct: true // Semi-finished products
+        }
+      });
+      
+      for (const material of semiFinishedMaterials) {
+        const oldCost = material.averageCost || 0;
+        
+        // Get latest production records for this material (both normal and open production)
+        const [normalProductions, openProductions] = await Promise.all([
+          prisma.production.findMany({
+            where: { materialId: material.id },
+            orderBy: { date: 'desc' },
+            take: 10 // Last 10 productions for average calculation
+          }),
+          prisma.openProduction.findMany({
+            where: { producedMaterialId: material.id },
+            orderBy: { productionDate: 'desc' },
+            take: 10 // Last 10 productions for average calculation
+          })
+        ]);
+        
+        let totalProductionCost = 0;
+        let totalProductionQuantity = 0;
+        let productionCount = 0;
+        
+        // Calculate from normal productions
+        for (const production of normalProductions) {
+          if (production.producedQuantity > 0 && production.totalCost > 0) {
+            totalProductionCost += production.totalCost;
+            totalProductionQuantity += production.producedQuantity;
+            productionCount++;
+          }
+        }
+        
+        // Calculate from open productions
+        for (const openProduction of openProductions) {
+          if (openProduction.producedQuantity > 0 && openProduction.totalCost > 0) {
+            totalProductionCost += openProduction.totalCost;
+            totalProductionQuantity += openProduction.producedQuantity;
+            productionCount++;
+          }
+        }
+        
+        let newCost = 0;
+        let shouldUpdate = false;
+        
+        if (totalProductionQuantity > 0 && productionCount > 0) {
+          // Calculate weighted average cost based on recent productions
+          newCost = totalProductionCost / totalProductionQuantity;
+          shouldUpdate = Math.abs(newCost - oldCost) > 0.01; // Update if significant difference
+        }
+        
+        if (shouldUpdate && newCost > 0) {
+          await prisma.material.update({
+            where: { id: material.id },
+            data: {
+              averageCost: newCost,
+              lastPurchasePrice: newCost // For semi-finished products, this represents production cost
+            }
+          });
+          
+          console.log(`Updated semi-finished product ${material.name}: ${oldCost} → ${newCost} (from ${productionCount} productions)`);
+        }
+        
+        semiFinishedResults.push({
+          materialId: material.id,
+          materialName: material.name,
+          oldCost: oldCost,
+          newCost: shouldUpdate ? newCost : oldCost,
+          productionCount: productionCount,
+          totalQuantity: totalProductionQuantity,
+          updated: shouldUpdate,
+          source: 'production_records'
+        });
+      }
+    } catch (error) {
+      console.error('Error updating semi-finished product costs:', error);
+    }
+    
     // Update recipe costs for all materials that were updated
     let totalUpdatedRecipes = 0;
     let totalUpdatedIngredients = 0;
@@ -181,7 +269,14 @@ export async function POST(request: NextRequest) {
         .filter(result => result.updated)
         .map(result => result.materialId);
       
-      for (const materialId of updatedMaterialIds) {
+      // Also include updated semi-finished products
+      const updatedSemiFinishedIds = semiFinishedResults
+        .filter(result => result.updated)
+        .map(result => result.materialId);
+      
+      const allUpdatedIds = [...updatedMaterialIds, ...updatedSemiFinishedIds];
+      
+      for (const materialId of allUpdatedIds) {
         const result = await RecipeCostUpdater.updateRecipeCostsForMaterial(materialId);
         totalUpdatedRecipes += result.updatedRecipes;
         totalUpdatedIngredients += result.updatedIngredients;
@@ -195,15 +290,19 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: results,
+      data: {
+        rawMaterials: results,
+        semiFinishedProducts: semiFinishedResults
+      },
       summary: {
         totalMaterials: materials.length,
         updatedMaterials: updatedCount,
         priceUpdatedFromInvoices: priceUpdatedCount,
         resetToZero: resetCount,
+        semiFinishedProductsUpdated: semiFinishedUpdatedCount,
         updatedRecipes: totalUpdatedRecipes,
         updatedIngredients: totalUpdatedIngredients,
-        message: `${priceUpdatedCount} malzemenin fiyatı faturalardan güncellendi (indirimler dahil), ${resetCount} malzemenin fiyatı sıfırlandı (fatura bulunamadı), ${updatedCount}/${materials.length} malzeme maliyeti güncellendi, ${totalUpdatedRecipes} reçete maliyeti güncellendi`
+        message: `${priceUpdatedCount} ham madde fiyatı faturalardan güncellendi, ${semiFinishedUpdatedCount} yarı mamül fiyatı üretim kayıtlarından güncellendi, ${resetCount} malzeme fiyatı sıfırlandı, ${totalUpdatedRecipes} reçete maliyeti güncellendi`
       }
     });
 

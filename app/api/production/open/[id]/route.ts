@@ -234,7 +234,16 @@ export async function PUT(
           },
           data: {
             currentStock: { decrement: existingProduction.producedQuantity },
-            availableStock: { decrement: existingProduction.producedQuantity }
+            availableStock: { decrement: existingProduction.producedQuantity },
+            lastUpdated: new Date()
+          }
+        });
+        
+        // Update material total stock
+        await tx.material.update({
+          where: { id: existingProduction.producedMaterialId },
+          data: {
+            currentStock: { decrement: existingProduction.producedQuantity }
           }
         });
 
@@ -315,6 +324,12 @@ export async function PUT(
         const newStockAfter = newStockBefore - item.quantity;
 
         if (newConsumptionStock) {
+          // Calculate new average cost for consumption
+          const currentValue = newConsumptionStock.currentStock * newConsumptionStock.averageCost;
+          const consumedValue = item.quantity * item.unitCost;
+          const remainingStock = newConsumptionStock.currentStock - item.quantity;
+          const newAverageCost = remainingStock > 0 ? (currentValue - consumedValue) / remainingStock : newConsumptionStock.averageCost;
+          
           await tx.materialStock.update({
             where: {
               materialId_warehouseId: {
@@ -324,10 +339,32 @@ export async function PUT(
             },
             data: {
               currentStock: { decrement: item.quantity },
-              availableStock: { decrement: item.quantity }
+              availableStock: { decrement: item.quantity },
+              averageCost: newAverageCost > 0 ? newAverageCost : newConsumptionStock.averageCost,
+              lastUpdated: new Date()
+            }
+          });
+        } else {
+          // Create material stock if it doesn't exist (with negative stock)
+          await tx.materialStock.create({
+            data: {
+              materialId: item.materialId,
+              warehouseId: consumptionWarehouseId,
+              currentStock: -item.quantity,
+              availableStock: -item.quantity,
+              averageCost: item.unitCost,
+              lastUpdated: new Date()
             }
           });
         }
+        
+        // Update material total stock
+        await tx.material.update({
+          where: { id: item.materialId },
+          data: {
+            currentStock: { decrement: item.quantity }
+          }
+        });
 
         // Create new consumption stock movement
         await tx.stockMovement.create({
@@ -359,8 +396,17 @@ export async function PUT(
 
       const newProductionStockBefore = newProductionStock?.currentStock || 0;
       const newProductionStockAfter = newProductionStockBefore + producedQuantity;
+      const unitCostForProduced = totalCost / producedQuantity || 0;
+      
+      let materialAverageCost = unitCostForProduced;
 
       if (newProductionStock) {
+        // Calculate new average cost (weighted average for production)
+        const existingValue = newProductionStockBefore * newProductionStock.averageCost;
+        const newValue = producedQuantity * unitCostForProduced;
+        const newAverageCost = (existingValue + newValue) / newProductionStockAfter;
+        materialAverageCost = newAverageCost;
+        
         await tx.materialStock.update({
           where: {
             materialId_warehouseId: {
@@ -370,7 +416,9 @@ export async function PUT(
           },
           data: {
             currentStock: { increment: producedQuantity },
-            availableStock: { increment: producedQuantity }
+            availableStock: { increment: producedQuantity },
+            averageCost: newAverageCost,
+            lastUpdated: new Date()
           }
         });
       } else {
@@ -380,10 +428,22 @@ export async function PUT(
             warehouseId: productionWarehouseId,
             currentStock: producedQuantity,
             availableStock: producedQuantity,
-            averageCost: totalCost / producedQuantity || 0
+            averageCost: unitCostForProduced,
+            lastUpdated: new Date()
           }
         });
       }
+      
+      // Update material total stock and costs
+      await tx.material.update({
+        where: { id: producedMaterialId },
+        data: {
+          currentStock: { increment: producedQuantity },
+          // Update lastPurchasePrice and averageCost for semi-finished products
+          lastPurchasePrice: unitCostForProduced,
+          averageCost: materialAverageCost
+        }
+      });
 
       // Create new production stock movement
       await tx.stockMovement.create({
@@ -546,7 +606,8 @@ export async function DELETE(
             },
             data: {
               currentStock: { increment: item.quantity },
-              availableStock: { increment: item.quantity }
+              availableStock: { increment: item.quantity },
+              lastUpdated: new Date()
             }
           });
         } else {
@@ -556,10 +617,19 @@ export async function DELETE(
               warehouseId: existingProduction.consumptionWarehouseId,
               currentStock: item.quantity,
               availableStock: item.quantity,
-              averageCost: 0
+              averageCost: item.unitCost || 0,
+              lastUpdated: new Date()
             }
           });
         }
+        
+        // Update material total stock
+        await tx.material.update({
+          where: { id: item.materialId },
+          data: {
+            currentStock: { increment: item.quantity }
+          }
+        });
       }
 
       // 2. Remove produced material (subtract from production warehouse)
@@ -582,7 +652,16 @@ export async function DELETE(
           },
           data: {
             currentStock: { decrement: existingProduction.producedQuantity },
-            availableStock: { decrement: existingProduction.producedQuantity }
+            availableStock: { decrement: existingProduction.producedQuantity },
+            lastUpdated: new Date()
+          }
+        });
+        
+        // Update material total stock
+        await tx.material.update({
+          where: { id: existingProduction.producedMaterialId },
+          data: {
+            currentStock: { decrement: existingProduction.producedQuantity }
           }
         });
       }

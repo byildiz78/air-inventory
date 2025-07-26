@@ -289,13 +289,16 @@ export const stockService = {
       }
     });
 
-    // Update material total stock
+    // Update material total stock and costs (for semi-finished products)
     await db.material.update({
       where: { id: materialId },
       data: {
         currentStock: {
           increment: quantity
-        }
+        },
+        // Update lastPurchasePrice and averageCost for semi-finished products
+        lastPurchasePrice: unitCost,
+        averageCost: newAverageCost
       }
     });
 
