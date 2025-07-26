@@ -179,7 +179,8 @@ export const stockService = {
     for (const ingredient of recipe.ingredients) {
       const consumedQuantity = ingredient.quantity * quantity; // ingredient quantity * recipe portions
 
-      const targetWarehouseId = warehouseId || ingredient.material.defaultWarehouseId;
+      // Priority: 1) warehouseId parameter, 2) recipe's warehouse, 3) material's default warehouse
+      const targetWarehouseId = warehouseId || recipe.warehouseId || ingredient.material.defaultWarehouseId;
       
       if (!targetWarehouseId) {
         throw new Error(`Material ${ingredient.material.name} has no default warehouse and no warehouse specified`);
@@ -395,7 +396,8 @@ export const stockService = {
       
       for (const ingredient of recipe.ingredients) {
         const consumedQuantity = ingredient.quantity * quantity;
-        const targetWarehouseId = warehouseId || ingredient.material.defaultWarehouseId;
+        // Priority: 1) warehouseId parameter, 2) recipe's warehouse, 3) material's default warehouse
+        const targetWarehouseId = warehouseId || recipe.warehouseId || ingredient.material.defaultWarehouseId;
         
         if (!targetWarehouseId) {
           throw new Error(`Material ${ingredient.material.name} has no default warehouse and no warehouse specified`);

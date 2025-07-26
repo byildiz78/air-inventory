@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Eye, Edit, Copy, Clock, Users, TrendingUp } from 'lucide-react';
+import { Eye, Edit, Copy, Clock, Users, TrendingUp, Warehouse } from 'lucide-react';
 import { RecipeWithRelations } from '../types';
 
 interface RecipeListViewProps {
@@ -50,6 +50,13 @@ export function RecipeListView({
                     {recipe.category && (
                       <Badge variant="outline" className="shrink-0">
                         {recipe.category}
+                      </Badge>
+                    )}
+                    
+                    {recipe.warehouse && (
+                      <Badge variant="secondary" className="shrink-0 bg-blue-100 text-blue-800 border-blue-200">
+                        <Warehouse className="w-3 h-3 mr-1" />
+                        {recipe.warehouse.name}
                       </Badge>
                     )}
                     

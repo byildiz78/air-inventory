@@ -12,7 +12,8 @@
       "Bash(node:*)",
       "Bash(npx prisma migrate dev:*)",
       "Bash(find:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(npx prisma:*)"
     ],
     "deny": []
   }

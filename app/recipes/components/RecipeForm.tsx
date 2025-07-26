@@ -5,17 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Calculator } from 'lucide-react';
-import { Material, Unit, Tax } from '@prisma/client';
+import { Material, Unit, Tax, Warehouse } from '@prisma/client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RecipeIngredientRow } from './RecipeIngredientRow';
 
 interface RecipeFormProps {
   isEdit?: boolean;
   materials: (Material & { defaultTax?: Tax | null })[];
   units: Unit[];
+  warehouses: Warehouse[];
   recipeForm: {
     name: string;
     description: string;
     category: string;
+    warehouseId?: string;
     servingSize: number;
     preparationTime: number;
     ingredients: Array<{
@@ -36,6 +39,7 @@ export function RecipeForm({
   isEdit = false,
   materials,
   units,
+  warehouses,
   recipeForm,
   onFormChange,
   onSave,
@@ -100,6 +104,31 @@ export function RecipeForm({
             value={recipeForm.category}
             onChange={(e) => onFormChange('category', e.target.value)}
           />
+        </div>
+      </div>
+
+      {/* Warehouse Selection */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor={`${isEdit ? 'edit-' : ''}recipe-warehouse`}>Depo Seçimi *</Label>
+          <Select 
+            value={recipeForm.warehouseId || undefined} 
+            onValueChange={(value) => onFormChange('warehouseId', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Depo seçiniz" />
+            </SelectTrigger>
+            <SelectContent>
+              {warehouses.map((warehouse) => (
+                <SelectItem key={warehouse.id} value={warehouse.id}>
+                  {warehouse.name} ({warehouse.type})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          {/* Empty column for grid balance */}
         </div>
       </div>
 

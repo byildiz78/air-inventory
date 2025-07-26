@@ -94,6 +94,7 @@ export async function PUT(
       name: body.name,
       description: body.description,
       category: body.category,
+      warehouseId: body.warehouseId,
       servingSize: body.servingSize,
       preparationTime: body.preparationTime,
       suggestedPrice: body.suggestedPrice,

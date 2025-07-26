@@ -333,11 +333,17 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         // Calculate total recipe portions needed
         const totalPortions = body.quantity * portionRatio;
         
+        // Get recipe to access its warehouse
+        const recipe = await prisma.recipe.findUnique({
+          where: { id: recipeId },
+          select: { warehouseId: true }
+        });
+
         // Consume recipe ingredients using stock service
         stockConsumption = await stockService.consumeRecipeIngredients({
           recipeId,
           quantity: totalPortions,
-          warehouseId: undefined, // Let stock service use material's default warehouse
+          warehouseId: recipe?.warehouseId, // Use recipe's warehouse
           userId: body.userId,
           reason: `Satış: ${salesItem.name}`,
           referenceId: sale.id

@@ -223,6 +223,7 @@ model Warehouse {
   productions   Production[]
   openProductionsProduction OpenProduction[] @relation("ProductionWarehouse")
   openProductionsConsumption OpenProduction[] @relation("ConsumptionWarehouse")
+  recipes       Recipe[]
 
   @@map("warehouses")
 }
@@ -434,6 +435,9 @@ model Recipe {
   description String?
   category    String? // "Ana Yemek", "Çorba", "Salata", etc.
   
+  // Warehouse Information
+  warehouseId String? // Reçetenin bağlı olduğu depo
+  
   // Serving Information
   servingSize    Int     @default(1) // Kaç porsiyon
   preparationTime Int?   // Dakika cinsinden
@@ -450,6 +454,7 @@ model Recipe {
   updatedAt  DateTime @updatedAt
 
   // Relations
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
   ingredients RecipeIngredient[]
   sales       Sale[]
   mappings    RecipeMapping[]

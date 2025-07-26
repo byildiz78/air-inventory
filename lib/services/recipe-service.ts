@@ -17,6 +17,13 @@ export const recipeService = {
     if (USE_PRISMA) {
       return await prisma.recipe.findMany({
         include: {
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
           ingredients: {
             include: {
               material: {
@@ -56,6 +63,13 @@ export const recipeService = {
       return await prisma.recipe.findUnique({
         where: { id },
         include: {
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
           ingredients: {
             include: {
               material: {
@@ -122,6 +136,7 @@ export const recipeService = {
     name: string;
     description?: string;
     category?: string;
+    warehouseId?: string;
     servingSize?: number;
     preparationTime?: number;
     suggestedPrice?: number;
@@ -147,6 +162,7 @@ export const recipeService = {
             name: data.name.trim(),
             description: data.description?.trim(),
             category: data.category?.trim(),
+            warehouseId: data.warehouseId,
             servingSize: data.servingSize || 1,
             preparationTime: data.preparationTime,
             suggestedPrice: data.suggestedPrice,
@@ -235,6 +251,7 @@ export const recipeService = {
     name?: string;
     description?: string;
     category?: string;
+    warehouseId?: string;
     servingSize?: number;
     preparationTime?: number;
     suggestedPrice?: number;
@@ -267,6 +284,7 @@ export const recipeService = {
         if (data.name !== undefined) recipeUpdateData.name = data.name.trim();
         if (data.description !== undefined) recipeUpdateData.description = data.description?.trim();
         if (data.category !== undefined) recipeUpdateData.category = data.category?.trim();
+        if (data.warehouseId !== undefined) recipeUpdateData.warehouseId = data.warehouseId;
         if (data.servingSize !== undefined) recipeUpdateData.servingSize = data.servingSize;
         if (data.preparationTime !== undefined) recipeUpdateData.preparationTime = data.preparationTime;
         if (data.suggestedPrice !== undefined) recipeUpdateData.suggestedPrice = data.suggestedPrice;

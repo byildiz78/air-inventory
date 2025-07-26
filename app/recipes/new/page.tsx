@@ -22,13 +22,15 @@ import {
 } from 'lucide-react';
 import { 
   materialService, 
-  unitService
+  unitService,
+  warehouseService
 } from '@/lib/data-service';
 
 export default function NewRecipePage() {
   const router = useRouter();
   const [materials, setMaterials] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openMaterialSelectors, setOpenMaterialSelectors] = useState<{ [key: number]: boolean }>({});
 
@@ -37,6 +39,7 @@ export default function NewRecipePage() {
     name: '',
     description: '',
     category: '',
+    warehouseId: '',
     servingSize: 1,
     preparationTime: 30,
     ingredients: [] as Array<{
@@ -54,13 +57,15 @@ export default function NewRecipePage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [materialsData, unitsData] = await Promise.all([
+      const [materialsData, unitsData, warehousesData] = await Promise.all([
         materialService.getAll(),
         unitService.getAll(),
+        warehouseService.getAll(),
       ]);
 
       setMaterials(materialsData);
       setUnits(unitsData);
+      setWarehouses(warehousesData);
     } catch (error) {
       console.error('Data loading error:', error);
     } finally {
@@ -112,12 +117,54 @@ export default function NewRecipePage() {
 
   const handleSaveRecipe = async () => {
     try {
-      // Here you would save the recipe using your service
-      console.log('Saving recipe:', recipeForm);
-      // After successful save, redirect to recipes list
+      // Validate form
+      if (!recipeForm.name.trim()) {
+        alert('Reçete adı gereklidir!');
+        return;
+      }
+      
+      if (!recipeForm.warehouseId) {
+        alert('Depo seçimi gereklidir!');
+        return;
+      }
+      
+      if (recipeForm.ingredients.length === 0) {
+        alert('En az bir malzeme eklemelisiniz!');
+        return;
+      }
+      
+      // Prepare recipe data
+      const recipeData = {
+        name: recipeForm.name,
+        description: recipeForm.description,
+        category: recipeForm.category,
+        warehouseId: recipeForm.warehouseId,
+        servingSize: recipeForm.servingSize,
+        preparationTime: recipeForm.preparationTime,
+        ingredients: recipeForm.ingredients.filter(ing => 
+          ing.materialId && ing.unitId && ing.quantity > 0
+        )
+      };
+      
+      // Save recipe via API
+      const response = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(recipeData),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Reçete kaydedilemedi');
+      }
+      
+      // Success - redirect to recipes list
       router.push('/recipes');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving recipe:', error);
+      alert(error.message || 'Reçete kaydedilirken hata oluştu');
     }
   };
 
@@ -180,6 +227,31 @@ export default function NewRecipePage() {
                   value={recipeForm.category}
                   onChange={(e) => setRecipeForm(prev => ({ ...prev, category: e.target.value }))}
                 />
+              </div>
+            </div>
+
+            {/* Warehouse Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="recipe-warehouse">Depo Seçimi *</Label>
+                <Select 
+                  value={recipeForm.warehouseId || undefined} 
+                  onValueChange={(value) => setRecipeForm(prev => ({ ...prev, warehouseId: value || '' }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Depo seçiniz" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehouses.map((warehouse) => (
+                      <SelectItem key={warehouse.id} value={warehouse.id}>
+                        {warehouse.name} ({warehouse.type})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                {/* Empty column for grid balance */}
               </div>
             </div>
 
@@ -378,7 +450,7 @@ export default function NewRecipePage() {
               <Button 
                 className="bg-orange-500 hover:bg-orange-600"
                 onClick={handleSaveRecipe}
-                disabled={!recipeForm.name.trim()}
+                disabled={!recipeForm.name.trim() || !recipeForm.warehouseId}
               >
                 Reçete Kaydet
               </Button>

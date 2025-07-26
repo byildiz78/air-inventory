@@ -32,6 +32,13 @@ export async function POST(
       include: {
         recipe: {
           include: {
+            warehouse: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+              },
+            },
             ingredients: {
               include: {
                 material: true,
@@ -61,85 +68,98 @@ export async function POST(
       }, { status: 404 });
     }
     
-    // Stok hareketlerini oluştur
-    const stockMovements = [];
-    
-    for (const ingredient of recipe.ingredients) {
-      if (!ingredient.material) {
-        continue;
-      }
+    // Stok hareketlerini transaction içinde güvenli şekilde gerçekleştir
+    const stockMovements = await prisma.$transaction(async (tx) => {
+      const movements = [];
       
-      // Stoktan düşülecek miktarı hesapla
-      const reduceQuantity = ingredient.quantity * mapping.portionRatio * sale.quantity;
-      
-      // Malzemenin varsayılan depo stok bilgisini getir
-      const warehouseId = ingredient.material.defaultWarehouseId;
-      
-      if (!warehouseId) {
-        continue;
-      }
-      
-      // Mevcut stok bilgisini getir
-      const warehouseStock = await prisma.materialStock.findUnique({
-        where: {
-          materialId_warehouseId: {
+      for (const ingredient of recipe.ingredients) {
+        if (!ingredient.material) {
+          continue;
+        }
+        
+        // Stoktan düşülecek miktarı hesapla
+        const reduceQuantity = ingredient.quantity * mapping.portionRatio * sale.quantity;
+        
+        // Reçetenin deposunu kullan, eğer yoksa malzemenin varsayılan deposunu kullan
+        const warehouseId = recipe.warehouseId || ingredient.material.defaultWarehouseId;
+        
+        if (!warehouseId) {
+          console.warn(`Warehouse not found for ingredient ${ingredient.material.name} in recipe ${recipe.name}`);
+          continue;
+        }
+        
+        // Mevcut stok bilgisini getir
+        const warehouseStock = await tx.materialStock.findUnique({
+          where: {
+            materialId_warehouseId: {
+              materialId: ingredient.materialId,
+              warehouseId: warehouseId,
+            }
+          }
+        });
+        
+        if (!warehouseStock) {
+          console.warn(`Stock not found for material ${ingredient.material.name} in warehouse ${warehouseId}`);
+          continue;
+        }
+        
+        // Yeni stok miktarını hesapla
+        const newStockQuantity = warehouseStock.currentStock - reduceQuantity;
+        
+        // Depo stoğunu güncelle
+        await tx.materialStock.update({
+          where: {
+            materialId_warehouseId: {
+              materialId: ingredient.materialId,
+              warehouseId: warehouseId,
+            }
+          },
+          data: {
+            currentStock: newStockQuantity,
+            availableStock: { decrement: reduceQuantity }, // Available stock'u da azalt
+            lastUpdated: new Date(),
+          }
+        });
+        
+        // Malzeme toplam stoğunu güncelle
+        await tx.material.update({
+          where: {
+            id: ingredient.materialId
+          },
+          data: {
+            currentStock: {
+              decrement: reduceQuantity
+            }
+          }
+        });
+        
+        // Maliyet bilgilerini hesapla
+        const unitCost = warehouseStock.averageCost || 0;
+        const totalCost = unitCost * reduceQuantity;
+        
+        // Stok hareketi oluştur
+        const stockMovement = await tx.stockMovement.create({
+          data: {
             materialId: ingredient.materialId,
             warehouseId: warehouseId,
+            quantity: -reduceQuantity,
+            unitId: ingredient.unitId,
+            type: 'OUT',
+            reason: `Satış: ${sale.salesItem?.name || 'Bilinmeyen Ürün'} (Reçete: ${recipe.name}, Depo: ${recipe.warehouse?.name || 'Varsayılan'})`,
+            userId: sale.userId,
+            date: new Date(sale.date),
+            stockBefore: warehouseStock.currentStock,
+            stockAfter: newStockQuantity,
+            unitCost: unitCost,
+            totalCost: -totalCost, // Negative for OUT movement
           }
-        }
-      });
-      
-      if (!warehouseStock) {
-        continue;
+        });
+        
+        movements.push(stockMovement);
       }
       
-      // Yeni stok miktarını hesapla
-      const newStockQuantity = warehouseStock.currentStock - reduceQuantity;
-      
-      // Depo stoğunu güncelle
-      await prisma.materialStock.update({
-        where: {
-          materialId_warehouseId: {
-            materialId: ingredient.materialId,
-            warehouseId: warehouseId,
-          }
-        },
-        data: {
-          currentStock: newStockQuantity,
-          lastUpdated: new Date(),
-        }
-      });
-      
-      // Malzeme toplam stoğunu güncelle
-      await prisma.material.update({
-        where: {
-          id: ingredient.materialId
-        },
-        data: {
-          currentStock: {
-            decrement: reduceQuantity
-          }
-        }
-      });
-      
-      // Stok hareketi oluştur
-      const stockMovement = await prisma.stockMovement.create({
-        data: {
-          materialId: ingredient.materialId,
-          warehouseId: warehouseId,
-          quantity: -reduceQuantity,
-          unitId: ingredient.unitId,
-          type: 'OUT',
-          reason: `Satış: ${sale.salesItem?.name || 'Bilinmeyen Ürün'}`,
-          userId: sale.userId,
-          date: new Date(sale.date),
-          stockBefore: warehouseStock.currentStock,
-          stockAfter: newStockQuantity,
-        }
-      });
-      
-      stockMovements.push(stockMovement);
-    }
+      return movements;
+    });
     
     // Satışı güncelle - reçete ID'sini ekle
     await prisma.sale.update({

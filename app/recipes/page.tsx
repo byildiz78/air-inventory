@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
-import { Material, Unit, Tax } from '@prisma/client';
+import { Material, Unit, Tax, Warehouse } from '@prisma/client';
 import { apiClient } from '@/lib/api-client';
 import { RecipeWithRelations } from './types';
 import { RecipeForm } from './components/RecipeForm';
@@ -21,6 +21,7 @@ export default function RecipesPage() {
   const [recipes, setRecipes] = useState<RecipeWithRelations[]>([]);
   const [materials, setMaterials] = useState<(Material & { defaultTax?: Tax | null })[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   
   // View mode hook
@@ -46,6 +47,7 @@ export default function RecipesPage() {
     name: '',
     description: '',
     category: '',
+    warehouseId: '',
     servingSize: 1,
     preparationTime: 30,
     ingredients: [] as Array<{
@@ -63,15 +65,17 @@ export default function RecipesPage() {
   const loadRecipeData = async () => {
     try {
       setLoading(true);
-      const [recipesData, materialsData, unitsData] = await Promise.all([
+      const [recipesData, materialsData, unitsData, warehousesData] = await Promise.all([
         apiClient.get('/api/recipes'),
         apiClient.get('/api/materials'),
         apiClient.get('/api/units'),
+        apiClient.get('/api/warehouses'),
       ]);
 
       setRecipes(recipesData.data || []);
       setMaterials(materialsData.data || []);
       setUnits(unitsData.data || []);
+      setWarehouses(warehousesData.data || []);
     } catch (error) {
       console.error('Recipe data loading error:', error);
     } finally {
@@ -190,6 +194,7 @@ export default function RecipesPage() {
       name: recipe.name,
       description: recipe.description || '',
       category: recipe.category || '',
+      warehouseId: recipe.warehouseId || '',
       servingSize: recipe.servingSize || 0,
       preparationTime: recipe.preparationTime || 0,
       ingredients: recipe.ingredients?.map(ing => ({
@@ -207,6 +212,7 @@ export default function RecipesPage() {
       name: '',
       description: '',
       category: '',
+      warehouseId: '',
       servingSize: 1,
       preparationTime: 30,
       ingredients: []
@@ -222,6 +228,22 @@ export default function RecipesPage() {
 
   const handleSaveRecipe = async () => {
     try {
+      // Validate form
+      if (!recipeForm.name.trim()) {
+        alert('Reçete adı gereklidir!');
+        return;
+      }
+      
+      if (!recipeForm.warehouseId) {
+        alert('Depo seçimi gereklidir!');
+        return;
+      }
+      
+      if (recipeForm.ingredients.length === 0) {
+        alert('En az bir malzeme eklemelisiniz!');
+        return;
+      }
+
       const recipeData = {
         ...recipeForm,
         suggestedPrice: (calculateFormCost() / recipeForm.servingSize) * 1.4,
@@ -257,6 +279,7 @@ export default function RecipesPage() {
       name: `${recipe.name} - Kopya`,
       description: recipe.description || '',
       category: recipe.category || '',
+      warehouseId: recipe.warehouseId || '',
       servingSize: recipe.servingSize || 0,
       preparationTime: recipe.preparationTime || 0,
       ingredients: recipe.ingredients?.map(ing => ({
@@ -314,6 +337,7 @@ export default function RecipesPage() {
               <RecipeForm
                 materials={materials}
                 units={units}
+                warehouses={warehouses}
                 recipeForm={recipeForm}
                 onFormChange={handleFormChange}
                 onSave={handleSaveRecipe}
@@ -340,6 +364,7 @@ export default function RecipesPage() {
                 isEdit={true}
                 materials={materials}
                 units={units}
+                warehouses={warehouses}
                 recipeForm={recipeForm}
                 onFormChange={handleFormChange}
                 onSave={handleSaveRecipe}
