@@ -343,7 +343,7 @@ export const POST = AuthMiddleware.withAuth(async (request: NextRequest) => {
         stockConsumption = await stockService.consumeRecipeIngredients({
           recipeId,
           quantity: totalPortions,
-          warehouseId: recipe?.warehouseId, // Use recipe's warehouse
+          warehouseId: recipe?.warehouseId || undefined, // Use recipe's warehouse
           userId: body.userId,
           reason: `Satış: ${salesItem.name}`,
           referenceId: sale.id

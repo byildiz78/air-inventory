@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
-import { Material, Unit } from '@prisma/client';
+import { Material, Unit, Warehouse } from '@prisma/client';
 import { RecipeWithRelations } from './types';
 import { RecipeForm } from './components/RecipeForm';
 import { RecipeCard } from './components/RecipeCard';
@@ -16,6 +16,7 @@ export default function RecipesPage() {
   const [recipes, setRecipes] = useState<RecipeWithRelations[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
@@ -34,6 +35,7 @@ export default function RecipesPage() {
     name: '',
     description: '',
     category: '',
+    warehouseId: '',
     servingSize: 1,
     preparationTime: 30,
     ingredients: [] as Array<{
@@ -51,21 +53,24 @@ export default function RecipesPage() {
   const loadRecipeData = async () => {
     try {
       setLoading(true);
-      const [recipesRes, materialsRes, unitsRes] = await Promise.all([
+      const [recipesRes, materialsRes, unitsRes, warehousesRes] = await Promise.all([
         fetch('/api/recipes'),
         fetch('/api/materials'),
         fetch('/api/units'),
+        fetch('/api/warehouses'),
       ]);
 
-      const [recipesData, materialsData, unitsData] = await Promise.all([
+      const [recipesData, materialsData, unitsData, warehousesData] = await Promise.all([
         recipesRes.json(),
         materialsRes.json(),
         unitsRes.json(),
+        warehousesRes.json(),
       ]);
 
       setRecipes(recipesData.data || []);
       setMaterials(materialsData.data || []);
       setUnits(unitsData.data || []);
+      setWarehouses(warehousesData.data || []);
     } catch (error) {
       console.error('Recipe data loading error:', error);
     } finally {
@@ -134,6 +139,7 @@ export default function RecipesPage() {
       name: recipe.name,
       description: recipe.description || '',
       category: recipe.category || '',
+      warehouseId: recipe.warehouseId || '',
       servingSize: recipe.servingSize || 0,
       preparationTime: recipe.preparationTime || 30,
       ingredients: recipe.ingredients?.map(ing => ({
@@ -151,6 +157,7 @@ export default function RecipesPage() {
       name: '',
       description: '',
       category: '',
+      warehouseId: '',
       servingSize: 1,
       preparationTime: 30,
       ingredients: []
@@ -210,6 +217,7 @@ export default function RecipesPage() {
       name: `${recipe.name} - Kopya`,
       description: recipe.description || '',
       category: recipe.category || '',
+      warehouseId: recipe.warehouseId || '',
       servingSize: recipe.servingSize || 0,
       preparationTime: recipe.preparationTime || 30,
       ingredients: recipe.ingredients?.map(ing => ({
@@ -261,6 +269,7 @@ export default function RecipesPage() {
               <RecipeForm
                 materials={materials}
                 units={units}
+                warehouses={warehouses}
                 recipeForm={recipeForm}
                 onFormChange={handleFormChange}
                 onSave={handleSaveRecipe}
@@ -281,6 +290,7 @@ export default function RecipesPage() {
                 isEdit={true}
                 materials={materials}
                 units={units}
+                warehouses={warehouses}
                 recipeForm={recipeForm}
                 onFormChange={handleFormChange}
                 onSave={handleSaveRecipe}

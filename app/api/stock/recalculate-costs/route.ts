@@ -155,7 +155,6 @@ export async function POST(request: NextRequest) {
     const updatedCount = results.filter(r => r.updated).length;
     const priceUpdatedCount = results.filter(r => r.lastPurchasePriceUpdated && !r.resetToZero).length;
     const resetCount = results.filter(r => r.resetToZero).length;
-    const semiFinishedUpdatedCount = semiFinishedResults.filter(r => r.updated).length;
 
     // Log the activity
     const userId = request.headers.get('x-user-id') || '1';
@@ -168,7 +167,6 @@ export async function POST(request: NextRequest) {
         updatedMaterials: updatedCount,
         priceUpdatedFromInvoices: priceUpdatedCount,
         resetToZero: resetCount,
-        semiFinishedProductsUpdated: semiFinishedUpdatedCount,
         operation: 'recalculate_costs_from_invoices_and_productions'
       },
       request
@@ -287,6 +285,8 @@ export async function POST(request: NextRequest) {
       console.error('Error updating recipe costs after cost recalculation:', error);
       // Don't fail the cost recalculation if recipe cost update fails
     }
+
+    const semiFinishedUpdatedCount = semiFinishedResults.filter(r => r.updated).length;
 
     return NextResponse.json({
       success: true,
