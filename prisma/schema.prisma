@@ -499,6 +499,12 @@ model SalesItemCategory {
   color       String @default("#3B82F6") // Hex color for UI
   sortOrder   Int    @default(0) // Display order
   isActive    Boolean @default(true)
+  
+  // External system integration
+  externalId     String? // POS CategoryKey
+  externalSystem String? // 'POS', 'MANUAL' etc.
+  lastSyncAt     DateTime?
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -506,6 +512,7 @@ model SalesItemCategory {
   groups     SalesItemGroup[]
   salesItems SalesItem[]
 
+  @@unique([externalId, externalSystem])
   @@map("sales_item_categories")
 }
 
@@ -517,6 +524,12 @@ model SalesItemGroup {
   color       String @default("#6B7280") // Hex color for UI
   sortOrder   Int    @default(0) // Display order within category
   isActive    Boolean @default(true)
+  
+  // External system integration
+  externalId     String? // POS GroupKey
+  externalSystem String? // 'POS', 'MANUAL' etc.
+  lastSyncAt     DateTime?
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -525,6 +538,7 @@ model SalesItemGroup {
   salesItems SalesItem[]
 
   @@unique([categoryId, name])
+  @@unique([externalId, externalSystem])
   @@map("sales_item_groups")
 }
 
@@ -548,6 +562,12 @@ model SalesItem {
   isActive    Boolean @default(true)
   isAvailable Boolean @default(true) // Günlük müsaitlik
   
+  // External system integration
+  externalId     String? // POS ProductKey
+  externalCode   String? // POS Stok Kodu
+  externalSystem String? // 'POS', 'MANUAL' etc.
+  lastSyncAt     DateTime?
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -559,6 +579,7 @@ model SalesItem {
   sales    Sale[]
 
   @@unique([categoryId, name])
+  @@unique([externalId, externalSystem])
   @@map("sales_items")
 }
 
